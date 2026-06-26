@@ -11,6 +11,7 @@ if "%1"=="" (
 
 git add -A
 git commit -m "%msg%"
+git pull origin main --rebase
 git push origin main
 
 pause
