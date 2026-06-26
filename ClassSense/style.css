@@ -1,0 +1,243 @@
+/* =========================================
+   1. CSS VARIABLES & ROOT CONFIG
+   ========================================= */
+:root {
+    /* Colors */
+    --color-bg: #0f1115;
+    --color-surface: #181b21;
+    --color-border: #2a2e35;
+    --color-primary: #ea2628;
+    --color-primary-light: #fca5a5;
+    --color-text-main: #e2e8f0;
+    --color-text-muted: #9ca3af;
+    
+    /* Glassmorphism Defaults */
+    --glass-bg: rgba(24, 27, 33, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.05);
+    --glass-blur: 12px;
+}
+
+/* =========================================
+   2. BASE & RESET
+   ========================================= */
+body {
+    background-color: var(--color-bg);
+    color: var(--color-text-main);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+/* =========================================
+   3. ANIMATIONS (Keyframes & Utilities)
+   ========================================= */
+
+/* Keyframes */
+@keyframes blob {
+    0% { transform: translate(0px, 0px) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+    100% { transform: translate(0px, 0px) scale(1); }
+}
+
+@keyframes scanLine {
+    0% { top: 0%; }
+    50% { top: 100%; }
+    51% { top: 0%; }
+    100% { top: 0%; }
+}
+
+@keyframes popIn {
+    0% { opacity: 0; transform: scale(0.8) translateY(10px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes timerShrink {
+    0% { width: 100%; }
+    100% { width: 0%; }
+}
+
+@keyframes pulseSlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .5; }
+}
+
+@keyframes slideInRight {
+    0% { transform: translateX(100%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+}
+
+/* Animation Utilities */
+.animate-blob { animation: blob 7s infinite; }
+.animate-blob-slow { animation: blob 12s infinite; }
+.animate-scan-line { animation: scanLine 2s linear infinite; }
+.animate-pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+.animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+.animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+.animate-timer-shrink { animation: timerShrink 5s linear forwards; }
+.animate-pulse-slow { animation: pulseSlow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.animate-slide-in-right { animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+/* Staggered Delays (Classes Page) */
+.stagger-1 { animation-delay: 100ms; }
+.stagger-2 { animation-delay: 200ms; }
+.stagger-3 { animation-delay: 300ms; }
+.stagger-4 { animation-delay: 400ms; }
+.stagger-5 { animation-delay: 500ms; }
+.stagger-6 { animation-delay: 600ms; }
+
+/* =========================================
+   4. COMPONENT CLASSES
+   ========================================= */
+
+/* Glassmorphism Panels */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+}
+
+.glass-sidebar {
+    background: rgba(15, 17, 21, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-right: 1px solid var(--glass-border);
+}
+
+/* Navigation Items */
+.nav-item {
+    position: relative;
+    transition: all 0.3s ease;
+}
+.nav-item::before {
+    content: '';
+    position: absolute;
+    left: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 0%;
+    background: var(--color-primary);
+    border-radius: 2px;
+    transition: height 0.2s ease;
+}
+.nav-item:hover::before, .nav-item.active::before { height: 70%; }
+.nav-item:hover { background: rgba(255, 255, 255, 0.03); color: white; }
+.nav-item.active { background: rgba(220, 38, 38, 0.1); color: var(--color-primary-light); }
+
+/* Mobile Overlay */
+.mobile-overlay {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+.mobile-overlay.open { opacity: 1; visibility: visible; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #4a4e55; }
+
+/* Custom Scrollbar for Modals */
+.custom-scroll::-webkit-scrollbar { width: 6px; }
+.custom-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+.custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+.custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Toast Animation */
+.toast {
+    transform: translateX(120%);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.toast.show { transform: translateX(0); }
+
+/* =========================================
+   5. PAGE SPECIFIC STYLES
+   ========================================= */
+
+/* --- ATTENDANCE PAGE --- */
+.qr-placeholder {
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="black" stroke-width="2"><rect x="10" y="10" width="30" height="30"/><rect x="60" y="10" width="30" height="30"/><rect x="10" y="60" width="30" height="30"/><rect x="50" y="50" width="10" height="10"/><rect x="70" y="70" width="20" height="20"/><line x1="45" y1="45" x2="55" y2="55" stroke="black" stroke-width="8"/><line x1="55" y1="45" x2="45" y2="55" stroke="black" stroke-width="8"/></svg>');
+    background-size: cover;
+}
+
+/* --- CLASSES PAGE --- */
+.class-card {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+.class-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.4);
+}
+.card-image-overlay {
+    background: linear-gradient(to top, rgba(15, 17, 21, 1) 0%, rgba(15, 17, 21, 0) 100%);
+}
+.filter-chip {
+    transition: all 0.2s;
+}
+.filter-chip.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* --- GRADES PAGE --- */
+.grade-input {
+    background: transparent;
+    border: 1px solid transparent;
+    text-align: center;
+    color: #e2e8f0;
+    transition: all 0.2s;
+    width: 100%;
+}
+.grade-input:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+.grade-input:focus { background: #181b21; border-color: #ea2628; outline: none; }
+.grade-input:disabled { color: #9ca3af; cursor: default; }
+.sticky-col { position: sticky; left: 0; z-index: 10; }
+.sticky-col-header { position: sticky; left: 0; z-index: 20; }
+
+/* --- SCHEDULE PAGE --- */
+.grid-lines {
+    background-image: linear-gradient(to right, #2a2e35 1px, transparent 1px),
+                      linear-gradient(to bottom, #2a2e35 1px, transparent 1px);
+    background-size: 100% 60px; 
+    background-position: -1px -1px;
+}
+.current-time-line {
+    position: absolute; left: 0; right: 0; height: 2px; background: #ea2628; z-index: 20; pointer-events: none;
+}
+.current-time-line::before {
+    content: ''; position: absolute; left: -6px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ea2628;
+}
+
+/* --- STUDENTS PAGE --- */
+.table-row-hover:hover { background: rgba(255, 255, 255, 0.03); }
+
+/* --- DASHBOARD PAGE --- */
+.timeline-line {
+    position: absolute; left: 23px; top: 40px; bottom: -20px; width: 2px; background: #2a2e35; z-index: 0;
+}
+.hover-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hover-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+}
