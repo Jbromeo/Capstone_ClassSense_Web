@@ -20,7 +20,7 @@
 
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-1">
-        <p class="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 italic">Main Menu</p>
+        <p class="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Main Menu</p>
         
         <a href="student_dashboard.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'student_dashboard.php' ? 'active shadow-lg shadow-primary-500/10' : 'text-gray-400'; ?> rounded-lg">
             <i data-feather="grid" class="w-5 h-5 mr-3 text-gray-500 group-hover:text-primary-500 transition-colors"></i>
@@ -36,30 +36,29 @@
             <i data-feather="check-square" class="w-5 h-5 mr-3 text-gray-500 group-hover:text-primary-500 transition-colors"></i>
             Records
         </a>
-    </nav>
 
-    <!-- User Profile Footer Trigger -->
-    <div class="p-4 border-t border-dark-border relative bg-dark-surface/50">
-        <button id="profileTrigger" class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all group border border-transparent hover:border-white/5">
-            <div class="relative">
-                <div id="sideProfileImg" class="w-9 h-9 rounded-full bg-gradient-to-br from-primary-600 to-primary-900 flex items-center justify-center text-white font-black text-xs border border-white/10 uppercase italic shadow-lg ring-2 ring-dark-bg group-hover:ring-primary-500/30 transition-all">
-                    ST
+        <div class="pt-4 mt-4 border-t border-dark-border">
+            <button id="profileTrigger" class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all group border border-transparent hover:border-white/5">
+                <div class="relative">
+                <div id="sideProfileImg" class="w-9 h-9 rounded-full bg-gradient-to-br from-primary-600 to-primary-900 flex items-center justify-center text-white font-black text-xs border border-white/10 uppercase shadow-lg ring-2 ring-dark-bg group-hover:ring-primary-500/30 transition-all" style="font-size:0.65rem">
+                    
+                    </div>
+                    <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-dark-bg rounded-full"></div>
                 </div>
-                <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-dark-bg rounded-full"></div>
-            </div>
-            <div class="flex-1 min-w-0 text-left">
-                <p id="sideStudentName" class="text-[11px] font-black text-white truncate italic uppercase tracking-tighter leading-none">Loading...</p>
-                <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none mt-1.5 italic">Verified Portal</p>
-            </div>
-            <i data-feather="chevron-up" id="chevronIcon" class="w-4 h-4 text-gray-600 group-hover:text-white transition-all transform animate-bounce-slow"></i>
-        </button>
-    </div>
+                <div class="flex-1 min-w-0 text-left">
+                    <p id="sideStudentName" class="text-[11px] font-black text-white truncate uppercase tracking-tighter leading-none overflow-hidden" style="white-space:nowrap">Loading...</p>
+                    <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none mt-1.5">Verified Portal</p>
+                </div>
+                <i data-feather="chevron-up" id="chevronIcon" class="w-4 h-4 text-gray-600 group-hover:text-white transition-all transform animate-bounce-slow"></i>
+            </button>
+        </div>
+    </nav>
 </aside>
 
 <!-- FLOATERS -->
 <div id="profilePopover" class="fixed w-56 bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden animate-fade-in-up origin-bottom z-50">
     <div class="px-4 py-3 border-b border-white/5 mb-1">
-        <p id="popoverName" class="text-[11px] font-black text-white truncate italic uppercase tracking-tighter">Student Account</p>
+        <p id="popoverName" class="text-[11px] font-black text-white truncate uppercase tracking-tighter">Student Account</p>
         <p class="text-[9px] text-gray-500 truncate lowercase font-bold tracking-widest mt-1 italic">Active Identity</p>
     </div>
     <div class="space-y-1">
@@ -77,40 +76,49 @@
 <!-- LOGIC -->
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        feather.replace();
         const trigger = document.getElementById('profileTrigger');
         const popover = document.getElementById('profilePopover');
         const chevron = document.getElementById('chevronIcon');
         const logoutBtn = document.getElementById('logoutBtn');
 
-        trigger.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isHidden = popover.classList.contains('hidden');
-            if(isHidden) {
-                const rect = trigger.getBoundingClientRect();
-                popover.style.left = rect.left + 'px';
-                popover.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
-                popover.style.width = rect.width + 'px';
-                popover.classList.remove('hidden');
-                chevron.classList.add('rotate-180');
-            } else {
-                popover.classList.add('hidden');
-                chevron.classList.remove('rotate-180');
-            }
-        });
+        if (trigger && popover) {
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = popover.classList.contains('hidden');
+                if(isHidden) {
+                    const rect = trigger.getBoundingClientRect();
+                    popover.style.left = rect.left + 'px';
+                    popover.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+                    popover.style.width = rect.width + 'px';
+                    popover.classList.remove('hidden');
+                    if(chevron) chevron.classList.add('rotate-180');
+                } else {
+                    popover.classList.add('hidden');
+                    if(chevron) chevron.classList.remove('rotate-180');
+                }
+            });
+        }
 
-        if(logoutBtn) {
+        if(logoutBtn && popover) {
             logoutBtn.onclick = (e) => {
                 e.stopPropagation();
                 popover.classList.add('hidden');
-                if(window.openLogoutModal) window.openLogoutModal();
+                console.log('[sidebar] logout clicked, openLogoutModal:', typeof window.openLogoutModal);
+                if (window.openLogoutModal) {
+                    window.openLogoutModal();
+                } else {
+                    console.log('[sidebar] openLogoutModal not found, using confirm fallback');
+                    if (confirm('Are you sure you want to sign out?')) {
+                        window.location.replace('/ClassSense/login.php');
+                    }
+                }
             };
         }
 
         document.addEventListener('click', (e) => {
-            if (!popover.contains(e.target) && !trigger.contains(e.target)) {
+            if (popover && trigger && !popover.contains(e.target) && !trigger.contains(e.target)) {
                 popover.classList.add('hidden');
-                chevron.classList.remove('rotate-180');
+                if(chevron) chevron.classList.remove('rotate-180');
             }
         });
     });

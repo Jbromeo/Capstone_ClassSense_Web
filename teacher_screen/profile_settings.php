@@ -9,7 +9,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | Profile & Settings</title>
     <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <!-- Ambient Background (Consistent with style.css blob animation) -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -131,7 +131,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 </button>
                             </nav>
                             <div class="border-t border-dark-border mt-2 pt-2">
-                                <button onclick="showToast('Logging out...', 'info')" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-red-400 hover:bg-red-500/10 transition-colors">
+                                <button onclick="window.openLogoutModal()" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-red-400 hover:bg-red-500/10 transition-colors">
                                     <i data-feather="log-out" class="w-5 h-5"></i>
                                     <span class="font-medium">Log Out</span>
                                 </button>
@@ -273,6 +273,11 @@ require_once dirname(__DIR__) . '/core/init.php';
         </main>
     </div>
 
+    <script type="module">
+        import { api, initPage } from '../assets/js/custom-auth.js';
+        window.api = api;
+        window.initPage = initPage;
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             feather.replace();
@@ -362,15 +367,16 @@ require_once dirname(__DIR__) . '/core/init.php';
             try {
                 showToast('Syncing with Cloud Hub...', 'info');
                 
-                const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
-                const teacherRef = doc(db, "teachers", currentUid);
-                
-                await updateDoc(teacherRef, {
-                    firstName: firstName,
-                    lastName: lastName,
-                    full_name: `${firstName} ${lastName}`,
-                    bio: bio,
-                    updatedAt: new Date()
+                await api('/fetch.php', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        uid: currentUid,
+                        role: 'teacher',
+                        firstName: firstName,
+                        lastName: lastName,
+                        full_name: `${firstName} ${lastName}`,
+                        bio: bio
+                    })
                 });
 
                 // Update local cache to prevent refresh flicker
@@ -393,7 +399,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         // --- Identity Sync Logic ---
         window.handleProfileLoad = (data) => {
-            currentUid = auth.currentUser?.uid || data.uid;
+            currentUid = data.uid;
 
             // Update Headers
             const profileHeader = document.getElementById('profileNameLarge');
@@ -442,6 +448,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
     </script>
     <!-- Master Orchestration -->
-    <script type="module" src="../assets/js/firebase-init.js"></script>
+    <script type="module" src="../assets/js/custom-auth.js"></script>
 </body>
 </html>

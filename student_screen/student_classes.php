@@ -35,7 +35,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
     </style>
 </head>
-    <body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+    <body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
         <!-- Animated Background Blobs -->
         <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
             <div class="absolute top-0 left-1/4 w-96 h-96 bg-primary-900/10 rounded-full mix-blend-screen filter blur-3xl animate-blob"></div>
@@ -60,14 +60,17 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
                         </div>
-                        <input type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search subjects...">
+                        <input id="classSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search subjects...">
                     </div>
 
-                    <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
-                        <i data-feather="bell"></i>
-                        <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                    </button>
-                    <button class="p-2 text-gray-400 hover:text-white transition-colors md:hidden">
+                    <div class="relative">
+                        <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
+                            <i data-feather="bell"></i>
+                            <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                        </button>
+                        <?php include '../includes/notification_popover.php'; ?>
+                    </div>
+                    <button id="mobileSearchBtn" class="p-2 text-gray-400 hover:text-white transition-colors md:hidden">
                         <i data-feather="search"></i>
                     </button>
                 </div>
@@ -75,8 +78,8 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24"> <!-- Added pb-24 for FAB spacing -->
                 <div class="mb-6">
-                    <h3 class="text-lg font-bold text-white">First Semester, A.Y. 2023-2024</h3>
-                    <p class="text-sm text-gray-400">You are enrolled in 8 subjects</p>
+                    <h3 class="text-lg font-bold text-white">Enrolled Subjects</h3>
+                    <p id="enrolledCount" class="text-sm text-gray-400">Loading...</p>
                 </div>
 
                     <!-- Dynamic Class Grid -->
@@ -85,7 +88,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="col-span-full py-20 text-center opacity-40">
                         <div class="animate-pulse space-y-4">
                             <div class="glass-panel h-48 w-full rounded-2xl mx-auto"></div>
-                            <p class="text-[10px] font-black uppercase tracking-widest italic tracking-tighter">Syncing Enrolled Modules...</p>
+                            <p class="text-[10px] font-black uppercase tracking-widest tracking-tighter">Syncing Enrolled Modules...</p>
                         </div>
                     </div>
                 </div>
@@ -154,11 +157,10 @@ require_once dirname(__DIR__) . '/core/init.php';
         </div>
 
         <script type="module">
-            import { db, auth } from '../assets/js/firebase-init.js';
-            import { collection, query, where, onSnapshot, getDocs, updateDoc, doc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-            import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+            import { api, initPage } from '../assets/js/custom-auth.js';
 
             let currentStudent = null;
+            let allClasses = [];
 
             // --- UI Setup ---
             const renderClasses = (classes) => {
@@ -167,40 +169,40 @@ require_once dirname(__DIR__) . '/core/init.php';
                     grid.innerHTML = `
                          <div class="col-span-full py-20 text-center opacity-40">
                             <i data-feather="layers" class="w-12 h-12 mx-auto mb-4"></i>
-                            <p class="text-[10px] font-black uppercase tracking-widest italic">You haven't joined any classes yet.</p>
+                            <p class="text-[10px] font-black uppercase tracking-widest">You haven't joined any classes yet.</p>
                         </div>`;
                 } else {
                     grid.innerHTML = classes.map(c => `
                         <div class="glass-panel rounded-xl overflow-hidden border border-dark-border hover:border-primary-500/30 transition-all group flex flex-col animate-fade-in-up">
                             <div class="p-5 border-b border-dark-border flex justify-between items-start">
                                 <div>
-                                    <span class="text-[10px] font-black text-primary-400 uppercase tracking-widest italic">${c.sectionCode || 'General'}</span>
-                                    <h3 class="text-lg font-bold text-white uppercase tracking-tighter italic leading-none">${c.className}</h3>
-                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1 italic tracking-widest leading-none">${c.teacherName || 'Faculty Account'}</p>
+                                    <span class="text-[10px] font-black text-primary-400 uppercase tracking-widest">${c.section_code || 'General'}</span>
+                                    <h3 class="text-lg font-bold text-white uppercase tracking-tighter leading-none">${c.class_name}</h3>
+                                    <p class="text-[9px] text-gray-500 font-bold uppercase mt-1 tracking-widest leading-none">${c.teacher_name || 'Faculty Account'}</p>
                                 </div>
                                 <div class="p-2 bg-primary-500/10 rounded-lg text-primary-400 border border-primary-500/20">
                                     <i data-feather="book-open" class="w-5 h-5"></i>
                                 </div>
                             </div>
                             <div class="p-5 flex-1 bg-dark-bg/20">
-                                <div class="grid grid-cols-2 gap-4 mb-4 text-[10px] uppercase font-black italic tracking-widest opacity-60">
+                                <div class="grid grid-cols-2 gap-4 mb-4 text-[10px] uppercase font-black tracking-widest opacity-60">
                                     <div class="flex items-center gap-2 text-gray-400">
                                         <i data-feather="calendar" class="w-3.5 h-3.5 text-primary-400"></i> ${c.schedule || 'Days TBA'}
                                     </div>
                                     <div class="flex items-center gap-2 text-gray-400 text-right justify-end">
-                                        <i data-feather="clock" class="w-3.5 h-3.5 text-primary-400"></i> ${c.timeSlot || 'TBA'}
+                                        <i data-feather="clock" class="w-3.5 h-3.5 text-primary-400"></i> ${c.time_slot || 'TBA'}
                                     </div>
                                 </div>
                                 <div class="flex items-center justify-between mb-2">
-                                    <span class="text-[10px] font-black uppercase tracking-widest italic text-gray-500">Academic Standing</span>
-                                    <span class="text-[10px] font-black uppercase tracking-widest italic text-green-400">Syncing...</span>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Academic Standing</span>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-green-400">Syncing...</span>
                                 </div>
                                 <div class="w-full h-1 bg-dark-border rounded-full overflow-hidden">
                                     <div class="h-full bg-primary-500/50 rounded-full animate-pulse" style="width: 100%"></div>
                                 </div>
                             </div>
                             <div class="p-4 border-t border-dark-border">
-                                <a href="student_class_view.php?id=${c.id}" class="w-full py-2.5 text-center text-[10px] font-black uppercase tracking-widest italic text-white bg-dark-bg hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center gap-2 border border-white/5">
+                                <a href="student_class_view.php?id=${c.id}" class="w-full py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-white bg-dark-bg hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center gap-2 border border-white/5">
                                     OPEN CLASS HUB <i data-feather="chevron-right" class="w-3.5 h-3.5"></i>
                                 </a>
                             </div>
@@ -208,6 +210,45 @@ require_once dirname(__DIR__) . '/core/init.php';
                 }
                 feather.replace();
             };
+
+            const filterClasses = (query) => {
+                if (!query) {
+                    renderClasses(allClasses);
+                    document.getElementById('enrolledCount').textContent = allClasses.length + ' subject' + (allClasses.length !== 1 ? 's' : '');
+                    return;
+                }
+                const q = query.toLowerCase();
+                const filtered = allClasses.filter(c =>
+                    (c.class_name || '').toLowerCase().includes(q) ||
+                    (c.section_code || '').toLowerCase().includes(q) ||
+                    (c.teacher_name || '').toLowerCase().includes(q)
+                );
+                renderClasses(filtered);
+                document.getElementById('enrolledCount').textContent = filtered.length + ' subject' + (filtered.length !== 1 ? 's' : '') + ' found';
+            };
+
+            // --- Search ---
+            const searchInput = document.getElementById('classSearchInput');
+            if (searchInput) {
+                // Handle ?search= query param
+                const urlParams = new URLSearchParams(window.location.search);
+                const searchParam = urlParams.get('search');
+                if (searchParam) {
+                    searchInput.value = searchParam;
+                    filterClasses(searchParam);
+                }
+                searchInput.addEventListener('input', (e) => filterClasses(e.target.value));
+            }
+
+            // --- Mobile Search Toggle ---
+            const mobileSearchBtn = document.getElementById('mobileSearchBtn');
+            if (mobileSearchBtn && searchInput) {
+                mobileSearchBtn.onclick = () => {
+                    const parent = searchInput.closest('.relative');
+                    parent.classList.toggle('hidden');
+                    if (!parent.classList.contains('hidden')) searchInput.focus();
+                };
+            }
 
             // --- Joining Logic ---
             window.handleJoinClass = async () => {
@@ -221,37 +262,25 @@ require_once dirname(__DIR__) . '/core/init.php';
                 }
 
                 try {
-                    // 1. Find class by code
-                    const q = query(collection(db, "classes"), where("classCode", "==", code));
-                    const snapshot = await getDocs(q);
-
-                    if (snapshot.empty) {
-                        alert("Class code not found. Please try again.");
-                        return;
-                    }
-
-                    const classDoc = snapshot.docs[0];
-                    const classId = classDoc.id;
-
-                    // 2. Check if already joined
-                    const classData = classDoc.data();
-                    if (classData.students && classData.students.includes(currentStudent.uid)) {
-                        alert("You are already enrolled in this class.");
-                        return;
-                    }
-
-                    // 3. Enroll student
-                    await updateDoc(doc(db, "classes", classId), {
-                        students: arrayUnion(currentStudent.uid)
+                    await api('/enroll.php', {
+                        method: 'POST',
+                        body: JSON.stringify({ class_code: code, student_uid: currentStudent.uid })
                     });
 
-                    alert("Successfully joined class: " + classData.className);
+                    showStatus('Successfully joined class!', 'success');
                     codeInput.value = '';
                     window.closeModal();
+                    loadStudentClasses();
 
                 } catch (error) {
-                    console.error("Join Error:", error);
-                    alert("Sync Error: Failed to join class.");
+                    console.error('Join Error:', error);
+                    if (error.message === 'Already enrolled') {
+                        showStatus('You are already enrolled in this class.', 'error');
+                    } else if (error.message === 'Invalid class code') {
+                        showStatus('Class code not found. Please try again.', 'error');
+                    } else {
+                        showStatus('Sync Error: Failed to join class.', 'error');
+                    }
                 }
             };
 
@@ -267,38 +296,50 @@ require_once dirname(__DIR__) . '/core/init.php';
             document.getElementById('cancelJoinModal').onclick = window.closeModal;
             document.getElementById('submitJoin').onclick = window.handleJoinClass;
 
-            // --- Identity Handshake ---
-            window.addEventListener('profileLoaded', (e) => {
-                const data = e.detail;
-                const displayName = data.full_name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Student';
-                
-                // Update Sidebar and Header if they exist in this context
-                const sideName = document.getElementById('sideStudentName');
-                if (sideName) sideName.textContent = displayName;
-                
-                const popName = document.getElementById('popoverName');
-                if (popName) popName.textContent = displayName;
-
-                const sideYear = document.getElementById('sideStudentYear');
-                if (sideYear) sideYear.textContent = data.studentId || "Student Account";
-            });
-
             // --- Lifecycle ---
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    currentStudent = user;
-                    // Observe classes where this student is a member
-                    const qGrid = query(collection(db, "classes"), where("students", "array-contains", user.uid));
-                    onSnapshot(qGrid, (snap) => {
-                        const classes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                        renderClasses(classes);
-                    });
-                } else {
-                    window.location.href = '../login.php';
-                }
+            initPage((user) => {
+                currentStudent = user;
+                window.loadStudentClasses = async () => {
+                    try {
+                        const classes = await api('/classes.php?student_uid=' + user.uid);
+                        allClasses = classes;
+                        const q = searchInput ? searchInput.value : '';
+                        if (q) filterClasses(q);
+                        else renderClasses(classes);
+                        document.getElementById('enrolledCount').textContent = classes.length + ' subject' + (classes.length !== 1 ? 's' : '');
+                    } catch (err) {
+                        console.error('Failed to load classes:', err);
+                    }
+                };
+                loadStudentClasses();
+                setInterval(loadStudentClasses, 10000);
             });
             
             feather.replace();
         </script>
+
+        <style>
+            .toast { transform: translateX(120%); transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55); opacity: 0; }
+            .toast.show { transform: translateX(0); opacity: 1; }
+        </style>
+
+        <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
+
+        <script>
+            function showStatus(message, type = 'error') {
+                const container = document.getElementById('toastContainer');
+                if (!container) return;
+                const toast = document.createElement('div');
+                const isError = type === 'error';
+                toast.className = `toast flex items-center w-full max-w-xs p-4 space-x-4 text-gray-200 bg-dark-surface rounded-lg shadow-2xl border border-dark-border ${isError ? 'border-l-4 border-l-primary-500' : 'border-l-4 border-l-green-500'}`;
+                toast.innerHTML = `<div class="flex-shrink-0"><i data-feather="${isError ? 'alert-circle' : 'check-circle'}" class="w-5 h-5 ${isError ? 'text-primary-500' : 'text-green-500'}"></i></div><div class="text-xs font-semibold">${message}</div>`;
+                container.appendChild(toast);
+                feather.replace();
+                setTimeout(() => toast.classList.add('show'), 10);
+                setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 4000);
+            }
+        </script>
+
+    <script type="module" src="student_auth.js"></script>
     </body>
     </html>

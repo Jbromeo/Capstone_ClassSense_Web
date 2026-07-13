@@ -43,17 +43,17 @@
                             
                         <form id="loginForm" class="p-8 space-y-6">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-300 mb-2">Email or Username</label>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Username or Student ID</label>
                                     <div class="relative">
-                                        <i data-feather="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
-                                        <input type="text" name="login_identity" required class="w-full bg-dark-bg border border-dark-border rounded-xl pl-11 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all placeholder:text-gray-600" placeholder="user@email.com or username">
+                                        <i data-feather="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+                                        <input type="text" name="login_identity" required class="w-full bg-dark-bg border border-dark-border rounded-xl pl-11 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all placeholder:text-gray-600" placeholder="johndoe or ST-00000">
                                     </div>
                                 </div>
                                 
                                 <div>
                                     <div class="flex justify-between items-center mb-2">
                                         <label class="block text-sm font-medium text-gray-300">Password</label>
-                                        <a href="#" class="text-xs text-primary-400 hover:text-primary-300 font-semibold">Forgot Password?</a>
+                                        <a href="#" onclick="showStatus('Please contact your school administrator to reset your password.', 'error'); return false;" class="text-xs text-primary-400 hover:text-primary-300 font-semibold">Forgot Password?</a>
                                     </div>
                                     <div class="relative">
                                         <i data-feather="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
@@ -142,9 +142,7 @@
     </script>
 
     <script type="module">
-        // 🛡️ Note: auth_controller.js is included globally in head.php
-        import { auth } from './assets/js/firebase-init.js';
-        import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { auth, signInWithEmailAndPassword, onAuthStateChanged, customSignIn } from './assets/js/custom-auth.js';
 
         const loginForm = document.getElementById('loginForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -153,51 +151,87 @@
         const btnIcon = document.getElementById('btnIcon');
 
         if(loginForm) {
+            console.log('[login] form found, adding submit handler');
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
                 const formData = new FormData(loginForm);
-                const identity = formData.get('login_identity').trim();
+                const username = formData.get('login_identity').trim();
                 const password = formData.get('password');
-                const email = identity.includes('@') ? identity : `${identity}@classsense.com`;
+                console.log('[login] submit: username=', username);
 
-                // UI State: Provide visual feedback
                 submitBtn.disabled = true;
                 btnText.textContent = 'Authenticating...';
                 btnLoader.classList.remove('hidden');
                 btnIcon.classList.add('hidden');
 
-                // 🛡️ SAFETY TIMEOUT: If the handshake hangs for > 7s, reset the UI
                 const timeoutGuard = setTimeout(() => {
                     if (submitBtn.disabled) {
                         submitBtn.disabled = false;
                         btnText.textContent = 'Sign In';
                         btnLoader.classList.add('hidden');
                         btnIcon.classList.remove('hidden');
+                        console.log('[login] TIMEOUT after 7s');
                         showStatus("Connection handshake timed out. Please try again.", 'error');
                     }
                 }, 7000);
 
                 try {
-                    // 🛡️ UNIFIED HANDOFF: auth_controller.js will catch the auth change and redirect.
-                    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                    
-                    // 🚀 FORCE HANDSHAKE: Ensure the handshake starts immediately even if onAuthStateChanged is slow
-                    if (window.forceIdentityHandshake) {
-                        await window.forceIdentityHandshake(userCredential.user);
+                    if (username === 'admin@gmail.com') {
+                        console.log('[login] admin path');
+                        const fullEmail = username.includes('@') ? username : `${username}@classsense.com`;
+                        console.log('[login] calling signInWithEmailAndPassword');
+                        const userCredential = await signInWithEmailAndPassword(auth, fullEmail, password);
+                        const user = userCredential.user;
+                        console.log('[login] Firebase login success, uid:', user.uid);
+                        clearTimeout(timeoutGuard);
+                        btnText.textContent = 'Syncing session...';
+                        console.log('[login] getting idToken');
+                        const idToken = await user.getIdToken();
+                        console.log('[login] got idToken:', idToken.substring(0, 20) + '...');
+                        const syncRes = await fetch('/ClassSense/api/sync_session.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uid: user.uid, role: 'admin' })
+                        });
+                        const syncData = await syncRes.json();
+                        console.log('[login] sync_session result:', syncData);
+                        if (!syncRes.ok) throw new Error('Session sync failed');
+                        if (syncData.token) {
+                            sessionStorage.setItem('cs_token', syncData.token);
+                            console.log('[login] cs_token stored for admin');
+                        }
+                        console.log('[login] sync_session ok, redirecting');
+                        window.location.replace('/ClassSense/admin_screen/admin_dashboard.php');
+                    } else {
+                        console.log('[login] non-admin path');
+                        const result = await customSignIn(username, password);
+                        const role = result.role;
+                        console.log('[login] customSignIn success, role:', role);
+                        clearTimeout(timeoutGuard);
+                        btnText.textContent = 'Syncing session...';
+                        await fetch('/ClassSense/api/sync_session.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uid: result.uid, role: result.role })
+                        });
+                        if (role === 'teacher') {
+                            window.location.replace('/ClassSense/teacher_screen/teacher_dashboard.php');
+                        } else if (role === 'student') {
+                            window.location.replace('/ClassSense/student_screen/student_dashboard.php');
+                        } else {
+                            showStatus('Unknown role', 'error');
+                        }
                     }
                 } catch (error) {
                     clearTimeout(timeoutGuard);
-                    console.error("Login Error:", error);
+                    console.error("[login] Error:", error);
                     
                     let msg = "Invalid credentials or connection lag";
-                    if(error.code === 'auth/wrong-password') msg = "Incorrect password. Please try again.";
-                    if(error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') msg = "Account not found or invalid credentials.";
-                    if(error.code === 'auth/too-many-requests') msg = "Too many failed attempts. Try again later.";
+                    if(error.message) msg = error.message;
                     
                     showStatus(msg, 'error');
                     
-                    // Reset UI on failure
                     submitBtn.disabled = false;
                     btnText.textContent = 'Sign In';
                     btnLoader.classList.add('hidden');
@@ -205,7 +239,6 @@
                 }
             });
 
-            // 📢 Handshake Listeners: Listen to auth_controller.js progress
             window.addEventListener('handshakeProgress', (e) => {
                 btnText.textContent = e.detail;
             });

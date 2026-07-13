@@ -69,10 +69,10 @@
 
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-2">Student Email</label>
+                                        <label class="block text-sm font-medium text-gray-300 mb-2">Username</label>
                                         <div class="relative">
-                                            <i data-feather="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
-                                            <input type="email" name="email" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="student@university.edu">
+                                            <i data-feather="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
+                                            <input type="text" name="username" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="johndoe">
                                         </div>
                                     </div>
                                     <div>
@@ -130,7 +130,7 @@
                                         <input id="terms" type="checkbox" required class="w-4 h-4 bg-dark-bg border border-dark-border rounded text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-bg transition-all cursor-pointer">
                                     </div>
                                     <label for="terms" class="text-xs text-gray-400 leading-tight">
-                                        I agree to the <a href="#" class="text-primary-400 hover:text-primary-300 font-semibold underline decoration-primary-500/30">Terms of Service</a> and <a href="#" class="text-primary-400 hover:text-primary-300 font-semibold underline decoration-primary-500/30">Privacy Policy</a>.
+                                        I agree to the Terms of Service and Privacy Policy.
                                     </label>
                                 </div>
 
@@ -234,9 +234,7 @@
 
     <script type="module">
         // 🛡️ Note: auth_controller.js is included globally in includes/head.php
-        import { auth, db } from './assets/js/firebase-init.js';
-        import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { doc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { api } from './assets/js/custom-auth.js';
 
         const registerForm = document.getElementById('registerForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -262,37 +260,29 @@
                 btnIcon.classList.add('hidden');
 
                 try {
-                    // 1. Create Auth Account
-                    const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-                    const user = userCredential.user;
-
-                    // Generate Default Initials Avatar
-                    const initials = `${data.fname?.[0] || ''}${data.lname?.[0] || ''}`.toUpperCase();
-                    const defaultAvatar = `https://ui-avatars.com/api/?name=${initials}&background=ea2628&color=fff&bold=true`;
-
-                    // 2. Save Profile (Firestore Sync)
-                    const userDocPath = data.role === 'teacher' ? "teachers" : "students";
                     const profileData = {
                         firstName: data.fname,
                         lastName: data.lname,
-                        email: data.email,
+                        username: data.username,
                         studentId: data.role === 'student' ? data.user_id : null,
-                        role: data.role,
-                        createdAt: new Date().toISOString(),
-                        uid: user.uid
+                        role: data.role
                     };
 
-                    // Set default photo field based on role
-                    if (data.role === 'teacher') {
-                        profileData.profileImage = defaultAvatar;
-                    } else {
-                        profileData.profilePhoto = defaultAvatar;
-                    }
+                    const result = await api('/auth/register.php', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            username: data.username,
+                            password: data.password,
+                            role: data.role,
+                            firstName: data.fname,
+                            lastName: data.lname,
+                            studentId: data.role === 'student' ? data.user_id : null
+                        })
+                    });
 
-                    await setDoc(doc(db, userDocPath, user.uid), profileData);
-
-                    // 🛡️ Handoff to auth_controller.js for Session Sync & Redirection
-                    showStatus("Account verified! Stabilizing session...", 'success');
+                    showStatus('Account created successfully! Redirecting to login...', 'success');
+                    await new Promise(r => setTimeout(r, 1500));
+                    window.location.href = 'login.php';
                 } catch (error) {
                     console.error("Registration Error:", error);
                     showStatus(error.message, 'error');

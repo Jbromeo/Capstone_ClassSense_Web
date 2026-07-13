@@ -1,25 +1,14 @@
-<?php 
-// 1. Core Verification Handshake
-require_once dirname(__DIR__) . '/core/init.php'; 
-?>
-<!-- student_view/student_class_view.php -->
+<?php require_once dirname(__DIR__) . '/core/init.php'; ?>
+<!-- student_screen/student_class_view.php -->
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ClassSense | Class Record</title>
-    <link rel="icon" type="image/x-icon" href="../static/favicon.ico">
-    <link rel="stylesheet" href="../style.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/feather-icons"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class', theme: { extend: { colors: { primary: { DEFAULT: '#ea2628', 50: '#fef2f2', 100: '#fee2e2', 500: '#ea2628', 600: '#dc2626', 700: '#b91c1c', 900: '#7f1d1d' }, secondary: { 500: '#9d8989', 600: '#826a6a' }, dark: { bg: '#0f1115', surface: '#181b21', border: '#2a2e35' } }, fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
-        }
-    </script>
+    <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div class="absolute top-0 left-1/4 w-96 h-96 bg-primary-900/10 rounded-full mix-blend-screen filter blur-3xl animate-blob"></div>
         <div class="absolute top-0 right-1/4 w-96 h-96 bg-blue-900/10 rounded-full mix-blend-screen filter blur-3xl animate-blob" style="animation-delay: 2s"></div>
@@ -42,11 +31,14 @@ require_once dirname(__DIR__) . '/core/init.php';
             </div>
 
             <div class="flex items-center gap-4">
-                <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors group">
-                    <i data-feather="bell" class="group-hover:scale-110 transition-transform"></i>
-                    <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500 animate-pulse"></span>
-                </button>
-                <a href="student_classes.php" class="text-[10px] font-black text-gray-400 hover:text-white flex items-center gap-1 transition-colors uppercase tracking-widest italic italic tracking-tighter">
+                <div class="relative">
+                    <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors group">
+                        <i data-feather="bell" class="group-hover:scale-110 transition-transform"></i>
+                        <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                    </button>
+                    <?php include '../includes/notification_popover.php'; ?>
+                </div>
+                <a href="student_classes.php" class="text-[10px] font-black text-gray-400 hover:text-white flex items-center gap-1 transition-colors uppercase tracking-widest italic tracking-tighter">
                     <i data-feather="arrow-left" class="w-3.5 h-3.5"></i> Back to Classes
                 </a>
             </div>
@@ -211,50 +203,39 @@ require_once dirname(__DIR__) . '/core/init.php';
     </div>
 
     <script type="module">
-        import { db, auth } from '../assets/js/firebase-init.js';
-        import { collection, query, where, orderBy, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
 
         const urlParams = new URLSearchParams(window.location.search);
         const classId = urlParams.get('id');
 
-        async function initAttendanceLog(uid) {
+        async function loadAttendance(uid) {
             if (!uid || !classId) return;
             const tbody = document.querySelector('#content-attendance tbody');
-            if(!tbody) return;
+            if (!tbody) return;
 
-            console.log(`[Attendance] Initiating log for Student: ${uid} in Class: ${classId}`);
+            const todayStr = new Date().toISOString().split('T')[0];
 
-            const q = query(
-                collection(db, "attendance"),
-                where("classId", "==", classId),
-                where("studentUid", "==", uid)
-            );
-
-            onSnapshot(q, (snapshot) => {
-                console.log(`[Attendance] Snapshot received. Document count: ${snapshot.size}`);
-                if (snapshot.empty) {
+            try {
+                const records = await api(`/attendance.php?class_id=${classId}&date=${todayStr}&student_uid=${uid}`);
+                if (!records || records.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-gray-500 italic uppercase tracking-widest text-[10px] font-black">No scan records found in this hub.</td></tr>`;
                     return;
                 }
 
-                // Local Sorting: Show most recent check-ins first
-                const sortedDocs = snapshot.docs.sort((a, b) => {
-                    const tsA = a.data().timestamp?.toDate() || 0;
-                    const tsB = b.data().timestamp?.toDate() || 0;
+                const sorted = records.sort((a, b) => {
+                    const tsA = a.timestamp ? new Date(a.timestamp) : new Date(0);
+                    const tsB = b.timestamp ? new Date(b.timestamp) : new Date(0);
                     return tsB - tsA;
                 });
 
-                tbody.innerHTML = sortedDocs.map(doc => {
-                    const data = doc.data();
-                    const ts = data.timestamp?.toDate() || new Date();
-                    
+                tbody.innerHTML = sorted.map(rec => {
+                    const ts = rec.timestamp ? new Date(rec.timestamp) : new Date();
                     const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     const timeIn = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-                    const timeOut = data.timeOut ? data.timeOut.toDate().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:-- --';
-                    
-                    const status = data.status || 'Verified';
-                    const statusClass = status.toLowerCase() === 'late' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 
-                                      status.toLowerCase() === 'absent' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                    const timeOut = rec.time_out ? new Date(rec.time_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:-- --';
+                    const status = rec.status || 'Verified';
+                    const statusClass = status.toLowerCase() === 'late' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                      status.toLowerCase() === 'absent' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                       'bg-green-500/10 text-green-400 border-green-500/20';
 
                     return `
@@ -266,96 +247,54 @@ require_once dirname(__DIR__) . '/core/init.php';
                         </tr>
                     `;
                 }).join('');
-            }, (error) => {
-                console.error("[Attendance] Critical Sync Error:", error);
-                // Specifically check for index error which is common with orderBy
-                if (error.code === 'failed-precondition') {
-                    tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-amber-500 italic text-xs font-bold">Database Index Missing. Please contact Admin to enable 'Attendance History' indexing.</td></tr>`;
-                } else {
-                    tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-primary-500 italic text-xs font-bold">Failed to load attendance: ${error.message}</td></tr>`;
-                }
-            });
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-primary-500 italic text-xs font-bold">Failed to load attendance: ${err.message}</td></tr>`;
+            }
         }
 
-        async function loadClassContext() {
+        async function loadClassData() {
             if (!classId) {
                 window.location.href = 'student_classes.php';
                 return;
             }
 
-            // 1. Listen to Class Data
-            onSnapshot(doc(db, "classes", classId), async (snap) => {
-                if (snap.exists()) {
-                    const classData = snap.data();
-                    
-                    // Update Header Elements
-                    const hubName = document.getElementById('hubClassName');
-                    const hubDetails = document.getElementById('hubClassDetails');
-                    if(hubName) {
-                        hubName.innerText = classData.className;
-                        hubName.classList.remove('italic');
-                    }
-                    if(hubDetails) {
-                        hubDetails.innerText = `${classData.teacherName || 'Faculty'} • ${classData.schedule || 'TBA'} • ${classData.timeSlot || 'TBA'} • ${classData.sectionCode}`;
-                        hubDetails.classList.remove('italic');
-                    }
+            try {
+                const classData = await api(`/classes.php?id=${classId}`);
 
-                    // 2. Fetch Teacher Profile
-                    const teacherRef = doc(db, "teachers", classData.teacherUid);
-                    const teacherSnap = await getDoc(teacherRef);
-                    
-                    if (teacherSnap.exists()) {
-                        const tDetails = teacherSnap.data();
-                        let fullName = tDetails.full_name || `${tDetails.firstName} ${tDetails.lastName}`.trim();
-                        let displayIdentity = tDetails.lastName ? `Professor ${tDetails.lastName}` : fullName;
-
-                        const instrName = document.getElementById('instructorName');
-                        const instrEmail = document.getElementById('instructorEmail');
-                        const instrImg = document.getElementById('instructorImage');
-                        
-                        if(instrName) { instrName.innerText = displayIdentity; instrName.classList.remove('italic'); }
-                        if(instrEmail) { instrEmail.innerText = tDetails.email || 'Official University Email'; instrEmail.classList.remove('italic'); }
-                        if(instrImg) {
-                            instrImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'T')}&background=ea2628&color=fff&bold=true`;
-                        }
-                    }
+                const hubName = document.getElementById('hubClassName');
+                const hubDetails = document.getElementById('hubClassDetails');
+                if (hubName) {
+                    hubName.innerText = classData.class_name;
+                    hubName.classList.remove('italic');
                 }
-            });
-        }
+                if (hubDetails) {
+                    hubDetails.innerText = `${classData.teacher_name || 'Faculty'} • ${classData.schedule || 'TBA'} • ${classData.time_slot || 'TBA'} • ${classData.section_code}`;
+                    hubDetails.classList.remove('italic');
+                }
 
-        // --- Core Identity Sync ---
-        function runIdentityHandshake() {
-            // 1. Immediate Check (If already signed in)
-            if (auth.currentUser) {
-                initAttendanceLog(auth.currentUser.uid);
+                const instrName = document.getElementById('instructorName');
+                const instrEmail = document.getElementById('instructorEmail');
+                const instrImg = document.getElementById('instructorImage');
+
+                const displayName = classData.teacher_name || 'Faculty';
+                if (instrName) { instrName.innerText = displayName; instrName.classList.remove('italic'); }
+                if (instrEmail) { instrEmail.innerText = 'Official University Email'; instrEmail.classList.remove('italic'); }
+                if (instrImg) {
+                    instrImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=ea2628&color=fff&bold=true`;
+                }
+            } catch (err) {
+                console.error('[Class] Failed to load:', err);
             }
-
-            // 2. Auth State Listener (Cold starts)
-            auth.onAuthStateChanged((user) => {
-                if (user) {
-                    initAttendanceLog(user.uid);
-                }
-            });
-
-            // 3. Profile Identity Listener (Shared portal updates)
-            window.addEventListener('profileLoaded', (e) => {
-                const data = e.detail;
-                const displayName = data.full_name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Student';
-                
-                const sideName = document.getElementById('sideStudentName');
-                if (sideName) sideName.textContent = displayName;
-                
-                // Trigger Attendance Log using the explicit UID from the event
-                if (data.uid) {
-                    initAttendanceLog(data.uid);
-                } else {
-                    console.error("[Identity] Profile loaded but UID is missing from payload.");
-                }
-            });
         }
 
-        loadClassContext();
-        runIdentityHandshake();
+        initPage((user) => {
+            setTimeout(() => {
+                loadClassData();
+                loadAttendance(user.uid);
+            }, 500);
+            setInterval(loadClassData, 10000);
+            setInterval(() => loadAttendance(user.uid), 10000);
+        });
     </script>
     <script type="module" src="student_auth.js"></script>
     <script>

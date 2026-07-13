@@ -8,7 +8,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | Teacher Dashboard</title>
     <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <!-- Ambient Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -38,12 +38,28 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
                     </div>
-                    <input type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search classes, students...">
+                    <input id="classSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search classes...">
                 </div>
-                <button class="relative p-2 text-gray-400 hover:text-white transition-colors">
-                    <i data-feather="bell"></i>
-                    <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                </button>
+                <div class="relative">
+                    <button id="notificationBell" class="p-2 text-gray-400 hover:text-white transition-colors relative">
+                        <i data-feather="bell"></i>
+                        <span id="notificationBadge" class="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                    </button>
+                    <div id="notificationDropdown" class="absolute right-0 top-full mt-3 w-[380px] bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl hidden animate-fade-in-up origin-top-right z-50 max-h-[480px] flex flex-col">
+                        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 flex-shrink-0">
+                            <h3 class="text-sm font-black text-white italic uppercase tracking-tighter">Notifications</h3>
+                            <span id="notifDropdownCount" class="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic"></span>
+                        </div>
+                        <div id="notifDropdownBody" class="overflow-y-auto flex-1 custom-scrollbar">
+                            <div class="py-10 text-center opacity-40">
+                                <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading...</p>
+                            </div>
+                        </div>
+                        <div class="p-3 border-t border-white/5 flex-shrink-0">
+                            <a href="grades.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
+                        </div>
+                    </div>
+                </div>
                 <button class="p-2 text-gray-400 hover:text-white transition-colors md:hidden">
                     <i data-feather="search"></i>
                 </button>
@@ -96,7 +112,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Pending Grading</p>
-                            <h3 class="text-2xl font-bold text-white mt-1">12</h3>
+                            <h3 id="statPendingGrading" class="text-2xl font-bold text-white mt-1">---</h3>
                         </div>
                         <div class="p-2 bg-amber-500/10 rounded-lg text-amber-500">
                             <i data-feather="clock" class="w-5 h-5"></i>
@@ -114,7 +130,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <h3 class="text-lg font-bold text-white flex items-center gap-2">
                                 <i data-feather="calendar" class="w-5 h-5 text-primary-500"></i> Today's Schedule
                             </h3>
-                            <button class="text-xs text-primary-400 hover:text-primary-300 transition-colors">View Calendar</button>
+                            <button onclick="window.location.href='schedule.php'" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">View Calendar</button>
                         </div>
                         <div id="todayScheduleList" class="relative pl-2 space-y-0">
                             <!-- Populated by JS -->
@@ -152,21 +168,21 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="glass-panel rounded-xl p-6 bg-gradient-to-br from-primary-900/20 to-transparent border-primary-500/20">
                         <h3 class="text-lg font-bold text-white mb-4">Quick Actions</h3>
                         <div class="grid grid-cols-2 gap-3">
-                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="showToast('Add Student form opened')">
+                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="window.location.href='students.php'">
                                 <div class="p-2 bg-blue-500/10 rounded-full group-hover:bg-blue-500/20 transition-colors mb-2"><i data-feather="user-plus" class="w-5 h-5 text-blue-500"></i></div>
                                 <span class="text-xs font-medium">Add Student</span>
                             </button>
-                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="showToast('Navigating to Grading Queue')">
+                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="window.location.href='grades.php'">
                                 <div class="p-2 bg-amber-500/10 rounded-full group-hover:bg-amber-500/20 transition-colors mb-2"><i data-feather="clipboard" class="w-5 h-5 text-amber-500"></i></div>
                                 <span class="text-xs font-medium">Grade Submissions</span>
                             </button>
-                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="showToast('Opening Attendance Tool')">
+                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="window.location.href='attendance.php'">
                                 <div class="p-2 bg-green-500/10 rounded-full group-hover:bg-green-500/20 transition-colors mb-2"><i data-feather="check-square" class="w-5 h-5 text-green-500"></i></div>
                                 <span class="text-xs font-medium">Take Attendance</span>
                             </button>
-                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="showToast('Create Announcement modal')">
-                                <div class="p-2 bg-purple-500/10 rounded-full group-hover:bg-purple-500/20 transition-colors mb-2"><i data-feather="megaphone" class="w-5 h-5 text-purple-500"></i></div>
-                                <span class="text-xs font-medium">Announcement</span>
+                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="window.location.href='classes.php'">
+                                <div class="p-2 bg-purple-500/10 rounded-full group-hover:bg-purple-500/20 transition-colors mb-2"><i data-feather="layers" class="w-5 h-5 text-purple-500"></i></div>
+                                <span class="text-xs font-medium">My Classes</span>
                             </button>
                         </div>
                     </div>
@@ -176,66 +192,12 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <h3 class="text-lg font-bold text-white">Quiz & Grade Alerts</h3>
                             <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                         </div>
-                        <div class="space-y-5">
-                            <div class="group cursor-pointer" onclick="showToast('Viewing CS101 missing submissions')">
-                                <div class="flex justify-between items-end mb-2">
-                                    <div>
-                                        <div class="text-sm font-bold text-white">CS101</div>
-                                        <div class="text-xs text-gray-400">Midterm Quiz</div>
-                                    </div>
-                                    <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20">
-                                        <i data-feather="alert-octagon" class="w-3 h-3 text-amber-400"></i>
-                                        <span class="text-xs font-bold text-amber-400">4 Missing</span>
-                                    </div>
-                                </div>
-                                <div class="relative w-full h-2 bg-dark-bg rounded-full overflow-hidden">
-                                    <div class="absolute h-full bg-amber-500 rounded-full transition-all duration-500" style="width: 87.5%"></div>
-                                </div>
-                                <div class="flex justify-between mt-1">
-                                    <span class="text-[10px] text-gray-500">28 Taken</span>
-                                    <span class="text-[10px] text-amber-400">4 Not Taken</span>
-                                </div>
-                            </div>
-                            <div class="group cursor-pointer" onclick="showToast('Viewing CS201 ungraded submissions')">
-                                <div class="flex justify-between items-end mb-2">
-                                    <div>
-                                        <div class="text-sm font-bold text-white">CS201</div>
-                                        <div class="text-xs text-gray-400">Homework 3</div>
-                                    </div>
-                                    <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 border border-red-500/20">
-                                        <i data-feather="alert-circle" class="w-3 h-3 text-red-400"></i>
-                                        <span class="text-xs font-bold text-red-400">3 No Grade</span>
-                                    </div>
-                                </div>
-                                <div class="relative w-full h-2 bg-dark-bg rounded-full overflow-hidden">
-                                    <div class="absolute h-full bg-red-500 rounded-full transition-all duration-500" style="width: 89%"></div>
-                                </div>
-                                <div class="flex justify-between mt-1">
-                                    <span class="text-[10px] text-gray-500">25 Graded</span>
-                                    <span class="text-[10px] text-red-400">3 Pending</span>
-                                </div>
-                            </div>
-                            <div class="group">
-                                <div class="flex justify-between items-end mb-2">
-                                    <div>
-                                        <div class="text-sm font-bold text-white">CS301</div>
-                                        <div class="text-xs text-gray-400">Lab Assignment</div>
-                                    </div>
-                                    <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-green-500/10 border border-green-500/20">
-                                        <i data-feather="check-circle" class="w-3 h-3 text-green-400"></i>
-                                        <span class="text-xs font-bold text-green-400">All Done</span>
-                                    </div>
-                                </div>
-                                <div class="relative w-full h-2 bg-dark-bg rounded-full overflow-hidden">
-                                    <div class="absolute h-full bg-green-500 rounded-full transition-all duration-500" style="width: 100%"></div>
-                                </div>
-                                <div class="flex justify-between mt-1">
-                                    <span class="text-[10px] text-gray-500">24/24 Submitted</span>
-                                    <span class="text-[10px] text-green-400">24 Graded</span>
-                                </div>
+                        <div id="gradeAlertsList" class="space-y-5">
+                            <div class="py-8 text-center opacity-40">
+                                <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading grade data...</p>
                             </div>
                         </div>
-                        <button class="w-full mt-6 py-2 text-xs text-center text-gray-400 hover:text-white transition-colors border border-dark-border rounded-lg hover:bg-white/5" onclick="showToast('Viewing all alerts')">Manage All Alerts</button>
+                        <button onclick="window.location.href='grades.php'" class="w-full mt-6 py-2 text-xs text-center text-gray-400 hover:text-white transition-colors border border-dark-border rounded-lg hover:bg-white/5">Manage All Alerts</button>
                     </div>
                 </div>
             </div>
@@ -292,13 +254,9 @@ require_once dirname(__DIR__) . '/core/init.php';
     </script>
     
     <!-- Global Identity Orchestrator -->
-    <script type="module" src="../assets/js/firebase-init.js"></script>
     <script type="module">
-        import { db, auth } from '../assets/js/firebase-init.js';
-        import { collection, query, where, onSnapshot, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
 
-        // Constants for Schedule
         const DAYS_MAP = { 'M': 'Monday', 'T': 'Tuesday', 'W': 'Wednesday', 'TH': 'Thursday', 'F': 'Friday', 'S': 'Saturday', 'SU': 'Sunday' };
         const CURRENT_DAY_CODE = (() => {
             const days = ['SU', 'M', 'T', 'W', 'TH', 'F', 'S'];
@@ -306,34 +264,110 @@ require_once dirname(__DIR__) . '/core/init.php';
         })();
 
         let currentTeacher = null;
+        let allClasses = [];
+        let pendingAlerts = [];
 
-        // 1. Listen for Identity Sync
-        window.addEventListener('profileLoaded', (e) => {
-            const data = e.detail;
-            currentTeacher = data;
-            initDashboard(data.uid);
-        });
+        // Search bar
+        const searchInput = document.getElementById('classSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', () => {
+                const term = searchInput.value.toLowerCase().trim();
+                if (!term) {
+                    renderClassesOverview(allClasses);
+                    return;
+                }
+                const filtered = allClasses.filter(c =>
+                    (c.class_name && c.class_name.toLowerCase().includes(term)) ||
+                    (c.subject && c.subject.toLowerCase().includes(term)) ||
+                    (c.section_code && c.section_code.toLowerCase().includes(term))
+                );
+                renderClassesOverview(filtered);
+            });
+        }
 
-        // 🛡️ Fallback: Direct Auth Check
-        onAuthStateChanged(auth, (user) => {
-            if (user && !currentTeacher) {
-                console.log("Dashboard: Fallback Auth Active");
-                currentTeacher = { uid: user.uid };
-                initDashboard(user.uid);
+        // Notification dropdown
+        const bell = document.getElementById('notificationBell');
+        const dropdown = document.getElementById('notificationDropdown');
+        if (bell && dropdown) {
+            bell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = dropdown.classList.contains('hidden');
+                if (isHidden) {
+                    renderNotificationDropdown(pendingAlerts);
+                    dropdown.classList.remove('hidden');
+                } else {
+                    dropdown.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        function renderNotificationDropdown(alerts) {
+            const body = document.getElementById('notifDropdownBody');
+            const countLabel = document.getElementById('notifDropdownCount');
+            if (!body) return;
+
+            const total = alerts.reduce((sum, a) => sum + (a.missing_count || 0), 0);
+            if (countLabel) {
+                countLabel.textContent = total > 0 ? `${total} pending` : '';
             }
+
+            if (alerts.length === 0) {
+                body.innerHTML = `
+                    <div class="py-10 text-center">
+                        <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center">
+                            <i data-feather="check-circle" class="w-6 h-6 text-green-400"></i>
+                        </div>
+                        <p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p>
+                        <p class="text-[9px] text-gray-600 mt-1 italic">No pending grades.</p>
+                    </div>`;
+                feather.replace();
+                return;
+            }
+
+            const topAlerts = alerts.sort((a, b) => (b.missing_count || 0) - (a.missing_count || 0)).slice(0, 20);
+            body.innerHTML = topAlerts.map(a => {
+                const pct = a.pct || Math.round((((a.enrolled_count || 0) - (a.missing_count || 0)) / (a.enrolled_count || 1)) * 100);
+                const severity = pct >= 95 ? 'green' : (pct >= 75 ? 'amber' : 'red');
+                return `
+                    <div class="flex items-start gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0" onclick="window.location.href='class_view.php?id=${a.class_id}'">
+                        <div class="w-8 h-8 mt-0.5 rounded-full bg-${severity}-500/10 flex items-center justify-center flex-shrink-0">
+                            <i data-feather="${severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle')}" class="w-4 h-4 text-${severity}-400"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-bold text-white truncate">${a.class_name}</p>
+                            <p class="text-xs text-gray-400 truncate">${a.item_name} — <span class="text-${severity}-400 font-bold">${a.missing_count || 0} ${(a.missing_count || 0) === 1 ? 'student needs' : 'students need'} grading</span></p>
+                            <div class="flex items-center gap-3 mt-1.5">
+                                <span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">${a.graded_count || 0}/${a.enrolled_count || 0} graded</span>
+                                <div class="flex-1 h-1 bg-dark-bg rounded-full max-w-[80px] overflow-hidden">
+                                    <div class="h-full bg-${severity}-500 rounded-full" style="width: ${pct}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+            feather.replace();
+        }
+
+        initPage(() => {
+            setTimeout(() => loadDashboardData(), 500);
+            setInterval(loadDashboardData, 10000);
         });
 
-        async function initDashboard(teacherId) {
-            // Real-time Class Monitor
-            const q = query(collection(db, "classes"), where("teacherUid", "==", teacherId));
-            
+        async function loadDashboardData() {
             try {
-                const snapshot = await getDocs(q);
-                const classes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const classes = await api('/classes.php');
+                allClasses = classes;
                 renderStats(classes);
                 renderTodaySchedule(classes);
                 renderClassesOverview(classes);
                 calculateAttendanceStats(classes);
+                loadGradeData(classes);
             } catch (error) {
                 console.error("Dashboard Sync Error:", error);
                 showToast(`Dashboard Sync Failure: ${error.message}`, 'error');
@@ -346,13 +380,95 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <div class="flex flex-col items-center gap-2 opacity-50">
                                     <i data-feather="alert-octagon" class="w-8 h-8 text-primary-500 animate-pulse"></i>
                                     <span class="text-xs font-black uppercase tracking-widest italic text-primary-400">Registry Sync Failure</span>
-                                    <span class="text-[9px] font-mono">${error.code}</span>
+                                    <span class="text-[9px] font-mono">${error.message}</span>
                                 </div>
                             </td>
                         </tr>`;
                     feather.replace();
                 }
             }
+        }
+
+        async function loadGradeData(classes) {
+            if (classes.length === 0) {
+                document.getElementById('statPendingGrading').textContent = '0';
+                document.getElementById('gradeAlertsList').innerHTML = `
+                    <div class="py-8 text-center opacity-40">
+                        <p class="text-xs text-gray-500 italic uppercase tracking-widest">No classes to grade.</p>
+                    </div>`;
+                return;
+            }
+
+            try {
+                const statsResponse = await api('/stats.php');
+                const alerts = statsResponse.grade_alerts || [];
+
+                let totalPending = alerts.reduce((sum, a) => sum + (a.missing_count || 0), 0);
+                document.getElementById('statPendingGrading').textContent = totalPending;
+
+                const badge = document.getElementById('notificationBadge');
+                if (badge) {
+                    if (totalPending > 0) {
+                        badge.textContent = totalPending > 9 ? '9+' : totalPending;
+                        badge.className = 'absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[8px] font-black text-white bg-primary-500 rounded-full ring-2 ring-dark-bg';
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+
+                pendingAlerts = alerts;
+                renderGradeAlerts(alerts);
+            } catch (error) {
+                console.error("Grade Data Error:", error);
+                document.getElementById('statPendingGrading').textContent = '---';
+            }
+        }
+
+        function renderGradeAlerts(alerts) {
+            const container = document.getElementById('gradeAlertsList');
+            if (!container) return;
+
+            if (alerts.length === 0) {
+                container.innerHTML = `
+                    <div class="py-6 text-center">
+                        <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center">
+                            <i data-feather="check-circle" class="w-6 h-6 text-green-400"></i>
+                        </div>
+                        <p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Grades Complete</p>
+                        <p class="text-[9px] text-gray-600 mt-1 italic">No pending grading items.</p>
+                    </div>`;
+                feather.replace();
+                return;
+            }
+
+            const topAlerts = alerts.sort((a, b) => (b.missing_count || 0) - (a.missing_count || 0)).slice(0, 5);
+
+            container.innerHTML = topAlerts.map(a => {
+                const pct = a.pct || Math.round((((a.enrolled_count || 0) - (a.missing_count || 0)) / (a.enrolled_count || 1)) * 100);
+                const severity = pct >= 95 ? 'green' : (pct >= 75 ? 'amber' : 'red');
+                const icon = severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle');
+                return `
+                    <div class="group cursor-pointer" onclick="window.location.href='class_view.php?id=${a.class_id}'">
+                        <div class="flex justify-between items-end mb-2">
+                            <div>
+                                <div class="text-sm font-bold text-white">${a.class_name}</div>
+                                <div class="text-xs text-gray-400">${a.item_name}</div>
+                            </div>
+                            <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-${severity}-500/10 border border-${severity}-500/20">
+                                <i data-feather="${icon}" class="w-3 h-3 text-${severity}-400"></i>
+                                <span class="text-xs font-bold text-${severity}-400">${a.missing_count || 0} Need Grade</span>
+                            </div>
+                        </div>
+                        <div class="relative w-full h-2 bg-dark-bg rounded-full overflow-hidden">
+                            <div class="absolute h-full bg-${severity}-500 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                        </div>
+                        <div class="flex justify-between mt-1">
+                            <span class="text-[10px] text-gray-500">${a.graded_count || 0} Graded</span>
+                            <span class="text-[10px] text-${severity}-400">${a.missing_count || 0} Pending</span>
+                        </div>
+                    </div>`;
+            }).join('');
+            feather.replace();
         }
 
         async function calculateAttendanceStats(classes) {
@@ -362,33 +478,29 @@ require_once dirname(__DIR__) . '/core/init.php';
                 return;
             }
 
-            const classIds = classes.map(c => c.id);
-            const attendanceRef = collection(db, "attendance");
-            
-            // To calculate "weekly average", we need records from the last 14 days
-            const now = new Date();
-            const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const prevWeek = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-
             try {
-                // Since Firestore doesn't support 'in' with more than 30 IDs, we might need to batch or just fetch all for teacher
-                // For performance, we'll fetch all attendance for the last 14 days and filter in JS
-                const q = query(attendanceRef, where("classId", "in", classIds.slice(0, 30))); // Max 30 for 'in' query
-                const snapshot = await getDocs(q);
-                const allRecords = snapshot.docs.map(d => d.data());
+                const response = await api('/attendance.php');
+                const allRecords = response.records || [];
 
-                const lastWeekRecords = allRecords.filter(r => r.timestamp?.toDate() >= lastWeek);
-                const prevWeekRecords = allRecords.filter(r => r.timestamp?.toDate() >= prevWeek && r.timestamp?.toDate() < lastWeek);
+                const now = new Date();
+                const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                const prevWeek = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-                // Helper to calc avg presence: present_scans / total_possible_scans
-                // total_possible_scans = (number of students in class) * (number of days sessions were held)
+                const lastWeekRecords = allRecords.filter(r => {
+                    const d = r.date ? new Date(r.date) : null;
+                    return d && d >= lastWeek;
+                });
+                const prevWeekRecords = allRecords.filter(r => {
+                    const d = r.date ? new Date(r.date) : null;
+                    return d && d >= prevWeek && d < lastWeek;
+                });
+
                 const calcAvg = (records) => {
                     if (records.length === 0) return 0;
-                    
-                    // Group records by [classId, date] to determine how many sessions were held
+
                     const sessions = {};
                     records.forEach(r => {
-                        const key = `${r.classId}_${r.date}`;
+                        const key = `${r.class_id}_${r.date}`;
                         if (!sessions[key]) sessions[key] = 0;
                         sessions[key]++;
                     });
@@ -412,7 +524,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const trendDisplay = document.getElementById('statAttendanceTrend');
 
                 avgDisplay.textContent = `${Math.round(lastWeekAvg)}%`;
-                
+
                 if (prevWeekAvg > 0) {
                     const diff = lastWeekAvg - prevWeekAvg;
                     const isUp = diff >= 0;
@@ -443,7 +555,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         function renderTodaySchedule(classes) {
             const container = document.getElementById('todayScheduleList');
             const todayClasses = classes.filter(c => c.schedule && c.schedule.includes(CURRENT_DAY_CODE))
-                                       .sort((a, b) => a.startTime.localeCompare(b.startTime));
+                                       .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
             if (todayClasses.length === 0) {
                 container.innerHTML = `
@@ -458,9 +570,9 @@ require_once dirname(__DIR__) . '/core/init.php';
             const now = new Date();
             const nowStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
 
-            todayClasses.forEach((c, idx) => {
-                const isNow = nowStr >= c.startTime && nowStr <= c.endTime;
-                const isPast = nowStr > c.endTime;
+            todayClasses.forEach((c) => {
+                const isNow = nowStr >= c.start_time && nowStr <= c.end_time;
+                const isPast = nowStr > c.end_time;
                 
                 html += `
                     <div class="relative pl-12 pb-8 group">
@@ -469,9 +581,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <div class="flex justify-between items-start mb-2">
                                 <div>
                                     <span class="text-[10px] font-bold ${isNow ? 'text-primary-400' : 'text-gray-500'} uppercase tracking-wide italic">${isNow ? 'Now' : (isPast ? 'Completed' : 'Upcoming')}</span>
-                                    <h4 class="text-md font-bold ${isPast ? 'text-gray-500' : 'text-white'}">${c.className}</h4>
+                                    <h4 class="text-md font-bold ${isPast ? 'text-gray-500' : 'text-white'}">${c.class_name}</h4>
                                 </div>
-                                <span class="text-sm ${isPast ? 'text-gray-600' : 'text-gray-300'} font-mono">${formatTime(c.startTime)} - ${formatTime(c.endTime)}</span>
+                                <span class="text-sm ${isPast ? 'text-gray-600' : 'text-gray-300'} font-mono">${formatTime(c.start_time)} - ${formatTime(c.end_time)}</span>
                             </div>
                             <div class="flex items-center gap-4 text-[10px] text-gray-500 font-black uppercase tracking-widest italic tracking-tighter">
                                 <div class="flex items-center gap-1"><i data-feather="map-pin" class="w-3 h-3"></i> ${c.room || 'Room TBA'}</div>
@@ -495,7 +607,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             tbody.innerHTML = classes.map(c => `
                 <tr class="group hover:bg-white/5 transition-colors cursor-pointer" onclick="window.location.href='class_view.php?id=${c.id}'">
                     <td class="px-4 py-3">
-                        <div class="font-bold text-white">${c.className}</div>
+                        <div class="font-bold text-white">${c.class_name}</div>
                         <div class="text-[10px] text-gray-500 uppercase tracking-widest italic">
                             ${Array.isArray(c.schedule) ? c.schedule.map(s => DAYS_MAP[s] || s).join(', ') : (c.schedule || 'No Schedule')}
                         </div>

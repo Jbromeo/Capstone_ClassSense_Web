@@ -1,82 +1,83 @@
-import { auth, db } from '../assets/js/firebase-init.js';
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+function autoFitText(el, maxSize) {
+    if (!el) return;
+    el.style.fontSize = maxSize + 'rem';
+    el.style.whiteSpace = 'nowrap';
+    let size = maxSize;
+    while (el.scrollWidth > el.clientWidth && size > 0.4) {
+        size -= 0.1;
+        el.style.fontSize = size + 'rem';
+    }
+}
 
-// 1. Auth State Check
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
+function autoFitInitials(el) {
+    if (!el) return;
+    el.style.fontSize = '1.5rem';
+    let size = 1.5;
+    while (el.scrollWidth > el.clientWidth && size > 0.5) {
+        size -= 0.1;
+        el.style.fontSize = size + 'rem';
+    }
+}
+
+window.addEventListener('profileLoaded', (e) => {
+    const data = e.detail;
+
+    const initials = ((data.firstName?.[0] || '') + (data.lastName?.[0] || '')).toUpperCase() || 'ST';
+
+    const sideName = document.getElementById('sideStudentName');
+    const sideYear = document.getElementById('sideStudentYear');
+    const popName = document.getElementById('popoverName');
+    const popEmail = document.getElementById('popoverEmail');
+
+    if (sideName) {
+        sideName.textContent = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Student';
+        sideName.classList.remove('italic');
+        autoFitText(sideName, 0.6875);
+    }
+    if (popName) {
+        popName.textContent = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Student';
+    }
+    if (popEmail) {
+        popEmail.textContent = data.email || '';
+    }
+    if (sideYear) {
+        sideYear.textContent = data.studentId || 'Student';
+    }
+
+    const sideImg = document.getElementById('sideProfileImg');
+    if (sideImg) {
+        sideImg.textContent = initials;
+        autoFitInitials(sideImg);
+    }
+
+    const dashImg = document.getElementById('dashStudentPhoto');
+    if (dashImg) {
+        dashImg.textContent = initials;
+        autoFitInitials(dashImg);
+    }
+
+    const dashName = document.getElementById('dashStudentName');
+    if (dashName) {
+        autoFitText(dashName, 1.25);
+    }
+});
+
+(function() {
+    const cached = localStorage.getItem('cs_cached_profile');
+    if (cached) {
         try {
-            // Fetch User Data from students collection
-            const docRef = doc(db, "students", user.uid);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                
-                // Update Sidebar UI (Shared across all student pages)
-                const sideName = document.getElementById('sideStudentName');
-                const sideYear = document.getElementById('sideStudentYear');
-                const popName = document.getElementById('popoverName');
-                const popEmail = document.getElementById('popoverEmail');
-
-                const initials = ((data.firstName?.[0] || '') + (data.lastName?.[0] || '')).toUpperCase() || 'ST';
-                
-                if (sideName) {
-                    sideName.textContent = `${data.firstName} ${data.lastName}`;
-                    sideName.classList.remove('italic');
-                }
-                const sideImg = document.getElementById('sideProfileImg');
-                if (sideImg) sideImg.textContent = initials;
-
-                if (popName) {
-                    popName.textContent = `${data.firstName} ${data.lastName}`;
-                }
-                if (popEmail) {
-                    popEmail.textContent = data.email || "student@university.edu";
-                }
-                if (sideYear) {
-                    sideYear.textContent = data.studentId || "Student";
-                }
-
-                const dashImg = document.getElementById('dashStudentPhoto');
-                if (dashImg) dashImg.textContent = initials;
-
-                // Custom event for pages that need more data (like the dashboard)
-                window.dispatchEvent(new CustomEvent('profileLoaded', { detail: { ...data, uid: user.uid } }));
-                
-            } else {
-                console.warn("User authenticated but no student record found.");
-                fetch('../api/logout.php').then(() => {
-                    window.location.replace('../login.php?error=no_record');
-                });
+            const data = JSON.parse(cached);
+            const sideName = document.getElementById('sideStudentName');
+            if (sideName) {
+                sideName.textContent = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Student';
+                sideName.classList.remove('italic');
+                autoFitText(sideName, 0.6875);
             }
-        } catch (error) {
-            console.error("Error fetching student profile:", error);
-        }
-    } else {
-        // Not logged in, redirect to login
-        fetch('../api/logout.php').then(() => {
-            window.location.replace('../login.php?status=session_cleared');
-        });
+            const initials = ((data.firstName?.[0] || '') + (data.lastName?.[0] || '')).toUpperCase() || 'ST';
+            const sideImg = document.getElementById('sideProfileImg');
+            if (sideImg) { sideImg.textContent = initials; autoFitInitials(sideImg); }
+            const dashImg = document.getElementById('dashStudentPhoto');
+            if (dashImg) { dashImg.textContent = initials; autoFitInitials(dashImg); }
+        } catch (e) {}
     }
-});
-
-// 2. Shared Logout Logic
-document.addEventListener('DOMContentLoaded', () => {
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                // Clear Frontend Session
-                await signOut(auth);
-                // Clear Backend Identity
-                await fetch('../api/logout.php');
-                // Ensure the explicit status is passed to break cache loops
-                window.location.replace('../login.php?status=session_cleared');
-            } catch (error) {
-                console.error("Logout Error:", error);
-                window.location.replace('../login.php?error=logout_failure');
-            }
-        });
-    }
-});
+})();

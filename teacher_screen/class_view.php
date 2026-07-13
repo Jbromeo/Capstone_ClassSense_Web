@@ -28,12 +28,17 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
         .animate-shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; border: 1px solid #ea2628 !important; }
         .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
-<body class="bg-dark-bg text-gray-300 font-sans selection:bg-primary-500/30 selection:text-white antialiased min-h-screen overflow-hidden flex">
+<body class="bg-dark-bg text-gray-300 font-sans selection:bg-primary-500/30 selection:text-white antialiased h-screen overflow-hidden flex">
     <!-- Sidebar -->
     <?php include 'sidebar.php'; ?>
+
+    <div id="toastContainer" class="fixed top-5 right-5 z-[100] flex flex-col gap-3"></div>
 
     <!-- Main Content Container -->
     <div class="flex-1 flex flex-col min-w-0 bg-dark-bg transition-all overflow-hidden relative">
@@ -49,6 +54,15 @@ require_once dirname(__DIR__) . '/core/init.php';
                     </div>
                     <h1 id="viewClassName" class="text-2xl font-black text-white italic uppercase tracking-tighter leading-none">Class Hub</h1>
                 </div>
+                <div id="statusControls" class="hidden md:flex items-center gap-3 ml-6 border-l border-white/5 pl-6">
+                    <div class="flex items-center gap-1.5">
+                        <span id="statusDot" class="w-2 h-2 rounded-full bg-blue-500"></span>
+                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic">Status</span>
+                    </div>
+                    <button onclick="window.setClassStatus('Active')" data-status="Active" class="status-btn text-[11px] px-4 py-1.5 rounded-lg font-black uppercase tracking-widest italic transition-all duration-200 border-2 border-dashed border-blue-500/25 text-blue-400/60 hover:border-blue-500/60 hover:text-blue-300 bg-transparent">Active</button>
+                    <button onclick="window.setClassStatus('In Progress')" data-status="In Progress" class="status-btn text-[11px] px-4 py-1.5 rounded-lg font-black uppercase tracking-widest italic transition-all duration-200 border-2 border-dashed border-amber-500/25 text-amber-400/60 hover:border-amber-500/60 hover:text-amber-300 bg-transparent">In Progress</button>
+                    <button onclick="window.setClassStatus('Completed')" data-status="Completed" class="status-btn text-[11px] px-4 py-1.5 rounded-lg font-black uppercase tracking-widest italic transition-all duration-200 border-2 border-dashed border-green-500/25 text-green-400/60 hover:border-green-500/60 hover:text-green-300 bg-transparent">Completed</button>
+                </div>
             </div>
             
             <div class="flex items-center gap-6">
@@ -58,12 +72,28 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
                         </div>
-                        <input type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-xs rounded-full focus:ring-primary-500 focus:border-primary-500 block w-48 pl-10 p-2.5 transition-all focus:w-64 placeholder-gray-600 font-bold uppercase italic" placeholder="Search roster...">
+                        <input id="globalSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-xs rounded-full focus:ring-primary-500 focus:border-primary-500 block w-48 pl-10 p-2.5 transition-all focus:w-64 placeholder-gray-600 font-bold uppercase italic" placeholder="Search roster...">
                     </div>
-                    <button class="relative p-2 text-gray-400 hover:text-white transition-colors">
-                        <i data-feather="bell" class="w-5 h-5"></i>
-                        <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                    </button>
+                    <div class="relative">
+                        <button id="notificationBell" class="p-2 text-gray-400 hover:text-white transition-colors relative">
+                            <i data-feather="bell" class="w-5 h-5"></i>
+                            <span id="notificationBadge" class="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                        </button>
+                        <div id="notificationDropdown" class="absolute right-0 top-full mt-3 w-[380px] bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl hidden animate-fade-in-up origin-top-right z-50 max-h-[480px] flex flex-col">
+                            <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 flex-shrink-0">
+                                <h3 class="text-sm font-black text-white italic uppercase tracking-tighter">Notifications</h3>
+                                <span id="notifDropdownCount" class="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic"></span>
+                            </div>
+                            <div id="notifDropdownBody" class="overflow-y-auto flex-1 custom-scrollbar">
+                                <div class="py-10 text-center opacity-40">
+                                    <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading...</p>
+                                </div>
+                            </div>
+                            <div class="p-3 border-t border-white/5 flex-shrink-0">
+                                <a href="grades.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -94,21 +124,23 @@ require_once dirname(__DIR__) . '/core/init.php';
     <!-- Modals -->
     <?php include 'tabs/modals_class.php'; ?>
 
-    <!-- Unified Logic Module -->
     <script type="module">
         import { GradingSystem } from '../assets/js/grading_controller.js';
-        import { db, auth } from '../assets/js/firebase-init.js';
-        import { doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
+        window.api = api;
 
-        // Global State & UI Helpers
+        const API_BASE = '../api';
         const urlParams = new URLSearchParams(window.location.search);
         const classId = urlParams.get('id');
         window.gradingSystem = new GradingSystem(classId);
+        let cachedStudents = [];
+        let searchTerm = '';
+        let pendingAlerts = [];
+        let classPollInterval = null;
 
-        // Toast Helper
         window.showToast = (message, type = 'success') => {
             const container = document.getElementById('toastContainer');
-            if(!container) return;
+            if (!container) return;
             const toast = document.createElement('div');
             const isErr = type === 'error';
             const isInfo = type === 'info';
@@ -119,30 +151,25 @@ require_once dirname(__DIR__) . '/core/init.php';
             setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 500); }, 3000);
         };
 
-        // Tab Switching Logic
         window.switchTab = (tabName) => {
-            console.log("Switching to tab:", tabName);
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             const target = document.getElementById('tab-' + tabName);
-            if(target) target.classList.remove('hidden');
-            
+            if (target) target.classList.remove('hidden');
             document.querySelectorAll('.class-control-nav').forEach(el => {
                 el.classList.remove('active', 'bg-white/5', 'text-white', 'shadow-lg', 'shadow-primary-500/10');
                 el.classList.add('text-gray-400');
                 const icon = el.querySelector('i');
-                if(icon) { icon.classList.remove('text-primary-500'); icon.classList.add('text-gray-500'); }
+                if (icon) { icon.classList.remove('text-primary-500'); icon.classList.add('text-gray-500'); }
             });
-
             const activeNav = document.getElementById('nav-' + tabName);
-            if(activeNav) {
+            if (activeNav) {
                 activeNav.classList.add('active', 'bg-white/5', 'text-white', 'shadow-lg', 'shadow-primary-500/10');
                 activeNav.classList.remove('text-gray-400');
                 const icon = activeNav.querySelector('i');
-                if(icon) { icon.classList.add('text-primary-500'); icon.classList.remove('text-gray-500'); }
+                if (icon) { icon.classList.add('text-primary-500'); icon.classList.remove('text-gray-500'); }
             }
         };
 
-        // Modal and UI Interactions
         window.openModal = (id) => {
             const modal = document.getElementById(id);
             const content = document.getElementById(id + 'Content');
@@ -175,42 +202,67 @@ require_once dirname(__DIR__) . '/core/init.php';
                 activeBtn.classList.add('active', 'bg-primary-600', 'text-white', 'shadow-lg', 'shadow-primary-500/20');
                 activeBtn.classList.remove('text-gray-500');
             }
+            window.gradingSystem.stopPolling();
             window.gradingSystem.quarter = quarter;
-            window.gradingSystem.setupRealtimeListener();
+            window.gradingSystem.loadData();
+            window.gradingSystem.startPolling();
         };
 
-        window.exportToExcel = () => {
-            window.gradingSystem.exportToCSV();
+        window.exportToExcel = () => window.gradingSystem.exportToCSV();
+
+        window.setClassStatus = async (status) => {
+            try {
+                await window.api(`/classes.php?id=${classId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status })
+                });
+                window.showToast(`Status set to ${status}`, 'success');
+            } catch (err) {
+                window.showToast('Status update failed', 'error');
+            }
         };
 
         window.saveNewComponent = async () => {
             const category = document.getElementById('addCompCategory').value;
             const name = document.getElementById('addCompName').value.trim();
             const hps = parseInt(document.getElementById('addCompHps').value);
-            if (!name || !hps || hps <= 0) {
-                window.showToast("Invalid Component Data", "error");
-                return;
-            }
+            if (!name || !hps || hps <= 0) { window.showToast("Invalid Component Data", "error"); return; }
             await window.gradingSystem.addComponent(category, name, hps);
             window.closeModal('addComponentModal');
             window.showToast("Component Deployed", "success");
             document.getElementById('addCompName').value = '';
         };
 
+        window.updateWeightTotal = () => {
+            const ids = ['weight-written', 'weight-performance', 'weight-exam', 'weight-attendance'];
+            const total = ids.reduce((sum, id) => sum + (parseInt(document.getElementById(id)?.value) || 0), 0);
+            const bar = document.getElementById('weightTotalBarFill');
+            const val = document.getElementById('weightTotalValue');
+            const icon = document.getElementById('weightTotalIcon');
+            if (!bar || !val || !icon) return;
+            const ok = total === 100;
+            bar.style.width = Math.min(total, 100) + '%';
+            bar.className = `h-full rounded-full transition-all duration-300 ${ok ? 'bg-green-500' : total > 100 ? 'bg-primary-500' : 'bg-yellow-500'}`;
+            val.innerText = total + '%';
+            val.className = `text-xs font-black ${ok ? 'text-green-400' : 'text-primary-400'}`;
+            icon.innerHTML = ok
+                ? '<i data-feather="check-circle" class="w-4 h-4"></i>'
+                : '<i data-feather="alert-circle" class="w-4 h-4"></i>';
+            if (typeof feather !== 'undefined') feather.replace();
+        };
+
         window.saveWeights = async () => {
             const w = parseInt(document.getElementById('weight-written').value) || 0;
             const p = parseInt(document.getElementById('weight-performance').value) || 0;
             const e = parseInt(document.getElementById('weight-exam').value) || 0;
-            
-            if (w + p + e !== 100) {
-                window.showToast("Weights must total 100%", "error");
-                return;
-            }
-            
+            const a = parseInt(document.getElementById('weight-attendance').value) || 0;
+            if (w + p + e + a !== 100) { window.showToast("Weights must total 100%", "error"); return; }
             window.gradingSystem.config.written.weight = w;
             window.gradingSystem.config.performance.weight = p;
             window.gradingSystem.config.exam.weight = e;
+            window.gradingSystem.config.attendance.weight = a;
             await window.gradingSystem.syncConfig();
+            window.gradingSystem.render();
             window.closeModal('weightConfigModal');
             window.showToast("Weights Updated", "success");
         };
@@ -220,15 +272,77 @@ require_once dirname(__DIR__) . '/core/init.php';
             window.closeModal('addStudentModal');
         };
 
-        // Data Management Logic
+        const searchInput = document.getElementById('globalSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', () => {
+                searchTerm = searchInput.value.toLowerCase().trim();
+                if (!searchTerm) { renderRoster(cachedStudents); return; }
+                const filtered = cachedStudents.filter(s =>
+                    (s.firstName && s.firstName.toLowerCase().includes(searchTerm)) ||
+                    (s.lastName && s.lastName.toLowerCase().includes(searchTerm)) ||
+                    (s.studentId && s.studentId.toLowerCase().includes(searchTerm)) ||
+                    (s.email && s.email.toLowerCase().includes(searchTerm))
+                );
+                renderRoster(filtered);
+            });
+        }
+
+        const bell = document.getElementById('notificationBell');
+        const dropdown = document.getElementById('notificationDropdown');
+        if (bell && dropdown) {
+            bell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = dropdown.classList.contains('hidden');
+                if (isHidden) { renderNotificationDropdown(pendingAlerts); dropdown.classList.remove('hidden'); }
+                else { dropdown.classList.add('hidden'); }
+            });
+            document.addEventListener('click', (e) => {
+                if (!dropdown.contains(e.target) && !bell.contains(e.target)) dropdown.classList.add('hidden');
+            });
+        }
+
+        function renderNotificationDropdown(alerts) {
+            const body = document.getElementById('notifDropdownBody');
+            const countLabel = document.getElementById('notifDropdownCount');
+            if (!body) return;
+            const total = alerts.reduce((sum, a) => sum + a.missingCount, 0);
+            if (countLabel) countLabel.textContent = total > 0 ? `${total} pending` : '';
+            if (alerts.length === 0) {
+                body.innerHTML = `<div class="py-10 text-center"><div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center"><i data-feather="check-circle" class="w-6 h-6 text-green-400"></i></div><p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p><p class="text-[9px] text-gray-600 mt-1 italic">No pending grades.</p></div>`;
+                feather.replace(); return;
+            }
+            const topAlerts = alerts.sort((a, b) => b.missingCount - a.missingCount).slice(0, 20);
+            body.innerHTML = topAlerts.map(a => {
+                const severity = a.pct >= 95 ? 'green' : (a.pct >= 75 ? 'amber' : 'red');
+                return `<div class="flex items-start gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0" onclick="window.location.href='class_view.php?id=${a.classId}'"><div class="w-8 h-8 mt-0.5 rounded-full bg-${severity}-500/10 flex items-center justify-center flex-shrink-0"><i data-feather="${severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle')}" class="w-4 h-4 text-${severity}-400"></i></div><div class="flex-1 min-w-0"><p class="text-sm font-bold text-white truncate">${a.className}</p><p class="text-xs text-gray-400 truncate">${a.itemName} — <span class="text-${severity}-400 font-bold">${a.missingCount} ${a.missingCount === 1 ? 'student needs' : 'students need'} grading</span></p><div class="flex items-center gap-3 mt-1.5"><span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">${a.gradedCount}/${a.enrolledCount} graded</span><div class="flex-1 h-1 bg-dark-bg rounded-full max-w-[80px] overflow-hidden"><div class="h-full bg-${severity}-500 rounded-full" style="width: ${a.pct}%"></div></div></div></div></div>`;
+            }).join('');
+            feather.replace();
+        }
+
+        async function loadPendingAlerts() {
+            try {
+                const stats = await window.api('/stats.php');
+                pendingAlerts = stats.grade_alerts || [];
+                const totalPending = stats.pending_grading || 0;
+                const badge = document.getElementById('notificationBadge');
+                if (badge) {
+                    if (totalPending > 0) {
+                        badge.textContent = totalPending > 9 ? '9+' : totalPending;
+                        badge.className = 'absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[8px] font-black text-white bg-primary-500 rounded-full ring-2 ring-dark-bg';
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            } catch (e) { console.warn("Alert load failed:", e); }
+        }
+
         async function fetchStudentDetails(uids) {
             if (!uids || uids.length === 0) return [];
-            console.log("Fetching details for", uids.length, "students...");
             try {
-                const results = await Promise.allSettled(uids.map(uid => getDoc(doc(db, "students", uid))));
-                return results
-                    .filter(res => res.status === 'fulfilled' && res.value.exists())
-                    .map(res => ({ uid: res.value.id, ...res.value.data() }));
+                return await window.api('/fetch.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ collection: 'students', uids })
+                });
             } catch (err) {
                 console.error("Critical Retrieval Fault:", err);
                 return [];
@@ -239,15 +353,12 @@ require_once dirname(__DIR__) . '/core/init.php';
             const tbody = document.getElementById('studentTableBody');
             const countSpan = document.getElementById('rosterCount');
             const countTop = document.getElementById('rosterCountTop');
-            
             if (!students || students.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="4" class="p-32 text-center opacity-40"><div class="flex flex-col items-center gap-6"><i data-feather="user-x" class="w-12 h-12 text-gray-500"></i><p class="text-[10px] font-black uppercase tracking-widest italic tracking-tighter text-white">Hub Connection Empty</p></div></td></tr>`;
-                if(countSpan) countSpan.innerText = "0 ENTITIES ENROLLED";
-                if(countTop) countTop.innerText = "0 ENTITIES ENROLLED";
-                feather.replace();
-                return;
+                if (countSpan) countSpan.innerText = "0 ENTITIES ENROLLED";
+                if (countTop) countTop.innerText = "0 ENTITIES ENROLLED";
+                feather.replace(); return;
             }
-
             tbody.innerHTML = students.map((s, index) => `
                 <tr class="border-b border-white/5 hover:bg-white/5 transition-colors group">
                     <td class="p-5 text-gray-500 font-mono text-[10px] text-center">${index + 1}</td>
@@ -270,55 +381,81 @@ require_once dirname(__DIR__) . '/core/init.php';
                         </div>
                     </td>
                 </tr>`).join('');
-            
-            if(countSpan) countSpan.innerText = `${students.length} STUDENT${students.length === 1 ? '' : 'S'} ENROLLED`;
-            if(countTop) countTop.innerText = `${students.length} STUDENT${students.length === 1 ? '' : 'S'} ENROLLED`;
+            if (countSpan) countSpan.innerText = `${students.length} STUDENT${students.length === 1 ? '' : 'S'} ENROLLED`;
+            if (countTop) countTop.innerText = `${students.length} STUDENT${students.length === 1 ? '' : 'S'} ENROLLED`;
             feather.replace();
         }
 
-        async function initClassHub() {
-            if (!classId) { 
-                window.showToast('Terminal Error: No Hub ID found.', 'error');
-                setTimeout(() => window.location.href = 'classes.php', 2000);
-                return; 
+        function applyStatusUI(classData) {
+            document.getElementById('viewClassName').innerText = classData.class_name;
+            document.getElementById('breadcrumbClassName').innerText = classData.subject || classData.class_name;
+            document.querySelectorAll('.status-btn').forEach(btn => {
+                const status = btn.dataset.status;
+                if (status === classData.status) {
+                    btn.classList.remove('bg-transparent', 'border-dashed', 'border-blue-500/25', 'border-amber-500/25', 'border-green-500/25', 'text-blue-400/60', 'text-amber-400/60', 'text-green-400/60');
+                    btn.classList.add('text-white', 'shadow-lg');
+                    if (status === 'Active') btn.classList.add('bg-blue-600', 'border-blue-600', 'shadow-blue-600/30');
+                    else if (status === 'In Progress') btn.classList.add('bg-amber-500', 'border-amber-500', 'shadow-amber-500/30');
+                    else if (status === 'Completed') btn.classList.add('bg-green-600', 'border-green-600', 'shadow-green-600/30');
+                } else {
+                    btn.classList.add('bg-transparent', 'border-dashed');
+                    btn.classList.remove('text-white', 'shadow-lg', 'bg-blue-600', 'bg-amber-500', 'bg-green-600', 'border-blue-600', 'border-amber-500', 'border-green-600', 'shadow-blue-600/30', 'shadow-amber-500/30', 'shadow-green-600/30', 'text-blue-400/60', 'text-amber-400/60', 'text-green-400/60');
+                    if (status === 'Active') btn.classList.add('border-blue-500/25', 'text-blue-400/60');
+                    else if (status === 'In Progress') btn.classList.add('border-amber-500/25', 'text-amber-400/60');
+                    else if (status === 'Completed') btn.classList.add('border-green-500/25', 'text-green-400/60');
+                }
+            });
+            const dot = document.getElementById('statusDot');
+            if (dot) {
+                dot.className = 'w-2 h-2 rounded-full';
+                if (classData.status === 'Active') dot.classList.add('bg-blue-500');
+                else if (classData.status === 'In Progress') dot.classList.add('bg-amber-500');
+                else if (classData.status === 'Completed') dot.classList.add('bg-green-600');
+                else dot.classList.add('bg-gray-500');
             }
-            
+            const codeSpan = document.getElementById('displayClassCode');
+            if (codeSpan) codeSpan.innerText = classData.class_code || classData.id;
+        }
+
+        let gradingInitialized = false;
+
+        async function loadClassData() {
+            if (!classId) return;
             try {
-                console.log("Initializing Hub for ID:", classId);
-                const classRef = doc(db, "classes", classId);
-                
-                onSnapshot(classRef, async (snapshot) => {
-                    if (snapshot.exists()) {
-                        const classData = snapshot.data();
-                        document.getElementById('viewClassName').innerText = classData.className;
-                        document.getElementById('breadcrumbClassName').innerText = classData.subject || classData.className;
-                        
-                        const codeSpan = document.getElementById('displayClassCode');
-                        if (codeSpan) codeSpan.innerText = classData.classCode || classData.id;
-                        
-                        const uids = classData.students || [];
-                        const fullStudentData = await fetchStudentDetails(uids);
-                        renderRoster(fullStudentData);
-                        window.gradingSystem.init(fullStudentData);
-                    } else { 
-                        window.showToast('Hub Inaccessible or Offline.', 'error');
-                        setTimeout(() => window.location.href = 'classes.php', 3000);
-                    }
-                }, (error) => {
-                    console.error("Hub Sync Failure:", error);
-                    window.showToast('Security Violation or Hub Offline.', 'error');
-                });
-            } catch (err) {
-                console.error("Execution Failure:", err);
-                window.showToast('Major Connection Error. Check Console.', 'error');
+                const classData = await window.api(`/classes.php?id=${classId}`);
+                applyStatusUI(classData);
+                const uids = classData.students || [];
+                const fullStudentData = await fetchStudentDetails(uids);
+                cachedStudents = fullStudentData;
+                if (!searchTerm) renderRoster(fullStudentData);
+                else {
+                    const filtered = fullStudentData.filter(s =>
+                        (s.firstName && s.firstName.toLowerCase().includes(searchTerm)) ||
+                        (s.lastName && s.lastName.toLowerCase().includes(searchTerm)) ||
+                        (s.studentId && s.studentId.toLowerCase().includes(searchTerm)) ||
+                        (s.email && s.email.toLowerCase().includes(searchTerm))
+                    );
+                    renderRoster(filtered);
+                }
+                if (!gradingInitialized) {
+                    gradingInitialized = true;
+                    window.gradingSystem.init(fullStudentData);
+                }
+            } catch (e) {
+                console.error('Load class data error:', e);
+                window.showToast('Hub Inaccessible or Offline.', 'error');
             }
         }
 
-        // Boot
+        initPage(() => {
+            setTimeout(() => loadClassData(), 500);
+            classPollInterval = setInterval(loadClassData, 10000);
+            loadPendingAlerts();
+            setInterval(loadPendingAlerts, 30000);
+        });
+
         document.addEventListener('DOMContentLoaded', () => {
             feather.replace();
-            initClassHub();
-            // Start on Students Tab
             window.switchTab('students');
         });
     </script>

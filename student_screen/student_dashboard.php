@@ -9,7 +9,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | Student Dashboard</title>
     <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white bg-dark-bg">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white bg-dark-bg">
 
     <!-- Ambient Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -29,7 +29,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 <button id="mobileMenuBtn" class="md:hidden p-2 -ml-2 text-gray-400 hover:text-white transition-colors">
                     <i data-feather="menu"></i>
                 </button>
-                <h2 class="text-xl font-black text-white hidden sm:block italic tracking-tight uppercase tracking-tighter shadow-sm">Dashboard Overview</h2>
+                <h2 class="text-xl font-black text-white hidden sm:block tracking-tight uppercase shadow-sm">Dashboard</h2>
             </div>
 
             <div class="flex items-center gap-4">
@@ -37,13 +37,16 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i data-feather="search" class="h-4 w-4 text-gray-600 group-focus-within:text-primary-500 transition-colors"></i>
                     </div>
-                    <input type="text" class="bg-dark-bg/50 border border-white/10 text-gray-300 text-sm rounded-full focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder:text-gray-600 font-medium italic" placeholder="Search classes...">
+                    <input id="globalSearchInput" type="text" class="bg-dark-bg/50 border border-white/10 text-gray-300 text-sm rounded-full focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder:text-gray-600 font-medium italic" placeholder="Search classes...">
                 </div>
 
-                <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
-                    <i data-feather="bell"></i>
-                    <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                </button>
+                <div class="relative">
+                    <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
+                        <i data-feather="bell"></i>
+                        <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                    </button>
+                    <?php include '../includes/notification_popover.php'; ?>
+                </div>
             </div>
         </header>
 
@@ -55,46 +58,46 @@ require_once dirname(__DIR__) . '/core/init.php';
                 <!-- Profile Card -->
                 <div class="glass-panel rounded-2xl p-6 flex items-center gap-5 border border-white/5 relative overflow-hidden group">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-500/10 transition-colors"></div>
-                <div id="dashStudentPhoto" class="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-900 flex items-center justify-center text-white font-black text-2xl border border-white/10 shadow-2xl relative z-10 transition-transform group-hover:scale-105 italic">
-                    ST
+                <div id="dashStudentPhoto" class="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-900 flex items-center justify-center text-white font-black border border-white/10 shadow-2xl relative z-10 transition-transform group-hover:scale-105" style="font-size:1.5rem">
+                    
                 </div>
-                    <div class="relative z-10">
-                        <h3 id="dashStudentName" class="text-xl font-black text-white italic truncate tracking-tighter uppercase leading-none">Loading Identity...</h3>
-                        <p id="dashStudentCourse" class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-2 italic leading-none">Establishing Sync</p>
+                    <div class="relative z-10 min-w-0">
+                        <h3 id="dashStudentName" class="text-xl font-black text-white truncate tracking-tighter uppercase leading-none overflow-hidden" style="white-space:nowrap">Loading Identity...</h3>
+                        <p id="dashStudentCourse" class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-2 leading-none">Establishing Sync</p>
                         <div class="mt-3">
-                             <span id="dashStudentYear" class="inline-flex items-center px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20 italic">---</span>
+                             <span id="dashStudentYear" class="inline-flex items-center px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20">---</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- General Average -->
+                <!-- Attendance Rate -->
                 <div class="glass-panel p-6 rounded-2xl border border-white/5 relative overflow-hidden group hover:border-green-500/30 transition-all">
                     <div class="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-green-500/10 transition-colors"></div>
                     <div class="flex justify-between items-start relative z-10">
                         <div>
-                            <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic mb-2 opacity-60 leading-none">Academic Standing</p>
-                            <h3 class="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">1.45</h3>
+                            <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2 opacity-60 leading-none">Attendance Rate</p>
+                            <h3 id="dashAttendanceRate" class="text-4xl font-black text-white tracking-tighter uppercase leading-none">--</h3>
                         </div>
                         <div class="p-3 bg-green-500/10 rounded-xl text-green-500 group-hover:scale-110 transition-transform">
                             <i data-feather="trending-up" class="w-6 h-6"></i>
                         </div>
                     </div>
-                    <p class="text-[10px] text-green-400 mt-4 font-black uppercase tracking-widest italic leading-none opacity-80">Dean's Lister</p>
+                    <p id="dashAttendanceLabel" class="text-[10px] text-green-400 mt-4 font-black uppercase tracking-widest leading-none opacity-80">Loading...</p>
                 </div>
 
-                <!-- Enrolled Subjects -->
+                <!-- Enrolled Classes -->
                 <div class="glass-panel p-6 rounded-2xl border border-white/5 relative overflow-hidden group hover:border-purple-500/30 transition-all">
                     <div class="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-purple-500/10 transition-colors"></div>
                     <div class="flex justify-between items-start relative z-10">
                         <div>
-                            <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic mb-2 opacity-60 leading-none">Current Load</p>
-                            <h3 class="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">08</h3>
+                            <p class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2 opacity-60 leading-none">Current Load</p>
+                            <h3 id="dashEnrolledCount" class="text-4xl font-black text-white tracking-tighter uppercase leading-none">--</h3>
                         </div>
                         <div class="p-3 bg-purple-500/10 rounded-xl text-purple-500 group-hover:scale-110 transition-transform">
                             <i data-feather="book-open" class="w-6 h-6"></i>
                         </div>
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-4 font-black uppercase tracking-widest italic leading-none opacity-80">24 Units Registered</p>
+                    <p id="dashEnrolledLabel" class="text-[10px] text-gray-400 mt-4 font-black uppercase tracking-widest leading-none opacity-80">Loading...</p>
                 </div>
             </div>
 
@@ -103,34 +106,27 @@ require_once dirname(__DIR__) . '/core/init.php';
                  <!-- Schedule -->
                  <div class="glass-panel rounded-2xl p-6 border border-white/5">
                     <div class="flex items-center justify-between mb-6">
-                        <h3 class="text-lg font-black text-white italic uppercase tracking-tighter leading-none">Daily Timeline</h3>
-                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">Today's Schedule</span>
+                        <h3 class="text-lg font-black text-white uppercase tracking-tighter leading-none">Daily Timeline</h3>
+                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest opacity-60">Today's Schedule</span>
                     </div>
                     <div class="space-y-4">
-                        <div class="flex items-center justify-between p-4 bg-white/[0.02] rounded-2xl border border-white/5 group hover:border-primary-500/20 transition-all cursor-pointer">
-                            <div class="flex items-center gap-4">
-                                <div class="w-1.5 h-10 rounded-full bg-primary-500 shadow-lg shadow-primary-500/20"></div>
-                                <div>
-                                    <h4 class="text-sm font-black text-white italic uppercase tracking-tighter italic">CS101 - Intro to Cloud</h4>
-                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-60 italic">07:00 AM - 09:00 AM</p>
-                                </div>
-                            </div>
-                            <span class="text-[9px] px-3 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 font-black uppercase italic tracking-widest">Active</span>
+                        <div class="p-6 text-center">
+                            <p class="text-sm text-gray-500 font-medium">No classes scheduled for today</p>
                         </div>
                     </div>
                  </div>
 
                  <!-- Alerts -->
                  <div class="glass-panel rounded-2xl p-6 border border-white/5">
-                    <h3 class="text-lg font-black text-white italic uppercase tracking-tighter leading-none mb-6 text-center lg:text-left">Intelligence Alerts</h3>
+                    <h3 class="text-lg font-black text-white uppercase tracking-tighter leading-none mb-6 text-center lg:text-left">Intelligence Alerts</h3>
                     <div class="space-y-4">
                         <div class="flex items-start gap-4 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 group hover:bg-amber-500/10 transition-all cursor-pointer">
                             <div class="p-2.5 bg-amber-500/10 rounded-xl text-amber-500 group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/10">
                                 <i data-feather="alert-octagon" class="w-5 h-5"></i>
                             </div>
                             <div class="flex-1">
-                                <h4 class="text-xs font-black text-amber-500 uppercase tracking-widest italic leading-none mb-2 underline decoration-amber-500/30 underline-offset-4">Attendance Alert</h4>
-                                <p class="text-[11px] text-gray-300 font-medium italic leading-relaxed opacity-80">Identity participation in mathematics is currently below threshold (78%). Immediate sync required.</p>
+                                <h4 class="text-xs font-black text-amber-500 uppercase tracking-widest leading-none mb-2 underline decoration-amber-500/30 underline-offset-4">Attendance Alert</h4>
+                                <p class="text-[11px] text-gray-300 font-medium leading-relaxed opacity-80">Identity participation in mathematics is currently below threshold (78%). Immediate sync required.</p>
                             </div>
                         </div>
                     </div>
@@ -162,18 +158,73 @@ require_once dirname(__DIR__) . '/core/init.php';
                 dashName.classList.remove('italic');
             }
             if (dashCourse) {
-                dashCourse.textContent = data.course || "BS Information Technology";
+                dashCourse.textContent = data.course || data.yearLevel || '';
                 dashCourse.classList.remove('italic');
             }
             if (dashYear) {
-                dashYear.textContent = data.yearLevel || "1st Year Account";
+                dashYear.textContent = data.yearLevel || data.studentId || '';
             }
         });
 
         document.addEventListener('DOMContentLoaded', () => { 
-            feather.replace(); 
+            feather.replace();
+
+            // Search redirect to classes page
+            const searchInput = document.getElementById('globalSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        const q = searchInput.value.trim();
+                        window.location.href = 'student_classes.php' + (q ? '?search=' + encodeURIComponent(q) : '');
+                    }
+                });
+            }
         });
     </script>
     <script type="module" src="student_auth.js"></script>
+
+    <script type="module">
+        import { api } from '../assets/js/custom-auth.js';
+
+        async function loadStats() {
+            try {
+                const stats = await api('/student_stats.php');
+
+                // Attendance rate card
+                const rateEl = document.getElementById('dashAttendanceRate');
+                const rateLabel = document.getElementById('dashAttendanceLabel');
+                if (rateEl) {
+                    rateEl.textContent = stats.attendanceRate !== null ? stats.attendanceRate + '%' : '--';
+                }
+                if (rateLabel) {
+                    if (stats.attendanceRate === null) {
+                        rateLabel.textContent = 'No records yet';
+                    } else if (stats.attendanceRate >= 80) {
+                        rateLabel.textContent = 'Good Standing';
+                    } else if (stats.attendanceRate >= 60) {
+                        rateLabel.textContent = 'Needs Improvement';
+                    } else {
+                        rateLabel.textContent = 'At Risk';
+                    }
+                }
+
+                // Enrolled classes card
+                const enrollEl = document.getElementById('dashEnrolledCount');
+                const enrollLabel = document.getElementById('dashEnrolledLabel');
+                if (enrollEl) {
+                    enrollEl.textContent = String(stats.enrolledCount).padStart(2, '0');
+                }
+                if (enrollLabel) {
+                    enrollLabel.textContent = stats.enrolledCount === 1 ? '1 Subject Enrolled' : stats.enrolledCount + ' Subjects Enrolled';
+                }
+            } catch (e) {
+                console.error('[dash stats]', e);
+            }
+        }
+
+        window.addEventListener('profileLoaded', () => loadStats());
+        // Also try immediately if profile already loaded
+        if (window.csProfile) loadStats();
+    </script>
 </body>
 </html>

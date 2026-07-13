@@ -24,7 +24,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
     </style>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <!-- Ambient Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -41,34 +41,42 @@ require_once dirname(__DIR__) . '/core/init.php';
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden relative border-l border-dark-border/50">
         
         <!-- Header -->
-        <header class="h-20 glass-panel border-b-0 border-dark-border flex items-center justify-between px-6 z-20 shadow-xl shadow-black/20">
+        <header class="h-20 glass-panel border-b border-dark-border/60 flex items-center justify-between px-6 z-20 shadow-xl shadow-black/20">
             <div class="flex items-center gap-4">
                 <button id="mobileMenuBtn" class="md:hidden p-2 -ml-2 text-gray-400 hover:text-white">
                     <i data-feather="menu"></i>
                 </button>
-                <div>
-                    <h2 class="text-xl font-bold text-white uppercase tracking-wider italic">Schedule Hub</h2>
-                    <p class="text-xs text-gray-500 hidden sm:block font-bold">Synchronized Timeline Validation</p>
+                <div class="flex items-center gap-3">
+                    <div class="hidden sm:flex w-10 h-10 rounded-xl bg-primary-500/10 border border-primary-500/20 items-center justify-center flex-shrink-0">
+                        <i data-feather="calendar" class="w-5 h-5 text-primary-400"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-black text-white uppercase tracking-wider italic leading-none">Schedule Hub</h2>
+                        <p class="text-[9px] text-gray-500 font-black uppercase tracking-widest mt-0.5 italic">Synchronized Timeline</p>
+                    </div>
                 </div>
             </div>
 
             <div class="flex items-center gap-2 sm:gap-3">
                 <!-- Mobile View Toggle -->
-                <div class="flex md:hidden bg-dark-bg border border-dark-border rounded-lg p-1">
-                    <button onclick="toggleMobileView('agenda')" id="btn-agenda" class="px-3 py-1.5 text-xs font-medium rounded text-white bg-white/10">Agenda</button>
-                    <button onclick="toggleMobileView('week')" id="btn-week" class="px-3 py-1.5 text-xs font-medium rounded text-gray-400 hover:text-white">Week</button>
+                <div class="flex md:hidden bg-dark-bg border border-dark-border rounded-lg p-0.5">
+                    <button onclick="toggleMobileView('agenda')" id="btn-agenda" class="px-3 py-1.5 text-[10px] font-black rounded text-white bg-white/10 uppercase tracking-widest italic">Agenda</button>
+                    <button onclick="toggleMobileView('week')" id="btn-week" class="px-3 py-1.5 text-[10px] font-black rounded text-gray-400 hover:text-white uppercase tracking-widest italic">Week</button>
                 </div>
 
                 <!-- Desktop Navigation -->
-                <div class="hidden md:flex items-center bg-dark-bg border border-dark-border rounded-lg p-1">
-                    <button onclick="changeWeek(-1)" class="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"><i data-feather="chevron-left" class="w-4 h-4"></i></button>
-                    <span id="currentWeekDisplay" class="mx-3 text-sm font-bold text-white min-w-[140px] text-center tracking-widest uppercase text-[11px] italic">Loading...</span>
-                    <button onclick="changeWeek(1)" class="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"><i data-feather="chevron-right" class="w-4 h-4"></i></button>
+                <div class="hidden md:flex items-center bg-dark-bg border border-dark-border rounded-xl p-1 shadow-inner shadow-black/20">
+                    <button onclick="changeWeek(-1)" class="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"><i data-feather="chevron-left" class="w-4 h-4"></i></button>
+                    <span id="currentWeekDisplay" class="mx-4 text-sm font-black text-white min-w-[160px] text-center tracking-widest uppercase text-[11px] italic">Loading...</span>
+                    <button onclick="changeWeek(1)" class="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"><i data-feather="chevron-right" class="w-4 h-4"></i></button>
                 </div>
 
-                <button onclick="goToday()" class="hidden sm:block px-4 py-2 text-[11px] font-black uppercase tracking-widest text-primary-400 bg-primary-500/10 hover:bg-primary-500 hover:text-white border border-primary-500/20 rounded-lg transition-all italic">Today</button>
+                <button onclick="goToday()" class="hidden sm:flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary-400 bg-primary-500/10 hover:bg-primary-500 hover:text-white border border-primary-500/20 rounded-xl transition-all italic">
+                    <i data-feather="target" class="w-3.5 h-3.5"></i>
+                    <span>Today</span>
+                </button>
 
-                <button onclick="openModal('eventModal')" class="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary-500/20 italic">
+                <button onclick="openModal('eventModal')" class="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary-500/25 italic hover:shadow-primary-500/40 active:scale-95">
                     <i data-feather="plus" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">Add Event</span>
                 </button>
@@ -76,11 +84,11 @@ require_once dirname(__DIR__) . '/core/init.php';
         </header>
 
         <!-- Main Content -->
-        <main class="flex-1 overflow-hidden flex flex-col lg:flex-row bg-dark-bg/20">
+        <main class="flex-1 overflow-hidden flex flex-col lg:flex-row bg-dark-bg/30">
             
             <!-- CENTER: Calendar Grid -->
             <div id="weekViewContainer" class="hidden md:flex flex-1 flex-col overflow-y-auto overflow-x-auto relative custom-scroll">
-                <div class="min-w-[800px] w-full p-6 flex flex-col h-full bg-[#0a0c10]/20 backdrop-blur-3xl">
+                <div class="min-w-[800px] w-full p-5 lg:p-6 flex flex-col h-full bg-[#0a0c10]/10 backdrop-blur-3xl">
                     
                     <!-- Days Header (Dynamic) -->
                     <div id="weekHeader" class="grid grid-cols-8 mb-4 sticky top-0 z-30 bg-dark-bg/90 backdrop-blur-xl py-4 rounded-2xl border border-white/5 shadow-2xl">
@@ -88,7 +96,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     </div>
 
                     <!-- Dynamic Time Grid -->
-                    <div class="relative flex-1 bg-dark-surface/30 rounded-2xl border border-white/5 overflow-hidden">
+                    <div class="relative flex-1 bg-dark-surface/20 rounded-2xl border border-white/5 overflow-hidden shadow-inner shadow-black/40">
                         
                          <!-- Time Labels Column + Row Lines -->
                         <div id="timeGridLines" class="absolute inset-0 flex flex-col text-white/20">
@@ -103,8 +111,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <div class="border-r border-white/5 relative day-col pointer-events-auto" data-dayindex="3"></div>
                             <div class="border-r border-white/5 relative day-col pointer-events-auto" data-dayindex="4"></div>
                             <div class="border-r border-white/5 relative day-col pointer-events-auto" data-dayindex="5"></div>
-                            <div class="border-r border-white/5 relative day-col pointer-events-auto bg-white/[0.01]" data-dayindex="6"></div>
-                            <div class="relative day-col pointer-events-auto bg-white/[0.01]" data-dayindex="0"></div>
+                            <div class="border-r border-white/5 relative day-col pointer-events-auto bg-primary-500/[0.02]" data-dayindex="6"></div>
+                            <div class="relative day-col pointer-events-auto bg-primary-500/[0.02]" data-dayindex="0"></div>
                         </div>
 
                     </div>
@@ -112,18 +120,21 @@ require_once dirname(__DIR__) . '/core/init.php';
             </div>
 
             <!-- RIGHT: Agenda Sidebar -->
-            <aside id="agendaViewContainer" class="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-white/5 bg-dark-surface/50 backdrop-blur-3xl flex flex-col overflow-hidden">
+            <aside id="agendaViewContainer" class="w-full lg:w-[380px] border-t lg:border-t-0 lg:border-l border-white/5 bg-dark-surface/40 backdrop-blur-3xl flex flex-col overflow-hidden">
                 
                 <!-- Mini Calendar -->
-                <div class="hidden md:block p-6 border-b border-light/5 shadow-2xl z-10">
+                <div class="hidden md:block p-5 border-b border-white/5 shadow-2xl z-10">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 id="miniCalMonth" class="text-sm font-black text-white uppercase tracking-widest italic">October 2023</h3>
+                        <div class="flex items-center gap-2">
+                            <i data-feather="calendar" class="w-4 h-4 text-primary-400"></i>
+                            <h3 id="miniCalMonth" class="text-sm font-black text-white uppercase tracking-widest italic">October 2023</h3>
+                        </div>
                         <div class="flex gap-1">
-                            <button onclick="changeMonth(-1)" class="p-1.5 bg-dark-bg rounded text-gray-400 hover:text-white transition-colors border border-white/5"><i data-feather="chevron-left" class="w-4 h-4"></i></button>
-                            <button onclick="changeMonth(1)" class="p-1.5 bg-dark-bg rounded text-gray-400 hover:text-white transition-colors border border-white/5"><i data-feather="chevron-right" class="w-4 h-4"></i></button>
+                            <button onclick="changeMonth(-1)" class="p-1.5 bg-dark-bg rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors border border-white/5"><i data-feather="chevron-left" class="w-4 h-4"></i></button>
+                            <button onclick="changeMonth(1)" class="p-1.5 bg-dark-bg rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors border border-white/5"><i data-feather="chevron-right" class="w-4 h-4"></i></button>
                         </div>
                     </div>
-                    <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase text-gray-600 mb-2 tracking-widest">
+                    <div class="grid grid-cols-7 gap-1 text-center text-[9px] font-black uppercase text-gray-600 mb-2 tracking-widest">
                         <div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div><div>Su</div>
                     </div>
                     <div id="miniCalGrid" class="grid grid-cols-7 gap-1 text-center text-xs font-bold">
@@ -132,13 +143,16 @@ require_once dirname(__DIR__) . '/core/init.php';
                 </div>
 
                 <!-- Today's Agenda -->
-                <div class="flex-1 overflow-y-auto custom-scroll p-4 md:p-6 bg-gradient-to-b from-transparent to-dark-bg/50">
-                    <div class="flex items-center justify-between mb-8 sticky top-0 bg-dark-surface/50 backdrop-blur-lg py-2 z-10 border-b border-white/5">
-                        <h3 id="agendaDateTitle" class="text-base font-black text-white uppercase tracking-widest italic">Loading...</h3>
+                <div class="flex-1 overflow-y-auto custom-scroll p-4 md:p-5 bg-gradient-to-b from-transparent to-dark-bg/30">
+                    <div class="flex items-center justify-between mb-5 sticky top-0 bg-dark-surface/60 backdrop-blur-lg py-3 z-10 border-b border-white/5 -mx-4 md:-mx-5 px-4 md:px-5">
+                        <div class="flex items-center gap-2.5">
+                            <i data-feather="list" class="w-4 h-4 text-primary-400"></i>
+                            <h3 id="agendaDateTitle" class="text-sm font-black text-white uppercase tracking-widest italic">Loading...</h3>
+                        </div>
                         <span id="agendaCountBadge" class="text-[9px] font-black text-primary-400 bg-primary-500/10 border border-primary-500/20 px-3 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-primary-500/10">0 Events</span>
                     </div>
 
-                    <div id="agendaList" class="space-y-0 mt-2">
+                    <div id="agendaList" class="space-y-1 mt-1">
                         <!-- Rendered by JS -->
                     </div>
                 </div>
@@ -223,9 +237,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
     </script>
     <script type="module">
-        import { db, auth } from '../assets/js/firebase-init.js';
-        import { collection, addDoc, onSnapshot, query, where, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
 
         // GLOBAL STATE
         let activeDate = new Date();
@@ -277,30 +289,29 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
 
         // --- FETCHING ---
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                // Fetch Classes
-                const qC = query(collection(db, "classes"), where("teacherUid", "==", user.uid));
-                onSnapshot(qC, (snap) => {
-                    currentClasses = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-                    syncCalendars();
-                });
-                
-                // Fetch Events
-                const qE = query(collection(db, "events"), where("teacherUid", "==", user.uid));
-                onSnapshot(qE, (snap) => {
-                    currentEvents = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-                    syncCalendars();
-                });
-            } else {
-                window.location.replace('../login.php?error=session_cleared');
+        async function loadScheduleData() {
+            try {
+                const [classes, events] = await Promise.all([
+                    api('/classes.php'),
+                    api('/events.php')
+                ]);
+                currentClasses = Array.isArray(classes) ? classes : [];
+                currentEvents = Array.isArray(events) ? events : [];
+                syncCalendars();
+            } catch (e) {
+                console.error('Failed to load schedule data', e);
             }
+        }
+
+        initPage(() => {
+            setTimeout(() => loadScheduleData(), 500);
+            setInterval(loadScheduleData, 10000);
         });
 
         // --- SUBMIT EVENT ---
         document.getElementById('eventForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const user = auth.currentUser; if(!user) return window.showToast('Auth error', 'error');
+            const user = JSON.parse(sessionStorage.getItem('cs_user') || 'null'); if(!user) return window.showToast('Auth error', 'error');
             
             const title = document.getElementById('evTitle').value;
             const date = document.getElementById('evDate').value;
@@ -315,14 +326,16 @@ require_once dirname(__DIR__) . '/core/init.php';
             btn.disabled = true; txt.innerText = 'Syncing...';
 
             try {
-                await addDoc(collection(db, "events"), {
-                    teacherUid: user.uid,
-                    title: title,
-                    dateStr: date, // YYYY-MM-DD
-                    startTime: start,
-                    endTime: end,
-                    description: desc,
-                    createdAt: serverTimestamp()
+                await api('/events.php', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        teacher_uid: user.uid,
+                        title: title,
+                        date_str: date,
+                        start_time: start,
+                        end_time: end,
+                        description: desc
+                    })
                 });
                 window.showToast('Event synchronized to grid.', 'success');
                 window.closeModal('eventModal');
@@ -350,9 +363,11 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const isNoon = h===12;
                 const hh = h.toString().padStart(2, '0')+ ':00';
                 c.innerHTML += `
-                    <div style="height: ${ROW_HEIGHT}px" class="grid grid-cols-8 border-b border-dark-border/30 w-full ${isNoon ? 'bg-dark-bg/30' : ''}">
-                        <div class="text-[10px] font-black text-gray-600 text-right pr-3 pt-1 uppercase italic tracking-widest">${hh}</div>
-                        <div class="col-span-7 ${isNoon ? 'flex items-center justify-center opacity-30 font-black tracking-[0.3em] uppercase text-xs italic' : ''}">${isNoon ? 'LUNCH BREAK' : ''}</div>
+                    <div style="height: ${ROW_HEIGHT}px" class="grid grid-cols-8 border-b border-dark-border/20 w-full ${isNoon ? 'bg-dark-bg/40' : ''}">
+                        <div class="text-[9px] font-black text-gray-600 text-right pr-3 pt-0.5 tracking-widest italic">${hh}</div>
+                        <div class="col-span-7 flex items-center justify-center ${isNoon ? 'opacity-20' : ''}">
+                            ${isNoon ? '<div class="flex items-center gap-2"><div class="w-16 h-px bg-gray-600/30"></div><span class="text-[9px] font-black tracking-[0.25em] uppercase text-gray-600 italic">LUNCH</span><div class="w-16 h-px bg-gray-600/30"></div></div>' : ''}
+                        </div>
                     </div>`;
             }
         }
@@ -366,7 +381,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             const shortMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             const daysArr = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
             
-            let htmlStr = `<div class="text-[10px] uppercase tracking-widest font-black text-gray-600 flex items-end ml-4 pb-1 italic opacity-60">Time Zone</div>`;
+            let htmlStr = `<div class="text-[9px] uppercase tracking-widest font-black text-gray-600 flex items-end ml-4 pb-1 italic opacity-50">GMT+8</div>`;
             
             const today = new Date(); today.setHours(0,0,0,0);
             let endNode = null;
@@ -378,30 +393,31 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const isToday = d.getTime() === today.getTime();
                 const isSelected = d.getTime() === activeDate.getTime();
                 
-                const c_text = isToday ? 'text-primary-500' : 'text-gray-500';
+                const c_text = isToday ? 'text-primary-400' : 'text-gray-500';
                 const c_num  = isToday ? 'text-white' : 'text-gray-400';
                 
                 htmlStr += `
                     <div class="text-center cursor-pointer group" onclick="selectAgendaDate('${getLocalIsoStr(d)}')">
-                        <div class="text-[10px] ${c_text} uppercase font-black tracking-widest mb-1 italic transition-colors group-hover:text-primary-400 ${isSelected? 'text-primary-400 glow':''}">${daysArr[i]}</div>
-                        <div class="text-xl font-bold ${c_num} transition-transform group-hover:scale-110 ${isSelected?'text-white':''} ${isSelected && !isToday ? 'bg-white/10 rounded-lg mx-auto w-8' : ''}">${d.getDate()}</div>
-                        ${isToday ? '<div class="w-1.5 h-1.5 bg-primary-500 rounded-full mx-auto mt-1 shadow-[0_0_8px_rgba(234,38,40,0.8)] glow-pulse"></div>' : '<div class="h-2.5"></div>'}
+                        <div class="text-[9px] ${c_text} uppercase font-black tracking-widest mb-1 italic transition-colors group-hover:text-primary-400">${daysArr[i]}</div>
+                        <div class="inline-flex items-center justify-center w-9 h-9 rounded-xl transition-all group-hover:bg-white/5 group-hover:scale-110 ${isSelected ? 'bg-primary-500 shadow-lg shadow-primary-500/30 scale-110' : ''}">
+                            <span class="text-lg font-black leading-none ${isSelected ? 'text-white' : c_num}">${d.getDate()}</span>
+                        </div>
+                        ${isToday ? '<div class="w-1 h-1 bg-primary-500 rounded-full mx-auto mt-1.5 shadow-[0_0_6px_rgba(234,38,40,0.6)]"></div>' : '<div class="h-[13px]"></div>'}
                     </div>`;
             }
             h.innerHTML = htmlStr;
-            cwBtn.innerText = `${shortMonths[startNode.getMonth()]} ${startNode.getDate()} - ${shortMonths[endNode.getMonth()]} ${endNode.getDate()}`;
+            cwBtn.innerText = `${shortMonths[startNode.getMonth()]} ${startNode.getDate()} — ${shortMonths[endNode.getMonth()]} ${endNode.getDate()}`;
         }
 
         // --- 3. INJECT ABSOLUTE BLOCKS ---
         function renderWeekBlocks() {
-            document.querySelectorAll('.day-col').forEach(col => col.innerHTML = ''); // clear all
+            document.querySelectorAll('.day-col').forEach(col => col.innerHTML = '');
             
             const startNode = getStartOfWeek(activeDate);
             
-            // Loop days inside week
             for(let i=0; i<7; i++) {
                 let currentDayNode = new Date(startNode); currentDayNode.setDate(currentDayNode.getDate() + i);
-                const dayIndex = currentDayNode.getDay(); // 0 is Sunday
+                const dayIndex = currentDayNode.getDay();
                 const yyyyMmDd = getLocalIsoStr(currentDayNode);
                 
                 const targetCol = document.querySelector(`.day-col[data-dayindex="${dayIndex}"]`);
@@ -416,16 +432,22 @@ require_once dirname(__DIR__) . '/core/init.php';
                         const topPx = (sTime - START_HOUR) * ROW_HEIGHT;
                         const heightPx = (eTime - sTime) * ROW_HEIGHT;
                         
-                        const colorClass = b.type === 'class' ? 'border-primary-500 bg-primary-500/10 hover:bg-primary-500/20 shadow-primary-500/10' 
-                                                              : 'border-blue-500 bg-blue-500/10 hover:bg-blue-500/20 shadow-blue-500/10';
-                        const textIcon = b.type === 'class' ? 'book' : 'calendar';
+                        const isClass = b.type === 'class';
+                        const colorClass = isClass ? 'border-l-primary-500 bg-primary-500/[0.08] hover:bg-primary-500/[0.15] shadow-primary-500/5' 
+                                                    : 'border-l-blue-500 bg-blue-500/[0.08] hover:bg-blue-500/[0.15] shadow-blue-500/5';
+                        const borderClass = isClass ? 'hover:border-primary-500/40' : 'hover:border-blue-500/40';
                         
                         targetCol.innerHTML += `
-                            <div class="absolute inset-x-1 p-2 rounded-lg border-l-4 ${colorClass} transition-all cursor-pointer z-10 overflow-hidden shadow-lg backdrop-blur-md flex flex-col group hover:z-20 hover:scale-[1.02]" 
-                                 style="top: ${topPx+2}px; height: ${heightPx-4}px;" onclick="${b.type === 'class' ? `window.location.href='class_view.php?id=${b.id}'` : `window.showToast('${b.title}')`}">
-                                <h4 class="text-[11px] font-black text-white italic uppercase tracking-tighter truncate leading-none group-hover:text-white transition-colors">${b.title}</h4>
-                                <span class="text-[8px] font-bold text-white/50 uppercase mt-0.5 mb-0.5">${formatStandardTime(b.startTime)}</span>
-                                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest truncate italic flex items-center gap-1 opacity-70"><i data-feather="${textIcon}" class="w-3 h-3"></i> ${b.subtitle}</p>
+                            <div class="absolute inset-x-1 p-2.5 rounded-xl border border-white/5 border-l-4 ${colorClass} ${borderClass} transition-all cursor-pointer z-10 overflow-hidden shadow-lg backdrop-blur-md flex flex-col group hover:z-20 hover:scale-[1.02] hover:shadow-xl" 
+                                 style="top: ${topPx+2}px; height: ${Math.max(heightPx-4, 40)}px;" onclick="${isClass ? `window.location.href='class_view.php?id=${b.id}'` : `window.showToast('${b.title}')`}">
+                                <div class="flex items-start justify-between gap-1">
+                                    <h4 class="text-[11px] font-black text-white italic uppercase tracking-tighter truncate leading-tight group-hover:text-white transition-colors ${heightPx < 60 ? 'text-[10px]' : ''}">${b.title}</h4>
+                                    <span class="shrink-0 text-[8px] font-bold text-white/40 uppercase tracking-wider mt-0.5 italic">${formatStandardTime(b.startTime)}</span>
+                                </div>
+                                ${heightPx >= 50 ? `<div class="flex items-center gap-1.5 mt-1">
+                                    <i data-feather="${isClass ? 'book-open' : 'file-text'}" class="w-2.5 h-2.5 text-white/40"></i>
+                                    <span class="text-[8px] font-bold text-gray-400 uppercase tracking-widest truncate italic">${b.subtitle}</span>
+                                </div>` : ''}
                             </div>`;
                     }
                 });
@@ -454,21 +476,21 @@ require_once dirname(__DIR__) . '/core/init.php';
                  }
                  if(tokens.includes(targetChar)) matches = true;
 
-                 if(matches) {
-                     res.push({
-                         type: 'class', id: c.id,
-                         title: c.className, subtitle: c.sectionCode,
-                         startTime: c.startTime, endTime: c.endTime
-                     });
-                 }
-            });
+                  if(matches) {
+                      res.push({
+                          type: 'class', id: c.id,
+                          title: c.class_name, subtitle: c.section_code,
+                          startTime: c.start_time, endTime: c.end_time
+                      });
+                  }
+             });
 
             // Filter Events
-            currentEvents.filter(e => e.dateStr === dateStr).forEach(e => {
+            currentEvents.filter(e => e.date_str === dateStr).forEach(e => {
                  res.push({
                      type: 'event', id: e.id,
                      title: e.title, subtitle: 'Personal Event',
-                     startTime: e.startTime, endTime: e.endTime
+                     startTime: e.start_time, endTime: e.end_time
                  });
             });
 
@@ -483,19 +505,16 @@ require_once dirname(__DIR__) . '/core/init.php';
             
             title.innerText = `${months[targetMonthDate.getMonth()]} ${targetMonthDate.getFullYear()}`;
             
-            // Calculate days
             let firstDay = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), 1);
-            let offset = firstDay.getDay() - 1; if(offset < 0) offset = 6; // Mon is 0
+            let offset = firstDay.getDay() - 1; if(offset < 0) offset = 6;
             
             let daysInMonth = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth()+1, 0).getDate();
             let prevDaysInMonth = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), 0).getDate();
 
             let html = ``;
-            // Prev month blanks
             for(let i=0; i<offset; i++) {
-                html += `<div class="p-1.5 text-gray-700 opacity-50">${prevDaysInMonth - offset + 1 + i}</div>`;
+                html += `<div class="p-1.5 text-gray-700/40 text-xs">${prevDaysInMonth - offset + 1 + i}</div>`;
             }
-            // Current month days
             const today = new Date();
             for(let i=1; i<=daysInMonth; i++) {
                 let buildDate = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), i);
@@ -505,19 +524,20 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const dObj = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), i);
                 const dIso = getLocalIsoStr(dObj);
 
-                // Check active dots (Is there event/class?)
                 let eventDots = ``;
                 if(generateBlocksForDay(buildDate.getDay(), dIso).length > 0) {
-                     eventDots = `<span class="absolute bottom-1 right-1 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-lg"></span>`;
+                     eventDots = `<span class="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-primary-400 rounded-full"></span>`;
                 }
 
+                let cellClass = 'p-1.5 rounded-lg cursor-pointer transition-all relative text-xs ';
                 if(isSelected) {
-                    html += `<div class="p-1.5 bg-primary-500 text-white rounded-lg shadow-lg shadow-primary-500/20 font-black transform scale-110 italic transition-transform cursor-pointer relative" onclick="selectAgendaDate('${dIso}')">${i}${eventDots}</div>`;
+                    cellClass += 'bg-primary-500 text-white shadow-lg shadow-primary-500/30 font-black scale-110';
                 } else if(isToday) {
-                    html += `<div class="p-1.5 text-primary-400 hover:bg-white/5 rounded-lg font-black italic cursor-pointer relative" onclick="selectAgendaDate('${dIso}')">${i}${eventDots}</div>`;
+                    cellClass += 'text-primary-400 font-black hover:bg-primary-500/10';
                 } else {
-                    html += `<div class="p-1.5 text-gray-400 hover:bg-white/5 hover:text-white rounded-lg cursor-pointer transition-colors relative" onclick="selectAgendaDate('${dIso}')">${i}${eventDots}</div>`;
+                    cellClass += 'text-gray-400 hover:bg-white/5 hover:text-white font-bold';
                 }
+                html += `<div class="${cellClass}" onclick="selectAgendaDate('${dIso}')">${i}${eventDots}</div>`;
             }
             grid.innerHTML = html;
         }
@@ -535,13 +555,12 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             const blocks = generateBlocksForDay(activeDate.getDay(), getLocalIsoStr(activeDate));
             
-            // Sort by time
             blocks.sort((a,b) => parseTimeStr(a.startTime) - parseTimeStr(b.startTime));
             
-            badge.innerText = `${blocks.length} SCHEDULES`;
+            badge.innerText = `${blocks.length} ITEM${blocks.length !== 1 ? 'S' : ''}`;
             
             if(blocks.length === 0) {
-                 list.innerHTML = `<div class="text-center py-10 opacity-30"><i data-feather="calendar" class="w-10 h-10 mx-auto mb-3"></i><p class="text-[10px] font-black uppercase tracking-widest italic text-gray-400">Timeline Clear</p></div>`;
+                 list.innerHTML = `<div class="flex flex-col items-center justify-center py-16 opacity-30"><i data-feather="calendar" class="w-12 h-12 mb-4 text-gray-500"></i><p class="text-[10px] font-black uppercase tracking-widest italic text-gray-400">No items for this day</p><p class="text-[8px] text-gray-600 mt-1 italic">Timeline is clear</p></div>`;
                  feather.replace(); return;
             }
 
@@ -551,34 +570,43 @@ require_once dirname(__DIR__) . '/core/init.php';
                  const sT = parseTimeStr(b.startTime);
                  const eT = parseTimeStr(b.endTime);
                  
-                 let state = 'Upcoming'; let stateClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20'; let lineClass = 'bg-dark-border'; let iconCol='gray-500';
+                 let state = 'Upcoming';
+                 let stateClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                 let dotColor = 'bg-gray-500';
+                 let lineColor = 'bg-white/5';
+                 let cardBorder = 'border-white/5';
+                 
                  if(isToday) {
                      if(currentActualTime >= sT && currentActualTime < eT) {
-                         state = 'Active Now'; stateClass = 'bg-primary-500 text-white border-primary-500 glow-pulse'; lineClass = 'bg-primary-500/50'; iconCol='primary-500 shadow-[0_0_10px_rgba(234,38,40,0.6)] animate-pulse';
+                         state = 'Active Now'; stateClass = 'bg-primary-500 text-white border-primary-500'; dotColor = 'bg-primary-500 shadow-[0_0_8px_rgba(234,38,40,0.6)]'; lineColor = 'bg-primary-500/40'; cardBorder = 'border-primary-500/30 bg-primary-500/[0.03]';
                      } else if (currentActualTime >= eT) {
-                         state = 'Concluded'; stateClass = 'bg-green-500/10 text-green-400 border-green-500/20'; iconCol='blue-500/40 opacity-50'; lineClass = 'bg-dark-border opacity-50';
+                         state = 'Done'; stateClass = 'bg-green-500/10 text-green-400 border-green-500/20'; dotColor = 'bg-green-500/40'; lineColor = 'bg-white/5 opacity-30';
                      }
                  }
 
-                 const cardAlpha = state === 'Concluded' ? 'opacity-50 grayscale hover:grayscale-0' : (state === 'Active Now' ? 'border-primary-500/30 bg-primary-500/5' : 'hover:border-white/10');
-                 const titleSt = state === 'Concluded' ? 'line-through' : '';
-                 const iconStr = b.type === 'class' ? 'map-pin' : 'file-text';
+                 const concluded = state === 'Done';
+                 const ongoing = state === 'Active Now';
+                 const cardAlpha = concluded ? 'opacity-60 hover:opacity-100' : '';
+                 const titleDeco = concluded ? 'line-through' : '';
 
                  return `
-                    <div class="relative flex items-start gap-4 pb-6 group">
+                    <div class="relative flex items-start gap-4 pb-5 group last:pb-2">
                         <div class="flex flex-col items-center">
-                            <div class="text-[9px] font-black ${state==='Active Now'?'text-primary-400':'text-gray-500'} w-14 text-right uppercase tracking-widest italic pt-1">${formatStandardTime(b.startTime)}</div>
-                            <div class="w-3 h-3 rounded-full bg-${iconCol} border-[3px] border-dark-bg z-10 -ml-0 absolute top-5 right-[calc(100%-3rem-0.3rem)]"></div>
-                            <div class="w-px h-full absolute top-[28px] left-[calc(3rem)] ${lineClass} group-last:hidden"></div>
+                            <div class="text-[9px] font-black ${ongoing ? 'text-primary-400' : 'text-gray-500'} w-14 text-right uppercase tracking-widest italic pt-0.5 leading-tight">${formatStandardTime(b.startTime)}</div>
+                            <div class="w-[1px] h-full absolute top-[22px] left-[4.25rem] ${lineColor} group-last:hidden"></div>
                         </div>
-                        <div class="flex-1 glass-panel rounded-2xl p-5 border border-dark-border ${cardAlpha} transition-all cursor-pointer shadow-lg shadow-black/20 hover:-translate-y-1" onclick="${b.type === 'class' ? `window.location.href='class_view.php?id=${b.id}'` : `window.showToast('${b.title}')`}">
-                            <div class="flex justify-between items-start mb-2">
-                                <h4 class="text-sm font-black text-white uppercase tracking-tighter italic ${titleSt}">${b.title}</h4>
-                                <span class="text-[9px] font-black uppercase tracking-widest italic px-2 py-0.5 rounded border ${stateClass}">${state}</span>
+                        <div class="w-2.5 h-2.5 rounded-full ${dotColor} border-2 border-dark-bg z-10 mt-2 flex-shrink-0 relative"></div>
+                        <div class="flex-1 glass-panel rounded-2xl p-4 border ${cardBorder} ${cardAlpha} transition-all cursor-pointer shadow-lg shadow-black/10 hover:shadow-xl hover:-translate-y-0.5 ${ongoing ? 'shadow-primary-500/5' : 'hover:border-white/20'}" onclick="${b.type === 'class' ? `window.location.href='class_view.php?id=${b.id}'` : `window.showToast('${b.title}')`}">
+                            <div class="flex items-start justify-between gap-2 mb-1.5">
+                                <h4 class="text-sm font-black text-white uppercase tracking-tighter italic leading-snug ${titleDeco}">${b.title}</h4>
+                                <span class="shrink-0 text-[8px] font-black uppercase tracking-widest italic px-2 py-0.5 rounded-md border ${stateClass}">${state}</span>
                             </div>
-                            <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1.5 italic opacity-80">
-                                <i data-feather="${iconStr}" class="w-3 h-3"></i> ${b.subtitle}
-                            </p>
+                            <div class="flex items-center gap-2 text-[9px] text-gray-500 font-bold uppercase tracking-widest italic">
+                                <i data-feather="${b.type === 'class' ? 'book-open' : 'file-text'}" class="w-3 h-3"></i>
+                                <span>${b.subtitle}</span>
+                                <span class="text-gray-700 mx-1">|</span>
+                                <span>${formatStandardTime(b.startTime)} — ${formatStandardTime(b.endTime)}</span>
+                            </div>
                         </div>
                     </div>`;
             }).join('');

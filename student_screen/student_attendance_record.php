@@ -9,7 +9,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | Attendance Records</title>
     <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <!-- Ambient Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -40,14 +40,17 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
                     </div>
-                    <input type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search records...">
+                    <input id="attendanceSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search records...">
                 </div>
 
-                <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
-                    <i data-feather="bell"></i>
-                    <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                </button>
-                <button class="p-2 text-gray-400 hover:text-white transition-colors md:hidden">
+                <div class="relative">
+                    <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
+                        <i data-feather="bell"></i>
+                        <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                    </button>
+                    <?php include '../includes/notification_popover.php'; ?>
+                </div>
+                <button id="attMobileSearchBtn" class="p-2 text-gray-400 hover:text-white transition-colors md:hidden">
                     <i data-feather="search"></i>
                 </button>
             </div>
@@ -167,7 +170,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <th class="p-4 font-medium">Remarks</th>
                             </tr>
                         </thead>
-                        <tbody class="text-gray-300">
+                        <tbody id="attendanceTableBody" class="text-gray-300">
                             <!-- Row 1: Present -->
                             <tr class="border-b border-dark-border hover:bg-white/5 transition-colors">
                                 <td class="p-4 whitespace-nowrap font-medium text-white">Oct 23, 2023</td>
@@ -257,7 +260,31 @@ require_once dirname(__DIR__) . '/core/init.php';
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => { feather.replace(); });
+        document.addEventListener('DOMContentLoaded', () => {
+            feather.replace();
+
+            // Search filter
+            const searchInput = document.getElementById('attendanceSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    const q = e.target.value.trim().toLowerCase();
+                    document.querySelectorAll('#attendanceTableBody tr').forEach(row => {
+                        const text = row.textContent.toLowerCase();
+                        row.style.display = text.includes(q) ? '' : 'none';
+                    });
+                });
+            }
+
+            // Mobile search toggle
+            const mobileBtn = document.getElementById('attMobileSearchBtn');
+            if (mobileBtn && searchInput) {
+                mobileBtn.onclick = () => {
+                    const parent = searchInput.closest('.relative');
+                    parent.classList.toggle('hidden');
+                    if (!parent.classList.contains('hidden')) searchInput.focus();
+                };
+            }
+        });
     </script>
     <script type="module" src="student_auth.js"></script>
 </body>

@@ -9,7 +9,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | Grades & Reports</title>
     <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div class="absolute top-0 left-1/4 w-96 h-96 bg-primary-900/10 rounded-full mix-blend-screen filter blur-3xl animate-blob"></div>
@@ -274,6 +274,8 @@ require_once dirname(__DIR__) . '/core/init.php';
             setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 3000); 
         }
     </script>
-    <script type="module" src="../assets/js/firebase-init.js"></script>
+    <script type="module">
+        import { api, initPage } from '../assets/js/custom-auth.js';
+    </script>
 </body>
 </html>

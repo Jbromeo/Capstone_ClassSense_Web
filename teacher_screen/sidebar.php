@@ -81,11 +81,6 @@
 
         <p class="px-4 text-[10px] font-black text-gray-500 uppercase tracking-widest mt-6 mb-3 italic">Academic</p>
 
-        <a href="assignments.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'assignments.php' ? 'active shadow-lg shadow-primary-500/10 text-primary-500' : 'text-gray-400'; ?> rounded-lg">
-            <i data-feather="file-text" class="w-5 h-5 mr-3 <?php echo $current_page == 'assignments.php' ? 'text-primary-500' : 'text-gray-500'; ?> group-hover:text-primary-500 transition-colors"></i>
-            Assignments
-        </a>
-
         <a href="grades.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'grades.php' ? 'active shadow-lg shadow-primary-500/10 text-primary-500' : 'text-gray-400'; ?> rounded-lg">
             <i data-feather="bar-chart-2" class="w-5 h-5 mr-3 <?php echo $current_page == 'grades.php' ? 'text-primary-500' : 'text-gray-500'; ?> group-hover:text-primary-500 transition-colors"></i>
             Grading Center

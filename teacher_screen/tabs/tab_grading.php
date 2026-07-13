@@ -15,17 +15,17 @@
         </div>
         
         <div class="flex items-center gap-2 bg-dark-bg/80 backdrop-blur-xl border border-white/5 p-1 rounded-2xl shadow-xl">
-            <button onclick="setQuarter('Q1')" id="q-Q1" class="quarter-btn active px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all bg-primary-600 text-white shadow-lg shadow-primary-500/20">1st</button>
-            <button onclick="setQuarter('Q2')" id="q-Q2" class="quarter-btn px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">2nd</button>
-            <button onclick="setQuarter('Q3')" id="q-Q3" class="quarter-btn px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">3rd</button>
-            <button onclick="setQuarter('Q4')" id="q-Q4" class="quarter-btn px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">4th</button>
+            <button onclick="setQuarter('1st')" id="q-1st" class="quarter-btn active px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all bg-primary-600 text-white shadow-lg shadow-primary-500/20">1st</button>
+            <button onclick="setQuarter('2nd')" id="q-2nd" class="quarter-btn px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">2nd</button>
+            <button onclick="setQuarter('3rd')" id="q-3rd" class="quarter-btn px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">3rd</button>
+            <button onclick="setQuarter('4th')" id="q-4th" class="quarter-btn px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">4th</button>
         </div>
 
         <div class="flex gap-2">
             <button onclick="exportToExcel()" class="flex items-center group gap-3 bg-dark-bg hover:bg-white/5 border border-white/5 text-gray-300 px-6 py-2.5 rounded-2xl text-[10px] font-black transition-all uppercase italic tracking-[0.2em] shadow-xl">
                 <i data-feather="download" class="w-4 h-4 text-green-500 group-hover:scale-125 transition-transform"></i> Excel Export
             </button>
-            <button onclick="openModal('weightConfigModal')" class="flex items-center group gap-3 bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black transition-all shadow-xl shadow-primary-500/20 uppercase italic tracking-[0.2em] active:scale-95">
+            <button onclick="try{window.gradingSystem.populateWeightModal()}catch(e){}; openModal('weightConfigModal')" class="flex items-center group gap-3 bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black transition-all shadow-xl shadow-primary-500/20 uppercase italic tracking-[0.2em] active:scale-95">
                 <i data-feather="settings" class="w-4 h-4 group-hover:rotate-180 transition-transform duration-700"></i> Weights
             </button>
         </div>
@@ -36,29 +36,36 @@
         
         <!-- Spreadsheet Meta Bar -->
         <div class="px-8 py-4 border-b border-white/5 bg-white/5 flex items-center justify-between z-10 shrink-0">
-            <div class="flex items-center gap-10">
-                <div class="flex items-center gap-3">
-                    <div class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
-                    <div>
-                        <p class="text-[10px] font-black text-blue-400 uppercase italic tracking-tighter leading-none">Written Works</p>
-                        <p class="text-[8px] text-gray-500 font-bold uppercase mt-1">30% Weight Distribution</p>
+                <div class="flex items-center gap-10">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                        <div>
+                            <p class="text-[10px] font-black text-blue-400 uppercase italic tracking-tighter leading-none">Written Works</p>
+                            <p id="metaWeight-written" class="text-[8px] text-gray-500 font-bold uppercase mt-1">30% Weight</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
+                        <div>
+                            <p class="text-[10px] font-black text-purple-400 uppercase italic tracking-tighter leading-none">Performance Tasks</p>
+                            <p id="metaWeight-performance" class="text-[8px] text-gray-500 font-bold uppercase mt-1">50% Weight</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+                        <div>
+                            <p class="text-[10px] font-black text-green-400 uppercase italic tracking-tighter leading-none">Quarterly Exam</p>
+                            <p id="metaWeight-exam" class="text-[8px] text-gray-500 font-bold uppercase mt-1">20% Weight</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(251,146,60,0.5)]"></div>
+                        <div>
+                            <p class="text-[10px] font-black text-orange-400 uppercase italic tracking-tighter leading-none">Attendance</p>
+                            <p id="metaWeight-attendance" class="text-[8px] text-gray-500 font-bold uppercase mt-1">0% Weight</p>
+                        </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
-                    <div>
-                        <p class="text-[10px] font-black text-purple-400 uppercase italic tracking-tighter leading-none">Performance Tasks</p>
-                        <p class="text-[8px] text-gray-500 font-bold uppercase mt-1">50% Weight Distribution</p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
-                    <div>
-                        <p class="text-[10px] font-black text-green-400 uppercase italic tracking-tighter leading-none">Quarterly Exam</p>
-                        <p class="text-[8px] text-gray-500 font-bold uppercase mt-1">20% Weight Distribution</p>
-                    </div>
-                </div>
-            </div>
             
             <div class="flex items-center gap-4 text-[9px] font-black uppercase tracking-[0.2em] italic text-gray-600 transition-opacity group-hover/table:opacity-100 opacity-40">
                 <span class="animate-pulse flex items-center gap-1"><i data-feather="terminal" class="w-3 h-3"></i> Syncing Engine</span>

@@ -18,7 +18,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
     </style>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <!-- Ambient Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -262,12 +262,8 @@ require_once dirname(__DIR__) . '/core/init.php';
         </main>
     </div>
 
-    <!-- Global Identity Orchestrator -->
-    <script type="module" src="../assets/js/firebase-init.js"></script>
     <script type="module">
-        import { db, auth } from '../assets/js/firebase-init.js';
-        import { collection, query, where, onSnapshot, doc, getDoc, getDocs, updateDoc, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
 
         let currentTeacher = null;
         let attendanceListener = null;
@@ -297,16 +293,9 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
 
         // 1. Identity Handshake
-        window.addEventListener('profileLoaded', (e) => {
-            currentTeacher = e.detail;
-            initClassSelection(currentTeacher.uid);
-        });
-
-        onAuthStateChanged(auth, (user) => {
-            if (user && !currentTeacher) {
-                console.log("Attendance: Direct Auth Fallback");
-                initClassSelection(user.uid);
-            }
+        initPage((user) => {
+            console.log("Attendance: Direct Auth Fallback");
+            setTimeout(() => initClassSelection(user.uid), 500);
         });
 
         async function initClassSelection(teacherUid) {
@@ -315,16 +304,14 @@ require_once dirname(__DIR__) . '/core/init.php';
             
             try {
                 // 🛡️ Safety Check: Ensure we have a UID
-                const uid = teacherUid || currentTeacher?.uid || auth.currentUser?.uid;
+                const uid = teacherUid || currentTeacher?.uid;
                 if (!uid) {
                     console.warn("Attendance: No UID available for registry fetch.");
                     return;
                 }
 
                 console.log("Attendance: Initializing Registry for UID:", uid);
-                const q = query(collection(db, "classes"), where("teacherUid", "==", uid));
-                const snapshot = await getDocs(q);
-                const classes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                const classes = await api('/classes.php');
                 
                 if (classes.length === 0) {
                     grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-40 italic text-gray-500">No classes found. Please create one in the Dashboard.</div>`;
@@ -339,10 +326,10 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <div class="p-3 bg-primary-500/10 rounded-lg">
                                 <i data-feather="book-open" class="w-6 h-6 text-primary-500"></i>
                             </div>
-                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">${c.classCode}</span>
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">${c.class_code}</span>
                         </div>
-                        <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-tighter italic">${c.className}</h3>
-                        <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-4 opacity-60">${c.subject} &bull; ${c.sectionCode}</p>
+                        <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-tighter italic">${c.class_name}</h3>
+                        <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-4 opacity-60">${c.subject} &bull; ${c.section_code}</p>
                         <div class="flex items-center gap-2 text-[10px] font-black text-primary-400 uppercase tracking-widest italic">
                             <span>Initialize Hub</span>
                             <i data-feather="arrow-right" class="w-3 h-3 group-hover:translate-x-1 transition-transform"></i>
@@ -356,7 +343,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="col-span-full py-20 text-center">
                         <i data-feather="alert-octagon" class="w-12 h-12 mx-auto mb-4 text-primary-500 animate-pulse"></i>
                         <p class="text-xs font-black uppercase tracking-widest italic text-primary-400">Registry Sync Denied</p>
-                        <p class="text-[10px] text-gray-500 mt-2 font-mono">${error.code}</p>
+                        <p class="text-[10px] text-gray-500 mt-2 font-mono">${error.message}</p>
                     </div>`;
                 feather.replace();
             }
@@ -366,17 +353,16 @@ require_once dirname(__DIR__) . '/core/init.php';
         window.startAttendanceSession = async (classId) => {
             try {
                 // Fetch class details to get full student roster mapping
-                const classSnap = await getDoc(doc(db, "classes", classId));
-                if (!classSnap.exists()) return;
-                currentClassData = { id: classSnap.id, ...classSnap.data() };
+                currentClassData = await api('/classes.php?id=' + classId);
+                if (!currentClassData) return;
                 
                 // Use class-specific session limit
-                selectedDuration = currentClassData.sessionLimit !== undefined ? currentClassData.sessionLimit : 15;
+                selectedDuration = currentClassData.session_limit !== undefined ? currentClassData.session_limit : 15;
 
                 // Switch View
                 switchView('liveAttendanceView');
-                document.getElementById('liveClassName').innerText = currentClassData.className;
-                document.getElementById('reportClassTitle').innerText = currentClassData.className;
+                document.getElementById('liveClassName').innerText = currentClassData.class_name;
+                document.getElementById('reportClassTitle').innerText = currentClassData.class_name;
                 document.getElementById('totalCount').innerText = currentClassData.students ? currentClassData.students.length : 0;
                 
                 // Clear State
@@ -388,27 +374,30 @@ require_once dirname(__DIR__) . '/core/init.php';
                 document.getElementById('idleListState').classList.add('hidden');
                 document.getElementById('idleEmptyState').classList.remove('hidden');
 
-                // NEW: Generate QR Code
+                // Generate QR Code
                 generateAttendanceQR(classId);
 
-                // NEW: Handle Timer Countdown
+                // Handle Timer Countdown
                 if (selectedDuration > 0) {
                     startSessionCountdown(selectedDuration);
                 } else {
                     document.getElementById('sessionCountdown').classList.add('hidden');
                 }
 
-                // NEW: Update Firestore with session start
+                // Start session via API
                 const nonce = Math.random().toString(36).substring(2, 10).toUpperCase();
                 currentNonce = nonce;
                 
-                await updateDoc(doc(db, "classes", classId), {
-                    sessionActive: true,
-                    sessionStartedAt: serverTimestamp(),
-                    currentNonce: nonce
+                await api('/classes.php?id=' + classId, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        session_active: 1,
+                        session_started_at: new Date().toISOString(),
+                        current_nonce: nonce
+                    })
                 });
 
-                // NEW: Start QR Refresh Cycle
+                // Start QR Refresh Cycle
                 startQRRefreshCycle(classId);
 
                 // Start Listener
@@ -419,27 +408,24 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
 
         function initAttendanceListener(classId) {
-            if (attendanceListener) attendanceListener(); // Unsubscribe prev
+            if (attendanceListener) clearInterval(attendanceListener);
             
-            // Query for records in this class for today
-            const q = query(
-                collection(db, "attendance"), 
-                where("classId", "==", classId),
-                where("date", "==", TODAY_STR)
-            );
-
-            attendanceListener = onSnapshot(q, async (snapshot) => {
-                const changes = snapshot.docChanges();
-                for (const change of changes) {
-                    if (change.type === "added") {
-                        const data = change.doc.data();
-                        if (!processedUids.has(data.studentUid)) {
-                            processedUids.add(data.studentUid);
-                            await processNewAttendance(data);
+            async function pollAttendance() {
+                try {
+                    const records = await api('/attendance.php?class_id=' + classId + '&date=' + TODAY_STR);
+                    for (const record of records) {
+                        if (!processedUids.has(record.student_uid)) {
+                            processedUids.add(record.student_uid);
+                            await processNewAttendance(record);
                         }
                     }
+                } catch (err) {
+                    console.error("Attendance Poll Error:", err);
                 }
-            });
+            }
+            
+            pollAttendance();
+            attendanceListener = setInterval(pollAttendance, 10000);
         }
 
         function generateAttendanceQR(classId) {
@@ -471,8 +457,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                 currentNonce = nonce;
                 
                 try {
-                    await updateDoc(doc(db, "classes", classId), {
-                        currentNonce: nonce
+                    await api('/classes.php?id=' + classId, {
+                        method: 'PUT',
+                        body: JSON.stringify({ current_nonce: nonce })
                     });
                     generateAttendanceQR(classId);
                     console.log("QR Refreshed with Nonce:", nonce);
@@ -484,10 +471,13 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         async function processNewAttendance(record) {
             try {
-                // Fetch student info
-                const sSnap = await getDoc(doc(db, "students", record.studentUid));
-                if (!sSnap.exists()) return;
-                const student = sSnap.data();
+                // Fetch student info via fetch.php (reads from SQL)
+                const students = await api('/fetch.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ collection: 'students', uids: [record.student_uid] })
+                });
+                if (!students || students.length === 0) return;
+                const student = students[0];
                 
                 // Resolve Avatar / Initials
                 let avatarUrl = student.profilePhoto;
@@ -497,10 +487,10 @@ require_once dirname(__DIR__) . '/core/init.php';
                 }
                 
                 const entry = {
-                    name: student.full_name || `${student.firstName} ${student.lastName}`,
+                    name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student',
                     id: student.studentId || 'N/A',
                     avatar: avatarUrl,
-                    time: record.timestamp ? record.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : new Date().toLocaleTimeString()
+                    time: record.timestamp ? new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : new Date().toLocaleTimeString()
                 };
 
                 verifiedStudentsList.push(entry);
@@ -574,18 +564,18 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
 
         window.confirmEndSession = async () => {
-             // NEW: Clear session state in Firestore
             if (currentClassData) {
                 try {
-                    await updateDoc(doc(db, "classes", currentClassData.id), {
-                        sessionActive: false
+                    await api('/classes.php?id=' + currentClassData.id, {
+                        method: 'PUT',
+                        body: JSON.stringify({ session_active: false })
                     });
                 } catch (err) {
                     console.error("Session Clearance Failure:", err);
                 }
             }
 
-            if (attendanceListener) attendanceListener(); // Stop listening
+            if (attendanceListener) clearInterval(attendanceListener);
             if (sessionTimerInterval) clearInterval(sessionTimerInterval);
             if (qrRefreshInterval) clearInterval(qrRefreshInterval);
             generateSummaryReport();

@@ -62,7 +62,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
     </style>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div class="absolute top-0 left-1/4 w-96 h-96 bg-primary-900/10 rounded-full mix-blend-screen filter blur-3xl animate-blob"></div>
         <div class="absolute top-0 right-1/4 w-96 h-96 bg-blue-900/10 rounded-full mix-blend-screen filter blur-3xl animate-blob" style="animation-delay: 2s"></div>
@@ -83,12 +83,28 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
                     </div>
-                    <input type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search classes, students...">
+                    <input id="globalSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search classes...">
                 </div>
-                <button class="relative p-2 text-gray-400 hover:text-white transition-colors">
-                    <i data-feather="bell"></i>
-                    <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                </button>
+                <div class="relative">
+                    <button id="notificationBell" class="p-2 text-gray-400 hover:text-white transition-colors relative">
+                        <i data-feather="bell"></i>
+                        <span id="notificationBadge" class="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                    </button>
+                    <div id="notificationDropdown" class="absolute right-0 top-full mt-3 w-[380px] bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl hidden animate-fade-in-up origin-top-right z-50 max-h-[480px] flex flex-col">
+                        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 flex-shrink-0">
+                            <h3 class="text-sm font-black text-white italic uppercase tracking-tighter">Notifications</h3>
+                            <span id="notifDropdownCount" class="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic"></span>
+                        </div>
+                        <div id="notifDropdownBody" class="overflow-y-auto flex-1 custom-scrollbar">
+                            <div class="py-10 text-center opacity-40">
+                                <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading...</p>
+                            </div>
+                        </div>
+                        <div class="p-3 border-t border-white/5 flex-shrink-0">
+                            <a href="grades.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -100,8 +116,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                 </div>
                 <div class="flex gap-3">
                     <div class="bg-dark-bg border border-dark-border rounded-lg p-1 flex text-sm">
-                        <button class="px-3 py-1.5 bg-white/10 text-white rounded shadow-sm transition-all">Grid</button>
-                        <button class="px-3 py-1.5 text-gray-500 hover:text-white transition-all">List</button>
+                        <button id="viewGridBtn" data-view="grid" class="view-toggle px-3 py-1.5 bg-white/10 text-white rounded shadow-sm transition-all">Grid</button>
+                        <button id="viewListBtn" data-view="list" class="view-toggle px-3 py-1.5 text-gray-500 hover:text-white transition-all">List</button>
                     </div>
                     <button onclick="openModal()" class="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30 transform hover:-translate-y-0.5">
                         <i data-feather="plus" class="w-4 h-4"></i> <span>New Class</span>
@@ -333,6 +349,14 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <option value="0">∞ No Limit (Manual Stop)</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Status</label>
+                        <select id="editStatusInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none italic font-medium">
+                            <option value="Active">Active</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="p-6 bg-dark-bg/50 border-t border-dark-border flex justify-end gap-3">
                     <button onclick="closeEditModal()" class="px-5 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium">Cancel</button>
@@ -345,21 +369,16 @@ require_once dirname(__DIR__) . '/core/init.php';
     </div>
 
     <script type="module">
-        import { db, auth } from '../assets/js/firebase-init.js';
-        import { 
-            collection, 
-            addDoc, 
-            onSnapshot, 
-            query, 
-            where, 
-            serverTimestamp,
-            deleteDoc,
-            updateDoc,
-            doc,
-            setDoc
-        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
+
+        const API_BASE = '../api';
         let currentTeacherData = null;
+        let pendingAlerts = [];
+        let searchTerm = '';
+        let currentStatusFilter = 'all';
+        let currentView = 'grid';
+        let allCurrentClasses = [];
+        let pollInterval = null;
 
         // --- UI Modal Handlers ---
         window.openModal = () => {
@@ -368,7 +387,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             const modalBackdrop = document.getElementById('modalBackdrop');
             if (!modal) return;
             
-            // Reset Day Selector
             document.querySelectorAll('.day-pill').forEach(p => p.classList.remove('active'));
             document.getElementById('scheduleDaysInput').value = '';
             document.getElementById('sessionLimitInput').value = '15';
@@ -380,73 +398,212 @@ require_once dirname(__DIR__) . '/core/init.php';
             }, 10);
         };
 
-        // --- Day Selector Handlers ---
         document.addEventListener('DOMContentLoaded', () => {
-            // Create Selector
             document.querySelectorAll('.day-pill').forEach(pill => {
                 pill.addEventListener('click', () => {
                     pill.classList.toggle('active');
-                    const activeDays = Array.from(document.querySelectorAll('.day-pill.active'))
-                                            .map(p => p.dataset.day);
+                    const activeDays = Array.from(document.querySelectorAll('.day-pill.active')).map(p => p.dataset.day);
                     document.getElementById('scheduleDaysInput').value = activeDays.join('');
                 });
             });
 
-            // Edit Selector
             document.querySelectorAll('.edit-day-pill').forEach(pill => {
                 pill.addEventListener('click', () => {
                     pill.classList.toggle('active');
-                    const activeDays = Array.from(document.querySelectorAll('.edit-day-pill.active'))
-                                            .map(p => p.dataset.day);
+                    const activeDays = Array.from(document.querySelectorAll('.edit-day-pill.active')).map(p => p.dataset.day);
                     document.getElementById('editScheduleDaysInput').value = activeDays.join('');
                 });
             });
         });
 
-        // --- Time Format Helper (Force 12-hour Standard) ---
         const formatStandardTime = (military) => {
             if (!military) return 'TBA';
             if (typeof military !== 'string') return military;
             if (military.includes('AM') || military.includes('PM')) return military;
-            
             const parts = military.split(':');
             if (parts.length < 2) return military;
-
             let hours = parseInt(parts[0]);
             let minutes = parts[1];
             const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12; 
-            
+            hours = hours % 12 || 12;
             return `${hours}:${minutes} ${ampm}`;
         };
+
+        const searchInput = document.getElementById('globalSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', () => {
+                searchTerm = searchInput.value.toLowerCase().trim();
+                applyFilters();
+            });
+        }
+
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('.filter-chip').forEach(c => {
+                    c.classList.remove('active', 'bg-white/10', 'text-white', 'border-white/10');
+                    c.classList.add('bg-dark-bg', 'text-gray-400', 'border-dark-border');
+                });
+                chip.classList.add('active');
+                chip.classList.remove('bg-dark-bg', 'text-gray-400', 'border-dark-border');
+                chip.classList.add('bg-white/10', 'text-white', 'border-white/10');
+                const label = chip.textContent.trim();
+                currentStatusFilter = label === 'All Classes' ? 'all' : label;
+                applyFilters();
+            });
+        });
+
+        document.querySelectorAll('.view-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                if (view === currentView) return;
+                currentView = view;
+                document.querySelectorAll('.view-toggle').forEach(b => {
+                    b.classList.remove('bg-white/10', 'text-white', 'rounded', 'shadow-sm');
+                    b.classList.add('text-gray-500');
+                });
+                btn.classList.add('bg-white/10', 'text-white', 'rounded', 'shadow-sm');
+                btn.classList.remove('text-gray-500');
+                applyFilters();
+            });
+        });
+
+        function applyFilters() {
+            let data = [...allCurrentClasses];
+            if (currentStatusFilter !== 'all') {
+                data = data.filter(c => c.status === currentStatusFilter);
+            }
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                data = data.filter(c =>
+                    (c.class_name && c.class_name.toLowerCase().includes(term)) ||
+                    (c.subject && c.subject.toLowerCase().includes(term)) ||
+                    (c.section_code && c.section_code.toLowerCase().includes(term)) ||
+                    (c.class_code && c.class_code.toLowerCase().includes(term))
+                );
+            }
+            renderClasses(data);
+        }
+
+        const bell = document.getElementById('notificationBell');
+        const dropdown = document.getElementById('notificationDropdown');
+        if (bell && dropdown) {
+            bell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = dropdown.classList.contains('hidden');
+                if (isHidden) {
+                    renderNotificationDropdown(pendingAlerts);
+                    dropdown.classList.remove('hidden');
+                } else {
+                    dropdown.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        function renderNotificationDropdown(alerts) {
+            const body = document.getElementById('notifDropdownBody');
+            const countLabel = document.getElementById('notifDropdownCount');
+            if (!body) return;
+
+            const total = alerts.reduce((sum, a) => sum + a.missingCount, 0);
+            if (countLabel) countLabel.textContent = total > 0 ? `${total} pending` : '';
+
+            if (alerts.length === 0) {
+                body.innerHTML = `<div class="py-10 text-center"><div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center"><i data-feather="check-circle" class="w-6 h-6 text-green-400"></i></div><p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p><p class="text-[9px] text-gray-600 mt-1 italic">No pending grades.</p></div>`;
+                feather.replace();
+                return;
+            }
+
+            const topAlerts = alerts.sort((a, b) => b.missingCount - a.missingCount).slice(0, 20);
+            body.innerHTML = topAlerts.map(a => {
+                const severity = a.pct >= 95 ? 'green' : (a.pct >= 75 ? 'amber' : 'red');
+                return `<div class="flex items-start gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0" onclick="window.location.href='class_view.php?id=${a.classId}'"><div class="w-8 h-8 mt-0.5 rounded-full bg-${severity}-500/10 flex items-center justify-center flex-shrink-0"><i data-feather="${severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle')}" class="w-4 h-4 text-${severity}-400"></i></div><div class="flex-1 min-w-0"><p class="text-sm font-bold text-white truncate">${a.className}</p><p class="text-xs text-gray-400 truncate">${a.itemName} — <span class="text-${severity}-400 font-bold">${a.missingCount} ${a.missingCount === 1 ? 'student needs' : 'students need'} grading</span></p><div class="flex items-center gap-3 mt-1.5"><span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">${a.gradedCount}/${a.enrolledCount} graded</span><div class="flex-1 h-1 bg-dark-bg rounded-full max-w-[80px] overflow-hidden"><div class="h-full bg-${severity}-500 rounded-full" style="width: ${a.pct}%"></div></div></div></div></div>`;
+            }).join('');
+            feather.replace();
+        }
+
+        async function loadPendingAlerts(classes) {
+            if (!classes.length) {
+                pendingAlerts = [];
+                updateNotificationBadge(0);
+                return;
+            }
+            let totalPending = 0;
+            const alerts = [];
+            for (const cls of classes) {
+                const studentCount = (cls.students || []).length;
+                for (const q of ['1st', '2nd', '3rd', '4th']) {
+                    try {
+                        const data = await api(`/grading.php?class_id=${cls.id}&quarter=${q}`);
+                        const scores = data.scores || {};
+                        const config = data.config || {};
+                        if (!config.written && !config.performance && !config.exam) continue;
+                        const allItems = [
+                            ...(config.written?.items || []).map(i => ({ ...i, cat: 'Written' })),
+                            ...(config.performance?.items || []).map(i => ({ ...i, cat: 'Performance' })),
+                            ...(config.exam?.items || []).map(i => ({ ...i, cat: 'Exam' }))
+                        ];
+                        for (const item of allItems) {
+                            let missingCount = 0;
+                            for (const uid of (cls.students || [])) {
+                                const score = scores[uid]?.[item.id];
+                                if (score === null || score === undefined || score === '') missingCount++;
+                            }
+                            if (missingCount > 0) {
+                                totalPending += missingCount;
+                                alerts.push({
+                                    classId: cls.id, className: cls.class_name || cls.subject || 'Untitled', subject: cls.subject || '',
+                                    itemName: item.name, category: item.cat, enrolledCount: studentCount,
+                                    gradedCount: studentCount - missingCount, missingCount,
+                                    pct: Math.round(((studentCount - missingCount) / studentCount) * 100)
+                                });
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
+            pendingAlerts = alerts;
+            updateNotificationBadge(totalPending);
+        }
+
+        function updateNotificationBadge(count) {
+            const badge = document.getElementById('notificationBadge');
+            if (!badge) return;
+            if (count > 0) {
+                badge.textContent = count > 9 ? '9+' : count;
+                badge.className = 'absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[8px] font-black text-white bg-primary-500 rounded-full ring-2 ring-dark-bg';
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
 
         window.closeModal = () => {
             const modal = document.getElementById('createClassModal');
             const modalContent = document.getElementById('modalContent');
             const modalBackdrop = document.getElementById('modalBackdrop');
             if (!modal) return;
-            modalBackdrop.classList.add('opacity-0'); 
-            modalContent.classList.add('opacity-0', 'scale-95'); 
-            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+            modalBackdrop.classList.add('opacity-0');
+            modalContent.classList.add('opacity-0', 'scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
         };
 
         window.copyGeneratedCode = () => {
             const code = document.getElementById('generatedCodeDisplay').innerText;
-            navigator.clipboard.writeText(code).then(() => {
-                window.showToast('Class code copied to clipboard!', 'success');
-            });
+            navigator.clipboard.writeText(code).then(() => window.showToast('Class code copied to clipboard!', 'success'));
         };
 
-        // --- Purge Class Logic ---
         let classToDelete = null;
         window.handleDeleteClassClick = (id, name) => {
             classToDelete = id;
             document.getElementById('purgeClassName').innerText = name;
-            
             const modal = document.getElementById('purgeClassModal');
             const content = document.getElementById('purgeContent');
             const backdrop = document.getElementById('purgeBackdrop');
-            
             modal.classList.remove('hidden');
             setTimeout(() => {
                 backdrop.classList.remove('opacity-0');
@@ -458,7 +615,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             const modal = document.getElementById('purgeClassModal');
             const content = document.getElementById('purgeContent');
             const backdrop = document.getElementById('purgeBackdrop');
-            
             backdrop.classList.add('opacity-0');
             content.classList.add('opacity-0', 'scale-95');
             setTimeout(() => modal.classList.add('hidden'), 300);
@@ -468,7 +624,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             if (!classToDelete) return;
             try {
                 window.showToast('Purging Grid Identity...', 'info');
-                await deleteDoc(doc(db, "classes", classToDelete));
+                await api(`/classes.php?id=${classToDelete}`, { method: 'DELETE' });
                 window.showToast('Class purged successfully.', 'success');
                 window.closePurgeModal();
             } catch (err) {
@@ -477,12 +633,8 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         };
 
-        // --- Edit Class Logic ---
-        let allCurrentClasses = [];
-
         window.enterHub = (id) => {
-            if(!id) return;
-            console.log("Entering Hub Sequence:", id);
+            if (!id) return;
             window.location.href = `class_view.php?id=${id}`;
         };
 
@@ -491,16 +643,16 @@ require_once dirname(__DIR__) . '/core/init.php';
             if (!classData) return;
 
             document.getElementById('editClassId').value = id;
-            document.getElementById('editClassNameInput').value = classData.className;
+            document.getElementById('editClassNameInput').value = classData.class_name;
             document.getElementById('editLevelInput').value = classData.level;
             document.getElementById('editSubjectInput').value = classData.subject;
-            document.getElementById('editSectionInput').value = classData.sectionCode;
+            document.getElementById('editSectionInput').value = classData.section_code;
             document.getElementById('editScheduleDaysInput').value = classData.schedule || '';
-            document.getElementById('editStartTimeInput').value = classData.startTime || '';
-            document.getElementById('editEndTimeInput').value = classData.endTime || '';
-            document.getElementById('editSessionLimitInput').value = classData.sessionLimit || '15';
+            document.getElementById('editStartTimeInput').value = classData.start_time || '';
+            document.getElementById('editEndTimeInput').value = classData.end_time || '';
+            document.getElementById('editSessionLimitInput').value = classData.session_limit || '15';
+            document.getElementById('editStatusInput').value = classData.status || 'Active';
 
-            // Update Day Pills
             document.querySelectorAll('.edit-day-pill').forEach(pill => {
                 const day = pill.dataset.day;
                 if (classData.schedule && classData.schedule.includes(day)) {
@@ -513,7 +665,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             const modal = document.getElementById('editClassModal');
             const content = document.getElementById('editModalContent');
             const backdrop = document.getElementById('editModalBackdrop');
-            
             modal.classList.remove('hidden');
             setTimeout(() => {
                 backdrop.classList.remove('opacity-0');
@@ -525,7 +676,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             const modal = document.getElementById('editClassModal');
             const content = document.getElementById('editModalContent');
             const backdrop = document.getElementById('editModalBackdrop');
-            
             backdrop.classList.add('opacity-0');
             content.classList.add('opacity-0', 'scale-95');
             setTimeout(() => modal.classList.add('hidden'), 300);
@@ -541,6 +691,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             const start = document.getElementById('editStartTimeInput').value;
             const end = document.getElementById('editEndTimeInput').value;
             const sessionLimit = document.getElementById('editSessionLimitInput').value;
+            const status = document.getElementById('editStatusInput').value;
 
             if (!name || !section || !schedule || !start || !end) {
                 return window.showToast('Details incomplete!', 'error');
@@ -548,20 +699,13 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             try {
                 window.showToast('Updating Class Grid...', 'info');
-                const timeSlot = `${formatStandardTime(start)} - ${formatStandardTime(end)}`;
-                
-                await updateDoc(doc(db, "classes", id), {
-                    className: name,
-                    level: level,
-                    subject: subject,
-                    sectionCode: section.toUpperCase(),
-                    schedule: schedule,
-                    startTime: start,
-                    endTime: end,
-                    timeSlot: timeSlot,
-                    sessionLimit: parseInt(sessionLimit)
+                await api(`/classes.php?id=${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        class_name: name, level, subject, section_code: section.toUpperCase(),
+                        schedule, start_time: start, end_time: end, session_limit: parseInt(sessionLimit), status
+                    })
                 });
-
                 window.showToast('Class updated successfully!', 'success');
                 window.closeEditModal();
             } catch (err) {
@@ -570,64 +714,54 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         };
 
-        // --- Firestore: Real-time Rendering ---
         const renderClasses = (classes) => {
+            if (currentView === 'list') return renderClassesListView(classes);
+            renderClassesGridView(classes);
+        };
+
+        const renderClassesGridView = (classes) => {
             const grid = document.getElementById('classGrid');
             if (!grid) return;
 
             if (classes.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-span-full py-20 text-center opacity-40">
-                        <i data-feather="cloud-off" class="w-12 h-12 mx-auto mb-4"></i>
-                        <p class="text-xs font-black uppercase tracking-widest italic tracking-tighter italic">Foundations await... Archive your first grid above.</p>
-                    </div>`;
+                grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-40"><i data-feather="cloud-off" class="w-12 h-12 mx-auto mb-4"></i><p class="text-xs font-black uppercase tracking-widest italic">Foundations await... Archive your first grid above.</p></div>`;
                 feather.replace();
                 return;
             }
 
+            grid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-12';
             grid.innerHTML = classes.map(c => `
                 <article class="class-card relative glass-panel rounded-2xl overflow-hidden animate-fade-in-up flex flex-col h-full group border border-white/5 hover:border-primary-500/30 transition-all duration-300">
-                    <!-- Action Buttons -->
-                    <div class="absolute top-4 right-4 flex gap-2 z-20">
-                         <button onclick="event.stopPropagation(); window.handleEditClassClick('${c.id}')" class="p-1.5 text-white/40 hover:text-blue-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md">
-                            <i data-feather="edit-2" class="w-3.5 h-3.5"></i>
-                        </button>
-                         <button onclick="event.stopPropagation(); window.handleDeleteClassClick('${c.id}', '${c.className.replace(/'/g, "\\'")}')" class="p-1.5 text-white/40 hover:text-primary-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md">
-                            <i data-feather="trash-2" class="w-3.5 h-3.5"></i>
-                        </button>
+                    <div class="absolute top-4 right-4 flex items-center gap-2 z-20">
+                        <span class="flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest italic backdrop-blur-md ${c.status === 'In Progress' ? 'bg-amber-500/15 text-amber-400' : c.status === 'Completed' ? 'bg-green-500/15 text-green-400' : 'bg-blue-500/10 text-blue-400'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'In Progress' ? 'bg-amber-500' : c.status === 'Completed' ? 'bg-green-500' : 'bg-blue-500'}"></span>${c.status || 'Active'}</span>
+                        <button onclick="event.stopPropagation(); window.handleEditClassClick('${c.id}')" class="p-1.5 text-white/40 hover:text-blue-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md"><i data-feather="edit-2" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="event.stopPropagation(); window.handleDeleteClassClick('${c.id}', '${(c.class_name || '').replace(/'/g, "\\'")}')" class="p-1.5 text-white/40 hover:text-primary-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md"><i data-feather="trash-2" class="w-3.5 h-3.5"></i></button>
                     </div>
-
-                    <!-- Stretched-Link for Hub Access -->
                     <a href="class_view.php?id=${c.id}" class="absolute inset-0 z-10" aria-label="Enter Hub"></a>
-
                     <div class="relative h-32 overflow-hidden">
                         <div class="absolute inset-0 bg-gradient-to-br from-primary-600/20 to-dark-surface/80"></div>
                         <div class="absolute top-6 left-6 z-10">
-                             <div class="bg-white/5 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
-                                <span class="text-[10px] font-black text-white italic uppercase tracking-tighter italic">${c.classCode}</span>
+                            <div class="bg-white/5 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
+                                <span class="text-[10px] font-black text-white italic uppercase tracking-tighter italic">${c.class_code}</span>
                             </div>
                         </div>
                     </div>
-
                     <div class="p-5 flex flex-col flex-1 relative z-0">
                         <div class="mb-4">
-                             <span class="text-[10px] font-black text-primary-400 uppercase tracking-widest italic tracking-tighter italic">${c.sectionCode}</span>
-                            <h3 class="text-lg font-bold text-white group-hover:text-primary-400 transition-colors uppercase tracking-widest italic tracking-tighter italic leading-none mt-1">${c.className}</h3>
+                            <span class="text-[10px] font-black text-primary-400 uppercase tracking-widest italic tracking-tighter italic">${c.section_code}</span>
+                            <h3 class="text-lg font-bold text-white group-hover:text-primary-400 transition-colors uppercase tracking-widest italic tracking-tighter italic leading-none mt-1">${c.class_name}</h3>
                             <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mt-2 italic tracking-tighter italic">${c.subject} &bull; ${c.level}</p>
-                            
-                            <!-- Schedule Badge -->
                             <div class="mt-3 flex items-center gap-2 opacity-70">
                                 <i data-feather="clock" class="w-3 h-3 text-primary-400"></i>
                                 <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest italic tracking-tighter">
-                                    ${c.schedule || 'Schedule TBA'} &bull; 
-                                    ${c.timeSlot || 'TBA'} &bull;
-                                    <span class="text-primary-400">${c.sessionLimit && c.sessionLimit > 0 ? c.sessionLimit + 'm Limit' : 'Live'}</span>
+                                    ${c.schedule || 'Schedule TBA'} &bull; ${c.time_slot || 'TBA'} &bull;
+                                    <span class="text-primary-400">${c.session_limit && c.session_limit > 0 ? c.session_limit + 'm Limit' : 'Live'}</span>
                                 </span>
                             </div>
                         </div>
                         <div class="mt-auto pt-4 border-t border-white/5 flex items-center justify-between">
                             <div class="flex items-center text-[9px] font-black text-gray-400 uppercase tracking-widest italic tracking-tighter italic opacity-60">
-                                <i data-feather="users" class="w-3.5 h-3.5 mr-2 text-primary-500"></i> ${c.students?.length || 0} Registered
+                                <i data-feather="users" class="w-3.5 h-3.5 mr-2 text-primary-500"></i> ${(c.students || []).length} Registered
                             </div>
                             <div class="p-2 bg-primary-500/10 rounded-lg text-primary-500 group-hover:bg-primary-500 group-hover:text-white transition-all">
                                 <i data-feather="arrow-right" class="w-4 h-4"></i>
@@ -639,9 +773,61 @@ require_once dirname(__DIR__) . '/core/init.php';
             feather.replace();
         };
 
-        // --- Firestore: Handlers ---
+        const renderClassesListView = (classes) => {
+            const grid = document.getElementById('classGrid');
+            if (!grid) return;
+
+            if (classes.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-40"><i data-feather="cloud-off" class="w-12 h-12 mx-auto mb-4"></i><p class="text-xs font-black uppercase tracking-widest italic">Foundations await... Archive your first grid above.</p></div>`;
+                feather.replace();
+                return;
+            }
+
+            grid.className = 'pb-12';
+            grid.innerHTML = `<div class="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-white/5 text-[9px] font-black uppercase tracking-widest italic text-gray-500">
+                            <th class="text-left p-4 pl-6">Class</th>
+                            <th class="text-left p-4 hidden md:table-cell">Code</th>
+                            <th class="text-left p-4 hidden lg:table-cell">Schedule</th>
+                            <th class="text-center p-4 hidden sm:table-cell">Students</th>
+                            <th class="text-center p-4">Status</th>
+                            <th class="text-right p-4 pr-6">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${classes.map(c => `
+                        <tr class="border-b border-white/5 last:border-0 hover:bg-white/5 transition-all cursor-pointer group" onclick="window.location.href='class_view.php?id=${c.id}'">
+                            <td class="p-4 pl-6">
+                                <p class="text-sm font-bold text-white group-hover:text-primary-400 transition-colors uppercase tracking-tight italic">${c.class_name}</p>
+                                <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest italic mt-0.5">${c.section_code} &bull; ${c.subject}</p>
+                            </td>
+                            <td class="p-4 hidden md:table-cell">
+                                <span class="text-[10px] font-mono font-bold text-gray-400">${c.class_code}</span>
+                            </td>
+                            <td class="p-4 hidden lg:table-cell">
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider italic">${c.schedule || 'TBA'} ${c.time_slot ? '&bull; ' + c.time_slot : ''}</span>
+                            </td>
+                            <td class="p-4 text-center hidden sm:table-cell">
+                                <span class="text-sm font-black text-gray-300">${(c.students || []).length}</span>
+                            </td>
+                            <td class="p-4 text-center">
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest italic ${c.status === 'In Progress' ? 'bg-amber-500/15 text-amber-400' : c.status === 'Completed' ? 'bg-green-500/15 text-green-400' : 'bg-blue-500/10 text-blue-400'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'In Progress' ? 'bg-amber-500' : c.status === 'Completed' ? 'bg-green-500' : 'bg-blue-500'}"></span>${c.status || 'Active'}</span>
+                            </td>
+                            <td class="p-4 pr-6 text-right">
+                                <button onclick="event.stopPropagation(); window.handleEditClassClick('${c.id}')" class="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-white/5 rounded-md transition-all"><i data-feather="edit-2" class="w-3.5 h-3.5"></i></button>
+                                <button onclick="event.stopPropagation(); window.handleDeleteClassClick('${c.id}', '${(c.class_name || '').replace(/'/g, "\\'")}')" class="p-1.5 text-gray-500 hover:text-primary-500 hover:bg-white/5 rounded-md transition-all"><i data-feather="trash-2" class="w-3.5 h-3.5"></i></button>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+            feather.replace();
+        };
+
         window.handleCreateClass = async () => {
-            const user = auth.currentUser;
+            const user = JSON.parse(sessionStorage.getItem('cs_user') || 'null');
             const nameEl = document.getElementById('classNameInput');
             const sectionEl = document.getElementById('sectionInput');
             const scheduleDays = document.getElementById('scheduleDaysInput').value;
@@ -650,52 +836,37 @@ require_once dirname(__DIR__) . '/core/init.php';
             const sessionLimit = document.getElementById('sessionLimitInput').value;
 
             if (!user) return window.showToast('Authentication lag. Refresh required.', 'error');
-            
-            // 🛡️ Comprehensive Parameter Validation
             if (!nameEl.value || !sectionEl.value || !scheduleDays || !startTime || !endTime) {
                 return window.showToast('Schedule parameters incomplete!', 'error');
             }
-
-            // 🛡️ Temporal Guard: Ensure start is strictly before end
             if (startTime === endTime) {
                 return window.showToast('Error: Session cannot start and end at the same time!', 'error');
             }
-            
-            // Compare as numbers for accurate temporal check
             const startVal = parseInt(startTime.replace(':', ''));
             const endVal = parseInt(endTime.replace(':', ''));
             if (startVal > endVal) {
                 return window.showToast('Error: Closing time must fall AFTER start time!', 'error');
             }
 
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let code = '';
-            for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-
             try {
                 window.showToast('Establishing Secure Grid...', 'info');
-                
-                const timeSlot = `${formatStandardTime(startTime)} - ${formatStandardTime(endTime)}`;
 
-                await addDoc(collection(db, "classes"), {
-                    className: nameEl.value,
-                    level: document.getElementById('levelInput').value,
-                    subject: document.getElementById('subjectInput').value,
-                    sectionCode: sectionEl.value.toUpperCase(),
-                    classCode: code,
-                    schedule: scheduleDays || 'TBA',
-                    startTime: startTime,
-                    endTime: endTime,
-                    timeSlot: timeSlot,
-                    sessionLimit: parseInt(sessionLimit),
-                    teacherUid: user.uid,
-                    teacherName: (currentTeacherData && (currentTeacherData.full_name || `${currentTeacherData.firstName || ''} ${currentTeacherData.lastName || ''}`.trim())) || (user.displayName || 'Faculty Account'),
-                    students: [],
-                    createdAt: serverTimestamp(),
-                    status: 'Active'
+                const result = await api('/classes.php', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        class_name: nameEl.value,
+                        level: document.getElementById('levelInput').value,
+                        subject: document.getElementById('subjectInput').value,
+                        section_code: sectionEl.value.toUpperCase(),
+                        schedule: scheduleDays || 'TBA',
+                        start_time: startTime,
+                        end_time: endTime,
+                        session_limit: parseInt(sessionLimit),
+                        teacher_name: (currentTeacherData && (currentTeacherData.full_name || `${currentTeacherData.firstName || ''} ${currentTeacherData.lastName || ''}`.trim())) || (user.displayName || 'Faculty Account'),
+                    })
                 });
 
-                document.getElementById('generatedCodeDisplay').innerText = code;
+                document.getElementById('generatedCodeDisplay').innerText = result.class_code;
                 document.getElementById('createClassModal').classList.add('hidden-form');
                 window.showToast('Hub established successfully.', 'success');
 
@@ -705,46 +876,36 @@ require_once dirname(__DIR__) . '/core/init.php';
                 document.getElementById('startTimeInput').value = '';
                 document.getElementById('endTimeInput').value = '';
 
+                await loadClasses();
             } catch (error) {
                 console.error("Grid Sync Failure:", error);
-                window.showToast('Cloud architecture error.', 'error');
+                window.showToast(error.message || 'Cloud architecture error.', 'error');
             }
         };
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                const q = query(collection(db, "classes"), where("teacherUid", "==", user.uid));
-                
-                onSnapshot(q, (snapshot) => {
-                    allCurrentClasses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    renderClasses(allCurrentClasses);
-                }, (error) => {
-                    console.error("Firestore Sync Error:", error);
-                    window.showToast(`Data Sync Error: ${error.message}`, 'error');
-                    
-                    const grid = document.getElementById('classGrid');
-                    if (grid) {
-                        grid.innerHTML = `
-                            <div class="col-span-full py-20 text-center opacity-40">
-                                <i data-feather="alert-triangle" class="w-12 h-12 mx-auto mb-4 text-primary-500 animate-pulse"></i>
-                                <p class="text-xs font-black uppercase tracking-widest italic text-primary-400">Sync Protocol Denied</p>
-                                <p class="text-[10px] text-gray-500 mt-2 font-mono">${error.code}</p>
-                            </div>`;
-                        feather.replace();
-                    }
-                });
-            } else {
-                window.location.href = '../login.php?status=session_cleared';
+        async function loadClasses() {
+            try {
+                const classes = await api('/classes.php');
+                allCurrentClasses = classes;
+                applyFilters();
+                loadPendingAlerts(allCurrentClasses);
+            } catch (error) {
+                console.error("Poll Error:", error);
+                const grid = document.getElementById('classGrid');
+                if (grid) {
+                    grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-40"><i data-feather="alert-triangle" class="w-12 h-12 mx-auto mb-4 text-primary-500 animate-pulse"></i><p class="text-xs font-black uppercase tracking-widest italic text-primary-400">Sync Protocol Denied</p></div>`;
+                    feather.replace();
+                }
             }
+        }
+
+        initPage(() => {
+            setTimeout(() => loadClasses(), 500);
+            pollInterval = setInterval(loadClasses, 10000);
         });
 
-        // Initialize from Cache
         const cached = localStorage.getItem('cs_cached_profile');
         if (cached) currentTeacherData = JSON.parse(cached);
-
-        window.addEventListener('profileLoaded', (e) => {
-            currentTeacherData = e.detail;
-        });
 
         feather.replace();
     </script>

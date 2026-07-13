@@ -1,7 +1,6 @@
 <?php
 // api/sync_session.php
 // The Identity Bridge: Firebase -> PHP Session Sync
-header('Content-Type: application/json');
 
 if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params([
@@ -34,11 +33,25 @@ if ($data && isset($data['uid']) && isset($data['role'])) {
     $_SESSION['dashboard'] = $ROOT_URL . $dashboard;
     session_write_close();
 
+    // Generate a session token for API authentication
+    $token = null;
+    require_once __DIR__ . '/config.php';
+    try {
+        $pdo = getPDO();
+        $token = generateToken();
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
+        $stmt = $pdo->prepare("INSERT INTO sessions (uid, token, expires_at) VALUES (?, ?, ?)");
+        $stmt->execute([$data['uid'], $token, $expiresAt]);
+    } catch (Exception $e) {
+        // sessions table might not exist yet; proceed without token
+    }
+
     echo json_encode([
         'status' => 'success',
         'redirect' => $dashboard,
         'role_detected' => $data['role'],
-        'message' => 'Identity Handshake Complete'
+        'message' => 'Identity Handshake Complete',
+        'token' => $token
     ]);
 } else {
     session_unset();

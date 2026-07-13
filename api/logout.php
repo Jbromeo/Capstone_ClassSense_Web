@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: application/json');
 // api/logout.php
 // The Final Step in the Logout Auth Process: Clearing local data
 if (session_status() === PHP_SESSION_NONE) {

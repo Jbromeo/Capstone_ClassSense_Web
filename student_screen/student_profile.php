@@ -9,7 +9,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | My Profile</title>
     <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <!-- Ambient Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -23,10 +23,13 @@ require_once dirname(__DIR__) . '/core/init.php';
         <header class="h-20 glass-panel border-b-0 border-dark-border flex items-center justify-between px-8 z-20">
             <h2 class="text-xl font-bold text-white italic">Account Settings <span class="text-xs text-gray-500 font-normal ml-3 tracking-widest uppercase italic">Student Profile</span></h2>
             <div class="flex items-center gap-4">
-                <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
-                    <i data-feather="bell"></i>
-                    <span class="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                </button>
+                <div class="relative">
+                    <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors">
+                        <i data-feather="bell"></i>
+                        <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                    </button>
+                    <?php include '../includes/notification_popover.php'; ?>
+                </div>
             </div>
             <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
         </header>
@@ -122,14 +125,12 @@ require_once dirname(__DIR__) . '/core/init.php';
     </div>
 
     <script type="module">
-        import { db } from '../assets/js/firebase-init.js';
-        import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
 
         let currentUid = null;
 
         // 1. Populate data when student profile is loaded
-        window.addEventListener('profileLoaded', (e) => {
-            const data = e.detail;
+        initPage((data) => {
             currentUid = data.uid;
 
             // Header UI
@@ -166,13 +167,16 @@ require_once dirname(__DIR__) . '/core/init.php';
             saveLoader.classList.remove('hidden');
 
             try {
-                const docRef = doc(db, "students", currentUid);
-                await updateDoc(docRef, {
-                    firstName: data.firstName,
-                    lastName: data.lastName,
-                    phone: data.phone,
-                    guardianPhone: data.guardianPhone,
-                    updatedAt: new Date().toISOString()
+                await api('/fetch.php', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        uid: currentUid,
+                        role: 'student',
+                        firstName: data.firstName,
+                        lastName: data.lastName,
+                        phone: data.phone,
+                        guardianPhone: data.guardianPhone
+                    })
                 });
 
                 showStatus("Registry Updated Successfully!", "success");
@@ -181,7 +185,17 @@ require_once dirname(__DIR__) . '/core/init.php';
                 document.getElementById('profileFullName').textContent = `${data.firstName} ${data.lastName}`;
                 
                 // Manually refresh sidebar items (or it will refresh on next state change)
-                document.getElementById('sideStudentName').textContent = `${data.firstName} ${data.lastName}`;
+                const sideName = document.getElementById('sideStudentName');
+                if (sideName) {
+                    sideName.textContent = `${data.firstName} ${data.lastName}`;
+                    sideName.style.fontSize = '0.6875rem';
+                    let size = 0.6875;
+                    sideName.style.whiteSpace = 'nowrap';
+                    while (sideName.scrollWidth > sideName.clientWidth && size > 0.4) {
+                        size -= 0.05;
+                        sideName.style.fontSize = size + 'rem';
+                    }
+                }
                 document.getElementById('popoverName').textContent = `${data.firstName} ${data.lastName}`;
 
             } catch (error) {

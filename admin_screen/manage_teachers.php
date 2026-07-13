@@ -94,6 +94,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                     <tr class="bg-[#1a1c21] text-gray-500 uppercase text-xs font-black tracking-widest border-b border-dark-border">
                                         <th class="px-8 py-5">Educator</th>
                                         <th class="px-8 py-5">Department</th>
+                                        <th class="px-8 py-5">Employee ID</th>
                                         <th class="px-8 py-5">Username</th>
                                         <th class="px-8 py-5 text-center">Settings</th>
                                     </tr>

@@ -7,7 +7,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | Attendance Logs</title>
     <?php include '../includes/head.php'; ?>
 </head>
-<body class="antialiased min-h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
+<body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
     <!-- Ambient Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -90,49 +90,31 @@ require_once dirname(__DIR__) . '/core/init.php';
 
     <!-- Firebase Logic -->
     <script type="module">
-        import { db, auth } from '../assets/js/firebase-init.js';
-        import { collection, query, where, getDocs, doc, getDoc, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { api, initPage } from '../assets/js/custom-auth.js';
 
-        let currentTeacher = null;
+        let loadInterval = null;
         const dateInput = document.getElementById('dateFilter');
         const classSelect = document.getElementById('classFilter');
-        
-        // Default to today
+
         dateInput.value = new Date().toISOString().split('T')[0];
 
-        window.addEventListener('profileLoaded', (e) => {
-            currentTeacher = e.detail;
-            loadTeacherClasses();
+        initPage(() => {
+            setTimeout(() => loadData(), 500);
+            if (loadInterval) clearInterval(loadInterval);
+            loadInterval = setInterval(loadData, 10000);
         });
 
-        // 🛡️ Fallback: Direct Auth Check
-        onAuthStateChanged(auth, (user) => {
-            if (user && !currentTeacher) {
-                console.log("History: Fallback Auth Active");
-                currentTeacher = { uid: user.uid };
-                loadTeacherClasses();
-            }
-        });
-
-        async function loadTeacherClasses() {
+        async function loadData() {
             try {
-                // 🛡️ Safety Check: Ensure we have a UID from somewhere
-                const uid = currentTeacher?.uid || auth.currentUser?.uid;
-                
-                if (!uid) {
-                    console.warn("History: No UID detected yet. Waiting...");
-                    return;
-                }
+                const user = JSON.parse(sessionStorage.getItem('cs_user') || 'null');
+                const uid = user?.uid;
+                if (!uid) return;
 
-                console.log("History: Fetching Hubs for UID:", uid);
-                const q = query(collection(db, "classes"), where("teacherUid", "==", uid));
-                const snap = await getDocs(q);
-                const classes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                
-                classSelect.innerHTML = `<option value="">Select a Hub</option>` + 
-                    classes.map(c => `<option value="${c.id}">${c.className}</option>`).join('');
-                
+                const classes = await api('/classes.php');
+
+                classSelect.innerHTML = `<option value="">Select a Hub</option>` +
+                    classes.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');
+
                 feather.replace();
             } catch (error) {
                 console.error("Hub Sync Error:", error);
@@ -148,69 +130,51 @@ require_once dirname(__DIR__) . '/core/init.php';
             const classId = classSelect.value;
             const date = dateInput.value;
             const tbody = document.getElementById('logsTableBody');
-            
+
             if (!classId) return;
 
             tbody.innerHTML = `<tr><td colspan="5" class="p-20 text-center animate-pulse text-gray-500 italic">Syncing with Registry...</td></tr>`;
 
             try {
-                const q = query(
-                    collection(db, "attendance"), 
-                    where("classId", "==", classId),
-                    where("date", "==", date)
-                );
+                const records = await api('/attendance.php?class_id=' + classId);
+                const filtered = records.filter(r => r.date === date);
 
-                const snap = await getDocs(q);
-                document.getElementById('logCount').innerText = snap.size;
+                document.getElementById('logCount').innerText = filtered.length;
 
-                if (snap.empty) {
+                if (filtered.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="5" class="p-20 text-center text-gray-500 italic">No records found for this date.</td></tr>`;
                     return;
                 }
-            } catch (error) {
-                console.error("Log Sync Error:", error);
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="p-20 text-center">
-                            <div class="flex flex-col items-center gap-2 opacity-50">
-                                <i data-feather="alert-octagon" class="w-8 h-8 text-primary-500 animate-pulse"></i>
-                                <span class="text-xs font-black uppercase tracking-widest italic text-primary-400">Registry Sync Denied</span>
-                                <span class="text-[9px] font-mono">${error.code}</span>
-                            </div>
-                        </td>
-                    </tr>`;
-                feather.replace();
-                return;
-            }
 
-            const records = [];
-            for (const d of snap.docs) {
-                const data = d.data();
-                // Resolve Student info
-                const sSnap = await getDoc(doc(db, "students", data.studentUid));
-                if (sSnap.exists()) {
-                    const s = sSnap.data();
+                const uids = [...new Set(filtered.map(r => r.student_uid))];
+                const students = await api('/fetch.php', { method: 'POST', body: JSON.stringify({ collection: 'students', uids }) });
+                const studentMap = {};
+                students.forEach(s => { studentMap[s.uid] = s; });
+
+                const rows = [];
+                for (const rec of filtered) {
+                    const s = studentMap[rec.student_uid];
+                    if (!s) continue;
+
                     let avatarUrl = s.profilePhoto;
                     if (!avatarUrl) {
                         const initials = `${s.firstName?.[0] || 'S'}${s.lastName?.[0] || 'T'}`.toUpperCase();
                         avatarUrl = `https://ui-avatars.com/api/?name=${initials}&background=ea2628&color=fff&bold=true`;
                     }
 
-                    records.push({
-                        docId: d.id,
+                    rows.push({
+                        docId: rec.id,
                         name: s.full_name || `${s.firstName} ${s.lastName}`,
                         id: s.studentId || 'N/A',
                         avatar: avatarUrl,
-                        time: data.timestamp ? data.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : '--:--',
-                        status: data.status || 'Verified'
+                        time: rec.timestamp ? new Date(rec.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : '--:--',
+                        status: rec.status || 'Verified'
                     });
                 }
-            }
 
-            // Sort by time
-            records.sort((a,b) => b.time.localeCompare(a.time));
+                rows.sort((a, b) => b.time.localeCompare(a.time));
 
-            tbody.innerHTML = records.map((r, idx) => `
+                tbody.innerHTML = rows.map((r, idx) => `
                 <tr class="border-b border-dark-border hover:bg-white/5 transition-colors animate-pop-in" style="animation-delay: ${idx * 50}ms">
                     <td class="p-5 pl-8">
                         <div class="flex items-center gap-4">
@@ -231,15 +195,26 @@ require_once dirname(__DIR__) . '/core/init.php';
                         </button>
                     </td>
                 </tr>`).join('');
-            
-            feather.replace();
+
+                feather.replace();
+            } catch (error) {
+                console.error("Log Sync Error:", error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-20 text-center">
+                            <div class="flex flex-col items-center gap-2 opacity-50">
+                                <i data-feather="alert-octagon" class="w-8 h-8 text-primary-500 animate-pulse"></i>
+                                <span class="text-xs font-black uppercase tracking-widest italic text-primary-400">Registry Sync Denied</span>
+                                <span class="text-[9px] font-mono">${error.message}</span>
+                            </div>
+                        </td>
+                    </tr>`;
+                feather.replace();
+            }
         }
 
-        window.deleteRecord = async (id) => {
-            if (confirm('Are you sure you want to invalidate this attendance record?')) {
-                 await deleteDoc(doc(db, "attendance", id));
-                 refreshLogs();
-            }
+        window.deleteRecord = (id) => {
+            alert('Delete not yet implemented in the SQL API. Record ID: ' + id);
         }
 
         document.addEventListener('DOMContentLoaded', () => { feather.replace(); });

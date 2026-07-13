@@ -42,24 +42,44 @@
                     <div class="flex items-center justify-between gap-4 py-2 border-b border-white/5">
                         <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Written Works</span>
                         <div class="flex items-center gap-2">
-                            <input type="number" id="weight-written" value="30" class="w-16 bg-dark-bg border border-dark-border rounded-lg p-2 text-center text-white font-black text-xs italic">
+                            <input type="number" id="weight-written" value="30" oninput="updateWeightTotal()" class="w-16 bg-dark-bg border border-dark-border rounded-lg p-2 text-center text-white font-black text-xs italic">
                             <span class="text-gray-500 font-bold">%</span>
                         </div>
                     </div>
                     <div class="flex items-center justify-between gap-4 py-2 border-b border-white/5">
                         <span class="text-[10px] font-black text-purple-400 uppercase italic tracking-widest">Performance Tasks</span>
                         <div class="flex items-center gap-2">
-                            <input type="number" id="weight-performance" value="50" class="w-16 bg-dark-bg border border-dark-border rounded-lg p-2 text-center text-white font-black text-xs italic">
+                            <input type="number" id="weight-performance" value="50" oninput="updateWeightTotal()" class="w-16 bg-dark-bg border border-dark-border rounded-lg p-2 text-center text-white font-black text-xs italic">
+                            <span class="text-gray-500 font-bold">%</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between gap-4 py-2 border-b border-white/5">
+                        <span class="text-[10px] font-black text-green-400 uppercase italic tracking-widest">Quarterly Exam</span>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="weight-exam" value="20" oninput="updateWeightTotal()" class="w-16 bg-dark-bg border border-dark-border rounded-lg p-2 text-center text-white font-black text-xs italic">
                             <span class="text-gray-500 font-bold">%</span>
                         </div>
                     </div>
                     <div class="flex items-center justify-between gap-4 py-2">
-                        <span class="text-[10px] font-black text-green-400 uppercase italic tracking-widest">Quarterly Exam</span>
+                        <span class="text-[10px] font-black text-orange-400 uppercase italic tracking-widest">Attendance</span>
                         <div class="flex items-center gap-2">
-                            <input type="number" id="weight-exam" value="20" class="w-16 bg-dark-bg border border-dark-border rounded-lg p-2 text-center text-white font-black text-xs italic">
+                            <input type="number" id="weight-attendance" value="0" oninput="updateWeightTotal()" class="w-16 bg-dark-bg border border-dark-border rounded-lg p-2 text-center text-white font-black text-xs italic">
                             <span class="text-gray-500 font-bold">%</span>
                         </div>
                     </div>
+                </div>
+                <!-- Live Weight Total -->
+                <div id="weightTotalBar" class="flex items-center gap-3 p-3 rounded-xl bg-dark-bg/60 border border-white/5">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Total</span>
+                            <span id="weightTotalValue" class="text-xs font-black text-green-400">100%</span>
+                        </div>
+                        <div class="h-1.5 rounded-full bg-dark-bg overflow-hidden">
+                            <div id="weightTotalBarFill" class="h-full rounded-full bg-green-500 transition-all duration-300" style="width:100%"></div>
+                        </div>
+                    </div>
+                    <span id="weightTotalIcon" class="flex-shrink-0 text-green-400"><i data-feather="check-circle" class="w-4 h-4"></i></span>
                 </div>
             </div>
             <div class="p-6 border-t border-white/5 flex justify-end gap-3 bg-white/5 rounded-b-2xl">
