@@ -39,7 +39,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                             </div>
                         </div>
                         <div class="p-3 border-t border-white/5 flex-shrink-0">
-                            <a href="grades.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
+                            <a href="classes.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
                         </div>
                     </div>
                 </div>
@@ -152,6 +152,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         let currentFilter = 'all';
         let searchTerm = '';
         let pendingAlerts = [];
+        let lastClassesSig = '';
 
         // 1. Initial State Handshake
         initPage(() => {
@@ -161,7 +162,11 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         async function loadData() {
             try {
-                myClasses = await api('/classes.php');
+                const classes = await api('/classes.php');
+                const sig = JSON.stringify(classes);
+                if (sig === lastClassesSig) return;
+                lastClassesSig = sig;
+                myClasses = classes;
                 updateClassFilters();
                 await fetchAllStudentsMetadata();
             } catch (error) {

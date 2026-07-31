@@ -72,54 +72,7 @@
                     </p>
                 </div>
             </div>
-
-            <!-- Grade Breakdown -->
-            <div class="glass-panel rounded-xl p-6 mb-8">
-                <h3 class="text-lg font-bold text-white mb-6">Grade Breakdown</h3>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-center">
-                    
-                    <div class="text-center p-4 bg-dark-bg/50 rounded-xl border border-dark-border">
-                        <div class="text-3xl font-bold text-white">1.25</div>
-                        <div class="text-xs text-gray-500 uppercase mt-1">Final Grade</div>
-                        <span class="mt-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">Passed</span>
-                    </div>
-
-                    <div class="col-span-4 space-y-3">
-                        <!-- Quizzes -->
-                        <div class="flex items-center gap-4">
-                            <div class="w-24 text-xs text-gray-400">Quizzes (20%)</div>
-                            <div class="flex-1 h-3 bg-dark-border rounded-full overflow-hidden">
-                                <div class="h-full bg-blue-500 rounded-full" style="width: 92%"></div>
-                            </div>
-                            <div class="w-12 text-sm font-bold text-white text-right">92%</div>
-                        </div>
-                        <!-- Exams -->
-                        <div class="flex items-center gap-4">
-                            <div class="w-24 text-xs text-gray-400">Exams (40%)</div>
-                            <div class="flex-1 h-3 bg-dark-border rounded-full overflow-hidden">
-                                <div class="h-full bg-purple-500 rounded-full" style="width: 95%"></div>
-                            </div>
-                            <div class="w-12 text-sm font-bold text-white text-right">95%</div>
-                        </div>
-                        <!-- Activities -->
-                        <div class="flex items-center gap-4">
-                            <div class="w-24 text-xs text-gray-400">Activities (20%)</div>
-                            <div class="flex-1 h-3 bg-dark-border rounded-full overflow-hidden">
-                                <div class="h-full bg-emerald-500 rounded-full" style="width: 98%"></div>
-                            </div>
-                            <div class="w-12 text-sm font-bold text-white text-right">98%</div>
-                        </div>
-                         <!-- Attendance -->
-                         <div class="flex items-center gap-4">
-                            <div class="w-24 text-xs text-gray-400">Attendance (20%)</div>
-                            <div class="flex-1 h-3 bg-dark-border rounded-full overflow-hidden">
-                                <div class="h-full bg-amber-500 rounded-full" style="width: 96%"></div>
-                            </div>
-                            <div class="w-12 text-sm font-bold text-white text-right">96%</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            
             <!-- Tabs -->
             <div class="mb-4 border-b border-dark-border">
                 <nav class="flex gap-4">

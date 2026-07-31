@@ -52,7 +52,18 @@ function verifyToken() {
     if (!empty($matches[1])) {
         $idToken = $matches[1];
 
-        // Try Firebase token verification first (admin accounts)
+        // Try custom session token first (teachers + students) — fast, local lookup
+        try {
+            $pdo = getPDO();
+            $stmt = $pdo->prepare("SELECT uid FROM sessions WHERE token = ? AND expires_at > GETDATE()");
+            $stmt->execute([$idToken]);
+            $row = $stmt->fetch();
+            if ($row) return $row['uid'];
+        } catch (PDOException $e) {
+            // sessions table might not exist yet
+        }
+
+        // Fallback: try Firebase token verification (admin accounts)
         $url = "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={$config['firebase_api_key']}";
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -71,17 +82,6 @@ function verifyToken() {
             $data = json_decode($response, true);
             $uid = $data['users'][0]['localId'] ?? null;
             if ($uid) return $uid;
-        }
-
-        // Fallback: try custom session token (teachers + students)
-        try {
-            $pdo = getPDO();
-            $stmt = $pdo->prepare("SELECT uid FROM sessions WHERE token = ? AND expires_at > GETDATE()");
-            $stmt->execute([$idToken]);
-            $row = $stmt->fetch();
-            if ($row) return $row['uid'];
-        } catch (PDOException $e) {
-            // sessions table might not exist yet
         }
     }
 

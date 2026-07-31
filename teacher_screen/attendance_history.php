@@ -93,6 +93,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         import { api, initPage } from '../assets/js/custom-auth.js';
 
         let loadInterval = null;
+        let lastClassesSig = '';
         const dateInput = document.getElementById('dateFilter');
         const classSelect = document.getElementById('classFilter');
 
@@ -111,6 +112,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                 if (!uid) return;
 
                 const classes = await api('/classes.php');
+                const sig = JSON.stringify(classes);
+                if (sig === lastClassesSig) return;
+                lastClassesSig = sig;
 
                 classSelect.innerHTML = `<option value="">Select a Hub</option>` +
                     classes.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');

@@ -29,9 +29,7 @@
         <header class="py-8">
             <div class="flex items-center justify-center md:justify-start">
                 <a href="login.php" class="flex items-center space-x-3 group">
-                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500 to-secondary-600 flex items-center justify-center shadow-lg shadow-primary-500/20 group-hover:scale-110 transition-transform">
-                        <i data-feather="layers" class="w-5 h-5 text-white"></i>
-                    </div>
+                    <img src="assets/classsense-logo.png" class="w-10 h-10 rounded-lg object-cover group-hover:scale-110 transition-transform">
                     <span class="text-2xl font-bold tracking-tight text-white">ClassSense</span>
                 </a>
             </div>

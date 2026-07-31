@@ -88,7 +88,7 @@ if ($method === 'POST') {
         (int)($data['session_limit'] ?? 15),
         $uid,
         $data['teacher_name'] ?? 'Faculty Account',
-        $data['status'] ?? 'Active'
+        $data['status'] ?? 'In Progress'
     ]);
 
     jsonResponse(['id' => $id, 'class_code' => $classCode], 201);
@@ -108,7 +108,7 @@ if ($method === 'PUT') {
     $fields = [];
     $params = [];
 
-    $allowedFields = ['class_name', 'level', 'subject', 'section_code', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce'];
+    $allowedFields = ['class_name', 'level', 'subject', 'section_code', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m'];
     foreach ($allowedFields as $f) {
         if (array_key_exists($f, $data)) {
             $fields[] = "$f = ?";
@@ -118,6 +118,27 @@ if ($method === 'PUT') {
 
     if (empty($fields)) {
         jsonResponse(['error' => 'No valid fields to update'], 400);
+    }
+
+    // Session start: server generates a unique session_id for audit traceability
+    if (array_key_exists('session_active', $data) && (int)$data['session_active'] === 1 && empty($data['session_id'])) {
+        $fields[] = "session_id = ?";
+        $params[] = strtolower(bin2hex(random_bytes(16)));
+    }
+
+    // Session end: clear the transient session state
+    if (array_key_exists('session_active', $data) && (int)$data['session_active'] === 0) {
+        $fields[] = "session_id = NULL";
+        $fields[] = "last_nonce = NULL";
+        $fields[] = "nonce_issued_at = NULL";
+        $fields[] = "current_nonce = NULL";
+        $fields[] = "session_expires_at = NULL";
+        $fields[] = "session_mode = 'open'";
+    }
+
+    // Late window switch: drop the previous nonce so only the late-window QR works
+    if (array_key_exists('session_mode', $data) && $data['session_mode'] === 'late') {
+        $fields[] = "last_nonce = NULL";
     }
 
     if (array_key_exists('start_time', $data) && array_key_exists('end_time', $data) && !array_key_exists('time_slot', $data)) {

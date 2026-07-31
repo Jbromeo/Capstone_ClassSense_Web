@@ -22,7 +22,7 @@
             </div>
             <div class="p-6 border-t border-white/5 flex justify-end gap-3 bg-white/5 rounded-b-2xl">
                 <button onclick="closeModal('addComponentModal')" class="px-6 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-widest italic">Abort</button>
-                <button onclick="saveNewComponent()" class="px-8 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-widest italic shadow-lg shadow-primary-500/20 transition-all transform hover:scale-105">Deploy Entry</button>
+                <button onclick="window.saveNewComponent()" class="px-8 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-widest italic shadow-lg shadow-primary-500/20 transition-all transform hover:scale-105">Deploy Entry</button>
             </div>
         </div>
     </div>
@@ -83,7 +83,7 @@
                 </div>
             </div>
             <div class="p-6 border-t border-white/5 flex justify-end gap-3 bg-white/5 rounded-b-2xl">
-                <button onclick="saveWeights()" class="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-widest italic shadow-lg shadow-primary-500/20 transition-all active:scale-95">Update Weights</button>
+                <button onclick="window.saveWeights()" class="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-widest italic shadow-lg shadow-primary-500/20 transition-all active:scale-95">Update Weights</button>
             </div>
         </div>
     </div>
@@ -123,3 +123,56 @@
         </div>
     </div>
 </div>
+
+<script>
+window.updateWeightTotal = function() {
+    const w = parseInt(document.getElementById('weight-written')?.value || 0);
+    const p = parseInt(document.getElementById('weight-performance')?.value || 0);
+    const e = parseInt(document.getElementById('weight-exam')?.value || 0);
+    const a = parseInt(document.getElementById('weight-attendance')?.value || 0);
+    const total = w + p + e + a;
+    const bar = document.getElementById('weightTotalBarFill');
+    const val = document.getElementById('weightTotalValue');
+    const icon = document.getElementById('weightTotalIcon');
+    if (bar) {
+        bar.style.width = Math.min(total, 100) + '%';
+        bar.className = 'h-full rounded-full ' + (total === 100 ? 'bg-green-500' : total > 100 ? 'bg-red-500' : 'bg-amber-500');
+    }
+    if (val) {
+        val.textContent = total + '%';
+        val.className = 'text-xs font-black ' + (total === 100 ? 'text-green-400' : total > 100 ? 'text-red-400' : 'text-amber-400');
+    }
+    if (icon) {
+        icon.innerHTML = total === 100 ? '<i data-feather="check-circle" class="w-4 h-4"></i>' : '<i data-feather="alert-circle" class="w-4 h-4"></i>';
+        try { feather.replace(); } catch(e) {}
+    }
+};
+
+window.saveNewComponent = function() {
+    const name = document.getElementById('addCompName')?.value?.trim();
+    const hps = parseInt(document.getElementById('addCompHps')?.value || 50);
+    const category = document.getElementById('addCompCategory')?.value;
+    if (!name) return window.showToast('Enter a component name', 'error');
+    if (!category) return window.showToast('Category not set', 'error');
+    if (window.gradingSystem) {
+        window.gradingSystem.addComponent(category, name, hps);
+    }
+    window.closeModal('addComponentModal');
+    document.getElementById('addCompName').value = '';
+    document.getElementById('addCompHps').value = '50';
+};
+
+window.saveWeights = function() {
+    const weights = {
+        written: parseInt(document.getElementById('weight-written')?.value || 0),
+        performance: parseInt(document.getElementById('weight-performance')?.value || 0),
+        exam: parseInt(document.getElementById('weight-exam')?.value || 0),
+        attendance: parseInt(document.getElementById('weight-attendance')?.value || 0)
+    };
+    const total = Object.values(weights).reduce((a, b) => a + b, 0);
+    if (total !== 100) return window.showToast(`Weights must total 100% (currently ${total}%)`, 'error');
+    if (window.gradingSystem) window.gradingSystem.saveWeights(weights);
+    window.closeModal('weightConfigModal');
+    window.showToast('Weights updated successfully', 'success');
+};
+</script>

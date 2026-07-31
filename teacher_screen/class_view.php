@@ -43,29 +43,28 @@ require_once dirname(__DIR__) . '/core/init.php';
     <!-- Main Content Container -->
     <div class="flex-1 flex flex-col min-w-0 bg-dark-bg transition-all overflow-hidden relative">
         <!-- Glass Header -->
-        <header class="h-20 border-b border-dark-border bg-dark-bg/50 backdrop-blur-xl flex items-center justify-between px-8 z-30">
-            <div class="flex items-center gap-4">
-                <button id="mobileMenuBtn" class="md:hidden p-2 text-gray-400 hover:text-white"><i data-feather="menu"></i></button>
-                <div>
-                    <div class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] italic mb-0.5">
-                        <span class="text-primary-500 opacity-60">Academic Hub</span>
-                        <i data-feather="chevron-right" class="w-3 h-3 text-gray-700"></i>
-                        <span id="breadcrumbClassName" class="text-gray-400 font-bold">SY-2024</span>
+        <header class="h-20 border-b border-dark-border bg-dark-bg/50 backdrop-blur-xl flex items-center justify-between px-4 md:px-8 z-30">
+            <div class="flex items-center gap-4 min-w-0 flex-1">
+                <button id="mobileMenuBtn" class="md:hidden p-2 text-gray-400 hover:text-white shrink-0"><i data-feather="menu"></i></button>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] italic mb-0.5 truncate">
+                        <span class="text-primary-500 opacity-60 shrink-0">Academic Hub</span>
+                        <i data-feather="chevron-right" class="w-3 h-3 text-gray-700 shrink-0"></i>
+                        <span id="breadcrumbClassName" class="text-gray-400 font-bold truncate">SY-2024</span>
                     </div>
-                    <h1 id="viewClassName" class="text-2xl font-black text-white italic uppercase tracking-tighter leading-none">Class Hub</h1>
+                    <h1 id="viewClassName" class="text-xl md:text-2xl font-black text-white italic uppercase tracking-tighter leading-none truncate">Class Hub</h1>
                 </div>
-                <div id="statusControls" class="hidden md:flex items-center gap-3 ml-6 border-l border-white/5 pl-6">
+                <div id="statusControls" class="hidden md:flex items-center gap-3 ml-6 border-l border-white/5 pl-6 shrink-0">
                     <div class="flex items-center gap-1.5">
                         <span id="statusDot" class="w-2 h-2 rounded-full bg-blue-500"></span>
                         <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic">Status</span>
                     </div>
-                    <button onclick="window.setClassStatus('Active')" data-status="Active" class="status-btn text-[11px] px-4 py-1.5 rounded-lg font-black uppercase tracking-widest italic transition-all duration-200 border-2 border-dashed border-blue-500/25 text-blue-400/60 hover:border-blue-500/60 hover:text-blue-300 bg-transparent">Active</button>
                     <button onclick="window.setClassStatus('In Progress')" data-status="In Progress" class="status-btn text-[11px] px-4 py-1.5 rounded-lg font-black uppercase tracking-widest italic transition-all duration-200 border-2 border-dashed border-amber-500/25 text-amber-400/60 hover:border-amber-500/60 hover:text-amber-300 bg-transparent">In Progress</button>
                     <button onclick="window.setClassStatus('Completed')" data-status="Completed" class="status-btn text-[11px] px-4 py-1.5 rounded-lg font-black uppercase tracking-widest italic transition-all duration-200 border-2 border-dashed border-green-500/25 text-green-400/60 hover:border-green-500/60 hover:text-green-300 bg-transparent">Completed</button>
                 </div>
             </div>
             
-            <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2 md:gap-6 shrink-0">
                 <!-- Search & Notification -->
                 <div class="flex items-center gap-4">
                     <div class="relative hidden md:block group">
@@ -89,9 +88,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                                     <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading...</p>
                                 </div>
                             </div>
-                            <div class="p-3 border-t border-white/5 flex-shrink-0">
-                                <a href="grades.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -100,14 +96,14 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         <!-- Class Sub-Navigation -->
         <nav class="shrink-0 px-8 py-3 bg-dark-bg/80 backdrop-blur-xl border-b border-dark-border flex items-center gap-2 relative z-20">
-            <button id="nav-students" onclick="window.switchTab('students')" class="class-control-nav active flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest italic transition-all bg-white/5 text-white shadow-lg shadow-primary-500/10">
-                <i data-feather="users" class="w-4 h-4 text-primary-500"></i> Students
+            <button id="nav-students" onclick="window.switchTab('students')" class="class-control-nav flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest italic transition-all text-gray-400 hover:text-white hover:bg-white/5">
+                <i data-feather="users" class="w-4 h-4 text-gray-500"></i> Students
             </button>
             <button id="nav-grading" onclick="window.switchTab('grading')" class="class-control-nav flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest italic transition-all text-gray-400 hover:text-white hover:bg-white/5">
-                <i data-feather="monitor" class="w-4 h-4 text-gray-500"></i> Grading Engine
+                <i data-feather="monitor" class="w-4 h-4 text-gray-500"></i> Grading Center
             </button>
             <button id="nav-attendance" onclick="window.switchTab('attendance')" class="class-control-nav flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest italic transition-all text-gray-400 hover:text-white hover:bg-white/5">
-                <i data-feather="calendar" class="w-4 h-4 text-gray-500"></i> Attendance
+                <i data-feather="calendar" class="w-4 h-4 text-gray-500"></i> Attendance History
             </button>
         </nav>
 
@@ -125,15 +121,15 @@ require_once dirname(__DIR__) . '/core/init.php';
     <?php include 'tabs/modals_class.php'; ?>
 
     <script type="module">
-        import { GradingSystem } from '../assets/js/grading_controller.js';
         import { api, initPage } from '../assets/js/custom-auth.js';
         window.api = api;
 
         const API_BASE = '../api';
         const urlParams = new URLSearchParams(window.location.search);
         const classId = urlParams.get('id');
-        window.gradingSystem = new GradingSystem(classId);
         let cachedStudents = [];
+        let lastClassSig = '';
+        let lastAlertsSig = '';
         let searchTerm = '';
         let pendingAlerts = [];
         let classPollInterval = null;
@@ -161,13 +157,15 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const icon = el.querySelector('i');
                 if (icon) { icon.classList.remove('text-primary-500'); icon.classList.add('text-gray-500'); }
             });
-            const activeNav = document.getElementById('nav-' + tabName);
-            if (activeNav) {
-                activeNav.classList.add('active', 'bg-white/5', 'text-white', 'shadow-lg', 'shadow-primary-500/10');
-                activeNav.classList.remove('text-gray-400');
-                const icon = activeNav.querySelector('i');
-                if (icon) { icon.classList.add('text-primary-500'); icon.classList.remove('text-gray-500'); }
-            }
+            ['nav-' + tabName, 'nav-' + tabName + '-sidebar'].forEach(id => {
+                const activeNav = document.getElementById(id);
+                if (activeNav) {
+                    activeNav.classList.add('active', 'bg-white/5', 'text-white', 'shadow-lg', 'shadow-primary-500/10');
+                    activeNav.classList.remove('text-gray-400');
+                    const icon = activeNav.querySelector('i');
+                    if (icon) { icon.classList.add('text-primary-500'); icon.classList.remove('text-gray-500'); }
+                }
+            });
         };
 
         window.openModal = (id) => {
@@ -192,24 +190,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         };
 
-        window.setQuarter = (quarter) => {
-            document.querySelectorAll('.quarter-btn').forEach(btn => {
-                btn.classList.remove('active', 'bg-primary-600', 'text-white', 'shadow-lg', 'shadow-primary-500/20');
-                btn.classList.add('text-gray-500');
-            });
-            const activeBtn = document.getElementById('q-' + quarter);
-            if (activeBtn) {
-                activeBtn.classList.add('active', 'bg-primary-600', 'text-white', 'shadow-lg', 'shadow-primary-500/20');
-                activeBtn.classList.remove('text-gray-500');
-            }
-            window.gradingSystem.stopPolling();
-            window.gradingSystem.quarter = quarter;
-            window.gradingSystem.loadData();
-            window.gradingSystem.startPolling();
-        };
-
-        window.exportToExcel = () => window.gradingSystem.exportToCSV();
-
         window.setClassStatus = async (status) => {
             try {
                 await window.api(`/classes.php?id=${classId}`, {
@@ -220,51 +200,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             } catch (err) {
                 window.showToast('Status update failed', 'error');
             }
-        };
-
-        window.saveNewComponent = async () => {
-            const category = document.getElementById('addCompCategory').value;
-            const name = document.getElementById('addCompName').value.trim();
-            const hps = parseInt(document.getElementById('addCompHps').value);
-            if (!name || !hps || hps <= 0) { window.showToast("Invalid Component Data", "error"); return; }
-            await window.gradingSystem.addComponent(category, name, hps);
-            window.closeModal('addComponentModal');
-            window.showToast("Component Deployed", "success");
-            document.getElementById('addCompName').value = '';
-        };
-
-        window.updateWeightTotal = () => {
-            const ids = ['weight-written', 'weight-performance', 'weight-exam', 'weight-attendance'];
-            const total = ids.reduce((sum, id) => sum + (parseInt(document.getElementById(id)?.value) || 0), 0);
-            const bar = document.getElementById('weightTotalBarFill');
-            const val = document.getElementById('weightTotalValue');
-            const icon = document.getElementById('weightTotalIcon');
-            if (!bar || !val || !icon) return;
-            const ok = total === 100;
-            bar.style.width = Math.min(total, 100) + '%';
-            bar.className = `h-full rounded-full transition-all duration-300 ${ok ? 'bg-green-500' : total > 100 ? 'bg-primary-500' : 'bg-yellow-500'}`;
-            val.innerText = total + '%';
-            val.className = `text-xs font-black ${ok ? 'text-green-400' : 'text-primary-400'}`;
-            icon.innerHTML = ok
-                ? '<i data-feather="check-circle" class="w-4 h-4"></i>'
-                : '<i data-feather="alert-circle" class="w-4 h-4"></i>';
-            if (typeof feather !== 'undefined') feather.replace();
-        };
-
-        window.saveWeights = async () => {
-            const w = parseInt(document.getElementById('weight-written').value) || 0;
-            const p = parseInt(document.getElementById('weight-performance').value) || 0;
-            const e = parseInt(document.getElementById('weight-exam').value) || 0;
-            const a = parseInt(document.getElementById('weight-attendance').value) || 0;
-            if (w + p + e + a !== 100) { window.showToast("Weights must total 100%", "error"); return; }
-            window.gradingSystem.config.written.weight = w;
-            window.gradingSystem.config.performance.weight = p;
-            window.gradingSystem.config.exam.weight = e;
-            window.gradingSystem.config.attendance.weight = a;
-            await window.gradingSystem.syncConfig();
-            window.gradingSystem.render();
-            window.closeModal('weightConfigModal');
-            window.showToast("Weights Updated", "success");
         };
 
         window.processBulkAdd = () => {
@@ -308,7 +243,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             const total = alerts.reduce((sum, a) => sum + a.missingCount, 0);
             if (countLabel) countLabel.textContent = total > 0 ? `${total} pending` : '';
             if (alerts.length === 0) {
-                body.innerHTML = `<div class="py-10 text-center"><div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center"><i data-feather="check-circle" class="w-6 h-6 text-green-400"></i></div><p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p><p class="text-[9px] text-gray-600 mt-1 italic">No pending grades.</p></div>`;
+                body.innerHTML = `<div class="py-10 text-center"><div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center"><i data-feather="check-circle" class="w-6 h-6 text-green-400"></i></div><p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p><p class="text-[9px] text-gray-600 mt-1 italic">No pending items.</p></div>`;
                 feather.replace(); return;
             }
             const topAlerts = alerts.sort((a, b) => b.missingCount - a.missingCount).slice(0, 20);
@@ -322,6 +257,9 @@ require_once dirname(__DIR__) . '/core/init.php';
         async function loadPendingAlerts() {
             try {
                 const stats = await window.api('/stats.php');
+                const sig = JSON.stringify(stats);
+                if (sig === lastAlertsSig) return;
+                lastAlertsSig = sig;
                 pendingAlerts = stats.grade_alerts || [];
                 const totalPending = stats.pending_grading || 0;
                 const badge = document.getElementById('notificationBadge');
@@ -359,14 +297,23 @@ require_once dirname(__DIR__) . '/core/init.php';
                 if (countTop) countTop.innerText = "0 ENTITIES ENROLLED";
                 feather.replace(); return;
             }
+            function rosterAvatar(s) {
+                const initials = ((s.firstName?.[0] || '') + (s.lastName?.[0] || '')).toUpperCase() || 'ST';
+                if (s.profilePicture && s.profilePicture !== '' && !s.profilePicture.includes('ui-avatars')) {
+                    return `<img src="${s.profilePicture}" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
+                }
+                if (s.profile_picture && s.profile_picture !== '' && !s.profile_picture.includes('ui-avatars')) {
+                    return `<img src="${s.profile_picture}" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
+                }
+                return `<img src="https://ui-avatars.com/api/?name=${initials}&background=ea2628&color=fff&bold=true" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
+            }
+
             tbody.innerHTML = students.map((s, index) => `
                 <tr class="border-b border-white/5 hover:bg-white/5 transition-colors group">
                     <td class="p-5 text-gray-500 font-mono text-[10px] text-center">${index + 1}</td>
                     <td class="p-5">
                         <div class="flex items-center gap-4">
-                            <div class="w-10 h-10 rounded-2xl bg-primary-500/10 flex items-center justify-center border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform">
-                                <span class="text-[10px] font-black text-primary-500 uppercase italic">${(s.firstName?.charAt(0) || '') + (s.lastName?.charAt(0) || '')}</span>
-                            </div>
+                            ${rosterAvatar(s)}
                             <div>
                                 <p class="text-sm text-white font-black uppercase tracking-tight italic leading-none">${s.firstName || ''} ${s.lastName || 'IDENTITY_MISSING'}</p>
                                 <p class="text-[9px] text-gray-500 font-bold uppercase italic tracking-widest mt-1.5 opacity-60">${s.email || 'ENCRYPTED'}</p>
@@ -391,25 +338,23 @@ require_once dirname(__DIR__) . '/core/init.php';
             document.getElementById('breadcrumbClassName').innerText = classData.subject || classData.class_name;
             document.querySelectorAll('.status-btn').forEach(btn => {
                 const status = btn.dataset.status;
-                if (status === classData.status) {
+                const isActive = (status === classData.status) || (classData.status !== 'Completed' && classData.status !== 'In Progress' && status === 'In Progress');
+                if (isActive) {
                     btn.classList.remove('bg-transparent', 'border-dashed', 'border-blue-500/25', 'border-amber-500/25', 'border-green-500/25', 'text-blue-400/60', 'text-amber-400/60', 'text-green-400/60');
                     btn.classList.add('text-white', 'shadow-lg');
-                    if (status === 'Active') btn.classList.add('bg-blue-600', 'border-blue-600', 'shadow-blue-600/30');
-                    else if (status === 'In Progress') btn.classList.add('bg-amber-500', 'border-amber-500', 'shadow-amber-500/30');
+                    if (status === 'In Progress') btn.classList.add('bg-amber-500', 'border-amber-500', 'shadow-amber-500/30');
                     else if (status === 'Completed') btn.classList.add('bg-green-600', 'border-green-600', 'shadow-green-600/30');
                 } else {
                     btn.classList.add('bg-transparent', 'border-dashed');
                     btn.classList.remove('text-white', 'shadow-lg', 'bg-blue-600', 'bg-amber-500', 'bg-green-600', 'border-blue-600', 'border-amber-500', 'border-green-600', 'shadow-blue-600/30', 'shadow-amber-500/30', 'shadow-green-600/30', 'text-blue-400/60', 'text-amber-400/60', 'text-green-400/60');
-                    if (status === 'Active') btn.classList.add('border-blue-500/25', 'text-blue-400/60');
-                    else if (status === 'In Progress') btn.classList.add('border-amber-500/25', 'text-amber-400/60');
+                    if (status === 'In Progress') btn.classList.add('border-amber-500/25', 'text-amber-400/60');
                     else if (status === 'Completed') btn.classList.add('border-green-500/25', 'text-green-400/60');
                 }
             });
             const dot = document.getElementById('statusDot');
             if (dot) {
                 dot.className = 'w-2 h-2 rounded-full';
-                if (classData.status === 'Active') dot.classList.add('bg-blue-500');
-                else if (classData.status === 'In Progress') dot.classList.add('bg-amber-500');
+                if (classData.status === 'In Progress' || classData.status === 'Active' || !classData.status) dot.classList.add('bg-amber-500');
                 else if (classData.status === 'Completed') dot.classList.add('bg-green-600');
                 else dot.classList.add('bg-gray-500');
             }
@@ -417,16 +362,18 @@ require_once dirname(__DIR__) . '/core/init.php';
             if (codeSpan) codeSpan.innerText = classData.class_code || classData.id;
         }
 
-        let gradingInitialized = false;
-
         async function loadClassData() {
             if (!classId) return;
             try {
                 const classData = await window.api(`/classes.php?id=${classId}`);
-                applyStatusUI(classData);
                 const uids = classData.students || [];
                 const fullStudentData = await fetchStudentDetails(uids);
+                const sig = JSON.stringify([classData, fullStudentData]);
+                if (sig === lastClassSig) return;
+                lastClassSig = sig;
                 cachedStudents = fullStudentData;
+                applyStatusUI(classData);
+                initGradingSystem(classData, fullStudentData);
                 if (!searchTerm) renderRoster(fullStudentData);
                 else {
                     const filtered = fullStudentData.filter(s =>
@@ -437,13 +384,15 @@ require_once dirname(__DIR__) . '/core/init.php';
                     );
                     renderRoster(filtered);
                 }
-                if (!gradingInitialized) {
-                    gradingInitialized = true;
-                    window.gradingSystem.init(fullStudentData);
-                }
             } catch (e) {
                 console.error('Load class data error:', e);
                 window.showToast('Hub Inaccessible or Offline.', 'error');
+            }
+        }
+
+        function initGradingSystem(classData, students) {
+            if (window.gradingSystem) {
+                window.gradingSystem.init(classData.id, students);
             }
         }
 

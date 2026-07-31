@@ -249,6 +249,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         let currentClasses = [];
         let currentEvents = [];
+        let lastScheduleSig = '';
         
         // CONFIG
         const START_HOUR = 6; // 06:00
@@ -295,6 +296,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                     api('/classes.php'),
                     api('/events.php')
                 ]);
+                const sig = JSON.stringify([classes, events]);
+                if (sig === lastScheduleSig) return;
+                lastScheduleSig = sig;
                 currentClasses = Array.isArray(classes) ? classes : [];
                 currentEvents = Array.isArray(events) ? events : [];
                 syncCalendars();

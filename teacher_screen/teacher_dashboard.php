@@ -56,7 +56,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                             </div>
                         </div>
                         <div class="p-3 border-t border-white/5 flex-shrink-0">
-                            <a href="grades.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
+                            <a href="classes.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
                         </div>
                     </div>
                 </div>
@@ -172,7 +172,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <div class="p-2 bg-blue-500/10 rounded-full group-hover:bg-blue-500/20 transition-colors mb-2"><i data-feather="user-plus" class="w-5 h-5 text-blue-500"></i></div>
                                 <span class="text-xs font-medium">Add Student</span>
                             </button>
-                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="window.location.href='grades.php'">
+                            <button class="flex flex-col items-center justify-center p-4 bg-dark-bg/50 hover:bg-dark-bg border border-dark-border rounded-xl transition-all hover:-translate-y-1 group" onclick="window.location.href='classes.php'">
                                 <div class="p-2 bg-amber-500/10 rounded-full group-hover:bg-amber-500/20 transition-colors mb-2"><i data-feather="clipboard" class="w-5 h-5 text-amber-500"></i></div>
                                 <span class="text-xs font-medium">Grade Submissions</span>
                             </button>
@@ -197,7 +197,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading grade data...</p>
                             </div>
                         </div>
-                        <button onclick="window.location.href='grades.php'" class="w-full mt-6 py-2 text-xs text-center text-gray-400 hover:text-white transition-colors border border-dark-border rounded-lg hover:bg-white/5">Manage All Alerts</button>
+                        <button onclick="window.location.href='classes.php'" class="w-full mt-6 py-2 text-xs text-center text-gray-400 hover:text-white transition-colors border border-dark-border rounded-lg hover:bg-white/5">Manage All Alerts</button>
                     </div>
                 </div>
             </div>
@@ -254,7 +254,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     </script>
     
     <!-- Global Identity Orchestrator -->
-    <script type="module">
+<script type="module">
         import { api, initPage } from '../assets/js/custom-auth.js';
 
         const DAYS_MAP = { 'M': 'Monday', 'T': 'Tuesday', 'W': 'Wednesday', 'TH': 'Thursday', 'F': 'Friday', 'S': 'Saturday', 'SU': 'Sunday' };
@@ -265,7 +265,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         let currentTeacher = null;
         let allClasses = [];
-        let pendingAlerts = [];
+        let lastDashboardSig = '';
 
         // Search bar
         const searchInput = document.getElementById('classSearchInput');
@@ -293,7 +293,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                 e.stopPropagation();
                 const isHidden = dropdown.classList.contains('hidden');
                 if (isHidden) {
-                    renderNotificationDropdown(pendingAlerts);
                     dropdown.classList.remove('hidden');
                 } else {
                     dropdown.classList.add('hidden');
@@ -307,53 +306,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             });
         }
 
-        function renderNotificationDropdown(alerts) {
-            const body = document.getElementById('notifDropdownBody');
-            const countLabel = document.getElementById('notifDropdownCount');
-            if (!body) return;
-
-            const total = alerts.reduce((sum, a) => sum + (a.missing_count || 0), 0);
-            if (countLabel) {
-                countLabel.textContent = total > 0 ? `${total} pending` : '';
-            }
-
-            if (alerts.length === 0) {
-                body.innerHTML = `
-                    <div class="py-10 text-center">
-                        <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center">
-                            <i data-feather="check-circle" class="w-6 h-6 text-green-400"></i>
-                        </div>
-                        <p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p>
-                        <p class="text-[9px] text-gray-600 mt-1 italic">No pending grades.</p>
-                    </div>`;
-                feather.replace();
-                return;
-            }
-
-            const topAlerts = alerts.sort((a, b) => (b.missing_count || 0) - (a.missing_count || 0)).slice(0, 20);
-            body.innerHTML = topAlerts.map(a => {
-                const pct = a.pct || Math.round((((a.enrolled_count || 0) - (a.missing_count || 0)) / (a.enrolled_count || 1)) * 100);
-                const severity = pct >= 95 ? 'green' : (pct >= 75 ? 'amber' : 'red');
-                return `
-                    <div class="flex items-start gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0" onclick="window.location.href='class_view.php?id=${a.class_id}'">
-                        <div class="w-8 h-8 mt-0.5 rounded-full bg-${severity}-500/10 flex items-center justify-center flex-shrink-0">
-                            <i data-feather="${severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle')}" class="w-4 h-4 text-${severity}-400"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-bold text-white truncate">${a.class_name}</p>
-                            <p class="text-xs text-gray-400 truncate">${a.item_name} — <span class="text-${severity}-400 font-bold">${a.missing_count || 0} ${(a.missing_count || 0) === 1 ? 'student needs' : 'students need'} grading</span></p>
-                            <div class="flex items-center gap-3 mt-1.5">
-                                <span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">${a.graded_count || 0}/${a.enrolled_count || 0} graded</span>
-                                <div class="flex-1 h-1 bg-dark-bg rounded-full max-w-[80px] overflow-hidden">
-                                    <div class="h-full bg-${severity}-500 rounded-full" style="width: ${pct}%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-            }).join('');
-            feather.replace();
-        }
-
         initPage(() => {
             setTimeout(() => loadDashboardData(), 500);
             setInterval(loadDashboardData, 10000);
@@ -362,12 +314,18 @@ require_once dirname(__DIR__) . '/core/init.php';
         async function loadDashboardData() {
             try {
                 const classes = await api('/classes.php');
+                const sig = JSON.stringify(classes.map(c => [
+                    c.id, c.class_name, c.level, c.subject, c.section_code, c.class_code,
+                    c.schedule, c.start_time, c.end_time, c.time_slot, c.session_limit, c.status,
+                    (c.students || []).slice().sort().join(',')
+                ]));
+                if (sig === lastDashboardSig) return;
+                lastDashboardSig = sig;
                 allClasses = classes;
                 renderStats(classes);
                 renderTodaySchedule(classes);
                 renderClassesOverview(classes);
                 calculateAttendanceStats(classes);
-                loadGradeData(classes);
             } catch (error) {
                 console.error("Dashboard Sync Error:", error);
                 showToast(`Dashboard Sync Failure: ${error.message}`, 'error');
@@ -389,89 +347,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         }
 
-        async function loadGradeData(classes) {
-            if (classes.length === 0) {
-                document.getElementById('statPendingGrading').textContent = '0';
-                document.getElementById('gradeAlertsList').innerHTML = `
-                    <div class="py-8 text-center opacity-40">
-                        <p class="text-xs text-gray-500 italic uppercase tracking-widest">No classes to grade.</p>
-                    </div>`;
-                return;
-            }
-
-            try {
-                const statsResponse = await api('/stats.php');
-                const alerts = statsResponse.grade_alerts || [];
-
-                let totalPending = alerts.reduce((sum, a) => sum + (a.missing_count || 0), 0);
-                document.getElementById('statPendingGrading').textContent = totalPending;
-
-                const badge = document.getElementById('notificationBadge');
-                if (badge) {
-                    if (totalPending > 0) {
-                        badge.textContent = totalPending > 9 ? '9+' : totalPending;
-                        badge.className = 'absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[8px] font-black text-white bg-primary-500 rounded-full ring-2 ring-dark-bg';
-                    } else {
-                        badge.classList.add('hidden');
-                    }
-                }
-
-                pendingAlerts = alerts;
-                renderGradeAlerts(alerts);
-            } catch (error) {
-                console.error("Grade Data Error:", error);
-                document.getElementById('statPendingGrading').textContent = '---';
-            }
-        }
-
-        function renderGradeAlerts(alerts) {
-            const container = document.getElementById('gradeAlertsList');
-            if (!container) return;
-
-            if (alerts.length === 0) {
-                container.innerHTML = `
-                    <div class="py-6 text-center">
-                        <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center">
-                            <i data-feather="check-circle" class="w-6 h-6 text-green-400"></i>
-                        </div>
-                        <p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Grades Complete</p>
-                        <p class="text-[9px] text-gray-600 mt-1 italic">No pending grading items.</p>
-                    </div>`;
-                feather.replace();
-                return;
-            }
-
-            const topAlerts = alerts.sort((a, b) => (b.missing_count || 0) - (a.missing_count || 0)).slice(0, 5);
-
-            container.innerHTML = topAlerts.map(a => {
-                const pct = a.pct || Math.round((((a.enrolled_count || 0) - (a.missing_count || 0)) / (a.enrolled_count || 1)) * 100);
-                const severity = pct >= 95 ? 'green' : (pct >= 75 ? 'amber' : 'red');
-                const icon = severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle');
-                return `
-                    <div class="group cursor-pointer" onclick="window.location.href='class_view.php?id=${a.class_id}'">
-                        <div class="flex justify-between items-end mb-2">
-                            <div>
-                                <div class="text-sm font-bold text-white">${a.class_name}</div>
-                                <div class="text-xs text-gray-400">${a.item_name}</div>
-                            </div>
-                            <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-${severity}-500/10 border border-${severity}-500/20">
-                                <i data-feather="${icon}" class="w-3 h-3 text-${severity}-400"></i>
-                                <span class="text-xs font-bold text-${severity}-400">${a.missing_count || 0} Need Grade</span>
-                            </div>
-                        </div>
-                        <div class="relative w-full h-2 bg-dark-bg rounded-full overflow-hidden">
-                            <div class="absolute h-full bg-${severity}-500 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
-                        </div>
-                        <div class="flex justify-between mt-1">
-                            <span class="text-[10px] text-gray-500">${a.graded_count || 0} Graded</span>
-                            <span class="text-[10px] text-${severity}-400">${a.missing_count || 0} Pending</span>
-                        </div>
-                    </div>`;
-            }).join('');
-            feather.replace();
-        }
-
-        async function calculateAttendanceStats(classes) {
+        function calculateAttendanceStats(classes) {
             if (classes.length === 0) {
                 document.getElementById('statAvgAttendance').textContent = '0%';
                 document.getElementById('statAttendanceTrend').textContent = 'No records found';
@@ -479,8 +355,10 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
 
             try {
-                const response = await api('/attendance.php');
-                const allRecords = response.records || [];
+                const recordsPerClass = await Promise.all(
+                    classes.map(c => api('/attendance.php?class_id=' + c.id).catch(() => []))
+                );
+                const allRecords = recordsPerClass.flat();
 
                 const now = new Date();
                 const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);

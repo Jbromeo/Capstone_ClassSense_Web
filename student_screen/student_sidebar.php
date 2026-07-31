@@ -11,9 +11,7 @@
     <!-- Brand -->
     <div class="h-20 flex items-center px-8 border-b border-dark-border bg-white/[0.02]">
         <a href="student_dashboard.php" class="flex items-center space-x-3 group">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-secondary-600 flex items-center justify-center shadow-lg shadow-primary-500/20 mr-3 transition-transform group-hover:scale-110">
-                <i data-feather="layers" class="w-5 h-5 text-white"></i>
-            </div>
+            <img src="../assets/classsense-logo.png" class="w-8 h-8 rounded-lg object-cover mr-3 transition-transform group-hover:scale-110">
             <span class="text-xl font-bold tracking-tight text-white uppercase tracking-tighter italic">ClassSense</span>
         </a>
     </div>

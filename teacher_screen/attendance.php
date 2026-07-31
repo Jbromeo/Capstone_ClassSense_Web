@@ -69,7 +69,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 </div>
 
                 <!-- NEW: Session Timer Settings -->
-                <div class="mb-10 flex items-center justify-center gap-6 animate-fade-in-up" style="animation-delay: 100ms">
+                <div class="mb-4 flex items-center justify-center gap-6 animate-fade-in-up" style="animation-delay: 100ms">
                     <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">Session Limit:</span>
                     <div class="flex bg-dark-surface/50 p-1 rounded-xl border border-white/5 backdrop-blur-md shadow-2xl">
                         <button onclick="setGlobalTimer(15)" id="btn-15" class="timer-opt px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all bg-primary-500 text-white shadow-lg shadow-primary-500/20 italic">15 MIN</button>
@@ -77,6 +77,20 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <button onclick="setGlobalTimer(60)" id="btn-60" class="timer-opt px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-gray-500 hover:text-white italic">60 MIN</button>
                         <button onclick="setGlobalTimer(0)" id="btn-inf" class="timer-opt px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-gray-500 hover:text-white italic">∞ Live</button>
                     </div>
+                </div>
+
+                <!-- NEW: GPS Geofence Setting -->
+                <div class="mb-10 flex items-center justify-center gap-6 animate-fade-in-up" style="animation-delay: 150ms">
+                    <label class="flex items-center gap-3 cursor-pointer select-none group">
+                        <input type="checkbox" id="requireLocationToggle" class="peer sr-only">
+                        <span class="w-10 h-6 bg-dark-bg border border-dark-border rounded-full relative transition-colors peer-checked:bg-primary-500/30 peer-checked:border-primary-500/50">
+                            <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-gray-500 rounded-full transition-all peer-checked:left-[18px] peer-checked:bg-primary-400"></span>
+                        </span>
+                        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest italic group-hover:text-white transition-colors">Require GPS Location</span>
+                    </label>
+                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">Radius:</span>
+                    <input type="number" id="sessionRadiusInput" value="150" min="50" max="2000" class="w-24 bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-lg px-3 py-2 focus:ring-primary-500 focus:border-primary-500">
+                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">meters</span>
                 </div>
 
                 <div id="classSelectionGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -101,7 +115,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <h2 id="liveClassName" class="text-xl font-bold text-white">CS101: Intro to Programming</h2>
                             <div class="flex items-center gap-4">
                                 <p class="text-xs text-green-400 flex items-center gap-1">
-                                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live Session Active
+                                    <span id="liveModeDot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    <span id="liveModeLabel">Live Session Active</span>
                                 </p>
                                 <div id="sessionCountdown" class="hidden flex items-center gap-2 px-3 py-1 bg-primary-500/10 border border-primary-500/20 rounded-full">
                                     <i data-feather="clock" class="w-3 h-3 text-primary-500"></i>
@@ -110,10 +125,16 @@ require_once dirname(__DIR__) . '/core/init.php';
                             </div>
                         </div>
                     </div>
-                    <button onclick="confirmEndSession()" class="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg transition-colors">
-                        <i data-feather="stop-circle" class="w-4 h-4"></i>
-                        End Session
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <button id="lateWindowBtn" onclick="startLateWindow()" class="flex items-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg transition-colors">
+                            <i data-feather="clock" class="w-4 h-4"></i>
+                            LATE WINDOW
+                        </button>
+                        <button onclick="confirmEndSession()" class="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg transition-colors">
+                            <i data-feather="stop-circle" class="w-4 h-4"></i>
+                            End Session
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Live Grid -->
@@ -123,7 +144,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="glass-panel rounded-2xl p-8 flex flex-col items-center justify-between relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-50"></div>
                         
-                        <h3 class="text-lg font-bold text-white">Scan to Join</h3>
+                        <h3 id="liveModeTitle" class="text-lg font-bold text-white">Scan to Join</h3>
                         
                         <!-- QR Code Container -->
                         <div class="relative w-48 h-48 bg-white rounded-2xl p-4 shadow-2xl shadow-primary-500/20 flex items-center justify-center">
@@ -224,8 +245,13 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="flex gap-3">
                          <div class="glass-panel px-6 py-3 rounded-xl flex items-center gap-4">
                             <div class="text-right">
-                                <p class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Total Present</p>
-                                <p id="finalPresentCount" class="text-2xl font-bold text-white">0</p>
+                                <p class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Present</p>
+                                <p id="finalPresentCount" class="text-2xl font-bold text-green-400">0</p>
+                            </div>
+                            <div class="w-px h-8 bg-white/10"></div>
+                            <div class="text-right">
+                                <p class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Late</p>
+                                <p id="finalLateCount" class="text-2xl font-bold text-amber-400">0</p>
                             </div>
                             <div class="w-px h-8 bg-white/10"></div>
                             <div class="text-right">
@@ -272,11 +298,54 @@ require_once dirname(__DIR__) . '/core/init.php';
         let verifiedStudentsList = []; // Array of { name, id, avatar, time }
         let processedUids = new Set();
         
-        const TODAY_STR = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const TODAY_STR = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const nowSql = () => {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+        };
         let selectedDuration = 15; // default
         let sessionTimerInterval = null;
         let qrRefreshInterval = null;
         let currentNonce = null;
+        let currentMode = 'open'; // 'open' | 'late'
+        let flagMap = new Map();  // student_uid -> [fraud reason strings]
+        const LATE_WINDOW_SECONDS = 180; // 3-minute late-arrivals window
+        const NONCE_GRACE_SECONDS = 25;  // previous nonce accepted within this window
+
+        const randNonce = () => Math.random().toString(36).substring(2, 10).toUpperCase();
+        const parseSql = (s) => s ? new Date(s.replace(' ', 'T')) : null;
+        const sqlFromDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+        const isClassLive = (c) => {
+            if (c.session_active != 1) return false;
+            const expiresAt = parseSql(c.session_expires_at);
+            if (!expiresAt) return true;
+            return expiresAt > new Date();
+        };
+        const getLocation = () => new Promise((resolve) => {
+            if (!navigator.geolocation) return resolve(null);
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => resolve(null),
+                { timeout: 8000, maximumAge: 30000 }
+            );
+        });
+
+        function setModeUI(mode) {
+            currentMode = mode;
+            const late = mode === 'late';
+            document.getElementById('lateWindowBtn').classList.toggle('hidden', late);
+            document.getElementById('liveModeTitle').innerText = late ? 'Late Arrivals Window' : 'Scan to Join';
+            document.getElementById('liveModeLabel').innerText = late ? 'LATE WINDOW ACTIVE' : 'Live Session Active';
+            const dot = document.getElementById('liveModeDot');
+            dot.classList.toggle('bg-green-500', !late);
+            dot.classList.toggle('bg-amber-500', late);
+            const countdown = document.getElementById('sessionCountdown');
+            countdown.classList.toggle('bg-amber-500/10', late);
+            countdown.classList.toggle('border-amber-500/20', late);
+            countdown.classList.toggle('bg-primary-500/10', !late);
+            countdown.classList.toggle('border-primary-500/20', !late);
+        }
 
         window.setGlobalTimer = (mins) => {
             selectedDuration = mins;
@@ -319,23 +388,28 @@ require_once dirname(__DIR__) . '/core/init.php';
                     return;
                 }
 
-                grid.innerHTML = classes.map(c => `
-                    <div class="glass-panel p-6 rounded-xl border border-dark-border hover:border-primary-500/50 transition-all cursor-pointer group" 
+                grid.innerHTML = classes.map(c => {
+                    const live = isClassLive(c);
+                    return `
+                    <div class="glass-panel p-6 rounded-xl border ${live ? 'border-green-500/40' : 'border-dark-border'} hover:border-primary-500/50 transition-all cursor-pointer group" 
                          onclick="window.startAttendanceSession('${c.id}')">
                         <div class="flex justify-between items-start mb-4">
                             <div class="p-3 bg-primary-500/10 rounded-lg">
                                 <i data-feather="book-open" class="w-6 h-6 text-primary-500"></i>
                             </div>
-                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">${c.class_code}</span>
+                            <span class="flex items-center gap-2">
+                                ${live ? `<span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 italic"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> LIVE</span>` : ''}
+                                <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">${c.class_code}</span>
+                            </span>
                         </div>
                         <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-tighter italic">${c.class_name}</h3>
                         <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-4 opacity-60">${c.subject} &bull; ${c.section_code}</p>
                         <div class="flex items-center gap-2 text-[10px] font-black text-primary-400 uppercase tracking-widest italic">
-                            <span>Initialize Hub</span>
+                            <span>${live ? 'Resume Live Session' : 'Initialize Hub'}</span>
                             <i data-feather="arrow-right" class="w-3 h-3 group-hover:translate-x-1 transition-transform"></i>
                         </div>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
                 feather.replace();
             } catch (error) {
                 console.error("Attendance Sync Error:", error);
@@ -349,7 +423,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         }
 
-        // 2. Start Live Session
+        // 2. Start / Resume Live Session
         window.startAttendanceSession = async (classId) => {
             try {
                 // Fetch class details to get full student roster mapping
@@ -374,28 +448,72 @@ require_once dirname(__DIR__) . '/core/init.php';
                 document.getElementById('idleListState').classList.add('hidden');
                 document.getElementById('idleEmptyState').classList.remove('hidden');
 
-                // Generate QR Code
+                // RESUME: class already has a live (unexpired) session — attach to it
+                // instead of restarting. Fixes the reload-extends-the-session bug.
+                if (isClassLive(currentClassData)) {
+                    currentNonce = currentClassData.current_nonce;
+                    setModeUI(currentClassData.session_mode === 'late' ? 'late' : 'open');
+                    const remainingSec = Math.max(0, Math.floor((parseSql(currentClassData.session_expires_at) - new Date()) / 1000));
+                    generateAttendanceQR(classId);
+                    startQRRefreshCycle(classId);
+                    initAttendanceListener(classId);
+                    if (remainingSec > 0) {
+                        startSessionCountdownFrom(remainingSec);
+                    } else {
+                        document.getElementById('sessionCountdown').classList.add('hidden');
+                    }
+                    return;
+                }
+
+                // FRESH START: capture the GPS anchor BEFORE opening the session
+                const requireLocation = document.getElementById('requireLocationToggle').checked;
+                const radius = Math.max(50, parseInt(document.getElementById('sessionRadiusInput').value) || 150);
+                let anchor = null;
+                if (requireLocation) {
+                    anchor = await getLocation();
+                    if (!anchor) {
+                        alert('GPS location is required but unavailable. Check browser location permissions and try again.');
+                        switchView('classSelectionView');
+                        return;
+                    }
+                }
+
+                // Generate nonce + start session via API BEFORE drawing the QR
+                const nonce = randNonce();
+                currentNonce = nonce;
+                const started = nowSql();
+
+                const body = {
+                    session_active: 1,
+                    session_started_at: started,
+                    current_nonce: nonce,
+                    nonce_issued_at: started,
+                    session_mode: 'open',
+                    require_location: requireLocation ? 1 : 0,
+                    session_expires_at: selectedDuration > 0 ? sqlFromDate(new Date(Date.now() + selectedDuration * 60000)) : null
+                };
+                if (anchor) {
+                    body.session_lat = anchor.lat;
+                    body.session_lng = anchor.lng;
+                    body.session_radius_m = radius;
+                }
+
+                await api('/classes.php?id=' + classId, {
+                    method: 'PUT',
+                    body: JSON.stringify(body)
+                });
+
+                setModeUI('open');
+
+                // Generate QR Code (with the live nonce)
                 generateAttendanceQR(classId);
 
                 // Handle Timer Countdown
                 if (selectedDuration > 0) {
-                    startSessionCountdown(selectedDuration);
+                    startSessionCountdownFrom(selectedDuration * 60);
                 } else {
                     document.getElementById('sessionCountdown').classList.add('hidden');
                 }
-
-                // Start session via API
-                const nonce = Math.random().toString(36).substring(2, 10).toUpperCase();
-                currentNonce = nonce;
-                
-                await api('/classes.php?id=' + classId, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        session_active: 1,
-                        session_started_at: new Date().toISOString(),
-                        current_nonce: nonce
-                    })
-                });
 
                 // Start QR Refresh Cycle
                 startQRRefreshCycle(classId);
@@ -419,13 +537,14 @@ require_once dirname(__DIR__) . '/core/init.php';
                             await processNewAttendance(record);
                         }
                     }
+                    renderFraudFlags(records);
                 } catch (err) {
                     console.error("Attendance Poll Error:", err);
                 }
             }
             
             pollAttendance();
-            attendanceListener = setInterval(pollAttendance, 10000);
+            attendanceListener = setInterval(pollAttendance, 20000);
         }
 
         function generateAttendanceQR(classId) {
@@ -435,16 +554,19 @@ require_once dirname(__DIR__) . '/core/init.php';
             // Re-show Scan Line
             document.getElementById('scanLine').classList.remove('hidden');
 
+            // v2 payload: t = unix issue time, lets the app reject stale codes instantly
             new QRCode(qrContainer, {
                 text: JSON.stringify({ 
+                    v: 2,
                     classId: classId, 
                     type: 'attendance', 
                     date: TODAY_STR,
-                    nonce: currentNonce
+                    nonce: currentNonce,
+                    t: Math.floor(Date.now() / 1000)
                 }),
                 width: 160,
                 height: 160,
-                colorDark: "#000000",
+                colorDark: currentMode === 'late' ? "#B45309" : "#000000",
                 colorLight: "#ffffff",
                 correctLevel: QRCode.CorrectLevel.H
             });
@@ -453,21 +575,54 @@ require_once dirname(__DIR__) . '/core/init.php';
         function startQRRefreshCycle(classId) {
             if (qrRefreshInterval) clearInterval(qrRefreshInterval);
             qrRefreshInterval = setInterval(async () => {
-                const nonce = Math.random().toString(36).substring(2, 10).toUpperCase();
-                currentNonce = nonce;
+                const newNonce = randNonce();
+                const prevNonce = currentNonce;
+                currentNonce = newNonce;
                 
                 try {
                     await api('/classes.php?id=' + classId, {
                         method: 'PUT',
-                        body: JSON.stringify({ current_nonce: nonce })
+                        body: JSON.stringify({ 
+                            current_nonce: newNonce,
+                            nonce_issued_at: nowSql(),
+                            last_nonce: prevNonce
+                        })
                     });
                     generateAttendanceQR(classId);
-                    console.log("QR Refreshed with Nonce:", nonce);
+                    console.log("QR Refreshed with Nonce:", newNonce);
                 } catch (err) {
                     console.error("QR Refresh Failure:", err);
                 }
             }, 10000); // Refresh every 10 seconds
         }
+
+        // 2b. Late Arrivals Window: switch the projected QR to a late-only code.
+        // Every scan during the window is recorded with status 'Late' by the server.
+        window.startLateWindow = async () => {
+            if (!currentClassData || currentMode === 'late') return;
+            if (!confirm('Open the 3-minute Late Arrivals window?\nScans of the new code will be recorded as LATE.')) return;
+
+            const nonce = randNonce();
+            currentNonce = nonce;
+
+            try {
+                await api('/classes.php?id=' + currentClassData.id, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        session_mode: 'late',
+                        current_nonce: nonce,
+                        nonce_issued_at: nowSql(),
+                        session_expires_at: sqlFromDate(new Date(Date.now() + LATE_WINDOW_SECONDS * 1000))
+                    })
+                });
+
+                setModeUI('late');
+                generateAttendanceQR(currentClassData.id);
+                startSessionCountdownFrom(LATE_WINDOW_SECONDS);
+            } catch (err) {
+                console.error("Late Window Failure:", err);
+            }
+        };
 
         async function processNewAttendance(record) {
             try {
@@ -480,17 +635,21 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const student = students[0];
                 
                 // Resolve Avatar / Initials
-                let avatarUrl = student.profilePhoto;
+                let avatarUrl = student.profilePicture || student.profile_picture;
                 if (!avatarUrl) {
                     const initials = `${student.firstName?.[0] || 'S'}${student.lastName?.[0] || 'T'}`.toUpperCase();
                     avatarUrl = `https://ui-avatars.com/api/?name=${initials}&background=ea2628&color=fff&bold=true`;
                 }
                 
                 const entry = {
+                    uid: record.student_uid,
                     name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student',
                     id: student.studentId || 'N/A',
                     avatar: avatarUrl,
-                    time: record.timestamp ? new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : new Date().toLocaleTimeString()
+                    time: record.timestamp ? new Date(record.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : new Date().toLocaleTimeString(),
+                    status: record.status || 'Present',
+                    deviceUuid: record.device_uuid || null,
+                    ip: record.ip_address || null
                 };
 
                 verifiedStudentsList.push(entry);
@@ -503,6 +662,43 @@ require_once dirname(__DIR__) . '/core/init.php';
             } catch (err) {
                 console.warn("Student Context Fetch Error:", err);
             }
+        }
+
+        // Fraud detection: same device OR same IP recording 2+ different students
+        function renderFraudFlags(records) {
+            if (!records || records.length === 0) return;
+            const byDevice = new Map();
+            const byIp = new Map();
+            for (const r of records) {
+                if (!r.student_uid) continue;
+                if (r.device_uuid) {
+                    if (!byDevice.has(r.device_uuid)) byDevice.set(r.device_uuid, new Set());
+                    byDevice.get(r.device_uuid).add(r.student_uid);
+                }
+                if (r.ip_address) {
+                    if (!byIp.has(r.ip_address)) byIp.set(r.ip_address, new Set());
+                    byIp.get(r.ip_address).add(r.student_uid);
+                }
+            }
+            const nextFlags = new Map();
+            for (const [dev, uids] of byDevice) {
+                if (uids.size > 1) for (const u of uids) pushFlag(nextFlags, u, 'Same device scanned multiple students');
+            }
+            for (const [ip, uids] of byIp) {
+                if (uids.size > 1) for (const u of uids) pushFlag(nextFlags, u, 'Same connection scanned multiple students');
+            }
+            flagMap = nextFlags;
+            // Re-render roster only when the spotlight is not covering it
+            if (!document.getElementById('spotlightContent').classList.contains('hidden')) return;
+            if (verifiedStudentsList.length > 0) {
+                document.getElementById('idleListState').classList.remove('hidden');
+                renderIdleList();
+            }
+        }
+
+        function pushFlag(map, uid, reason) {
+            if (!map.has(uid)) map.set(uid, []);
+            map.get(uid).push(reason);
         }
 
         function updateSpotlight(student) {
@@ -545,14 +741,27 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         function renderIdleList() {
             const container = document.getElementById('liveRosterList');
-            container.innerHTML = [...verifiedStudentsList].reverse().map(s => `
-                <div class="flex items-center p-3 bg-dark-bg/40 border border-dark-border rounded-xl hover:bg-white/5 transition-colors">
-                    <img src="${s.avatar}" class="w-10 h-10 rounded-full object-cover ring-2 ring-dark-bg mr-3">
-                    <div class="flex-1">
-                        <h4 class="text-sm font-bold text-white uppercase italic tracking-tighter">${s.name}</h4>
-                        <p class="text-[9px] text-gray-500 font-black uppercase tracking-widest italic opacity-60">${s.time}</p>
+            container.innerHTML = [...verifiedStudentsList].reverse().map(s => {
+                const late = s.status === 'Late';
+                return `
+                <div class="p-3 bg-dark-bg/40 border ${late ? 'border-amber-500/30' : 'border-dark-border'} rounded-xl hover:bg-white/5 transition-colors">
+                    <div class="flex items-center">
+                        <img src="${s.avatar}" class="w-10 h-10 rounded-full object-cover ring-2 ring-dark-bg mr-3">
+                        <div class="flex-1">
+                            <h4 class="text-sm font-bold text-white uppercase italic tracking-tighter">${s.name}</h4>
+                            <p class="text-[9px] text-gray-500 font-black uppercase tracking-widest italic opacity-60">${s.time}</p>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${late ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-green-500/10 text-green-400 border border-green-500/20'} italic">
+                            <span class="w-1.5 h-1.5 rounded-full ${late ? 'bg-amber-500' : 'bg-green-500'}"></span> ${late ? 'Late' : 'Verified'}
+                        </span>
                     </div>
-                </div>`).join('');
+                    ${(flagMap.get(s.uid) || []).map(r => `
+                        <div class="mt-2 flex items-center gap-1.5 text-[9px] font-bold text-amber-400 italic">
+                            <i data-feather="alert-triangle" class="w-3 h-3"></i> ${r}
+                        </div>`).join('')}
+                </div>`;
+            }).join('');
+            feather.replace();
         }
 
         // Navigation Functions
@@ -568,7 +777,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 try {
                     await api('/classes.php?id=' + currentClassData.id, {
                         method: 'PUT',
-                        body: JSON.stringify({ session_active: false })
+                        body: JSON.stringify({ session_active: 0 })
                     });
                 } catch (err) {
                     console.error("Session Clearance Failure:", err);
@@ -578,16 +787,21 @@ require_once dirname(__DIR__) . '/core/init.php';
             if (attendanceListener) clearInterval(attendanceListener);
             if (sessionTimerInterval) clearInterval(sessionTimerInterval);
             if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+            
+            // Reset mode UI for next session
+            setModeUI('open');
+            
             generateSummaryReport();
             switchView('sessionSummaryView');
         };
 
-        function startSessionCountdown(mins) {
-            let totalSeconds = mins * 60;
+        function startSessionCountdownFrom(totalSeconds) {
+            totalSeconds = Math.max(0, Math.floor(totalSeconds));
             const timerDisplay = document.getElementById('sessionCountdown');
             const timerSpan = document.getElementById('timerValue');
             
             timerDisplay.classList.remove('hidden');
+            timerSpan.classList.remove('text-primary', 'animate-pulse');
             
             if (sessionTimerInterval) clearInterval(sessionTimerInterval);
             
@@ -597,7 +811,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 
                 timerSpan.innerText = `${displayMins}:${displaySecs.toString().padStart(2, '0')}`;
                 
-                if (totalSeconds <= 60) {
+                if (totalSeconds <= 60 && currentMode === 'open') {
                     timerSpan.classList.add('text-primary', 'animate-pulse');
                 }
 
@@ -612,14 +826,19 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         function generateSummaryReport() {
             const tbody = document.getElementById('summaryTableBody');
-            document.getElementById('finalPresentCount').innerText = verifiedStudentsList.length;
+            const presentCount = verifiedStudentsList.filter(s => s.status !== 'Late').length;
+            const lateCount = verifiedStudentsList.length - presentCount;
+            document.getElementById('finalPresentCount').innerText = presentCount;
+            document.getElementById('finalLateCount').innerText = lateCount;
 
             if(verifiedStudentsList.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-gray-500 italic">No records captured.</td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = verifiedStudentsList.map((s, idx) => `
+            tbody.innerHTML = verifiedStudentsList.map((s, idx) => {
+                const late = s.status === 'Late';
+                return `
                 <tr class="border-b border-dark-border hover:bg-white/5 transition-colors animate-pop-in" style="animation-delay: ${idx * 50}ms">
                     <td class="p-4 pl-6">
                         <div class="flex items-center gap-3">
@@ -630,11 +849,18 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <td class="p-4 text-gray-400 font-mono text-xs uppercase">${s.id}</td>
                     <td class="p-4 text-gray-400 text-xs font-bold uppercase tracking-widest italic opacity-60">${s.time}</td>
                     <td class="p-4">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/20 italic">
-                            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Verified
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${late ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-green-500/10 text-green-400 border border-green-500/20'} italic">
+                            <span class="w-1.5 h-1.5 rounded-full ${late ? 'bg-amber-500' : 'bg-green-500'}"></span> ${late ? 'Late' : 'Verified'}
                         </span>
                     </td>
-                </tr>`).join('');
+                </tr>
+                ${(flagMap.get(s.uid) || []).map(r => `
+                    <tr class="bg-amber-500/5 border-b border-dark-border">
+                        <td colspan="4" class="p-2 pl-6 flex items-center gap-1.5 text-[9px] font-bold text-amber-400 italic">
+                            <i data-feather="alert-triangle" class="w-3 h-3"></i> FLAG: ${r} — ${s.name}
+                        </td>
+                    </tr>`).join('')}`;
+            }).join('');
         }
 
         window.goToClassSelection = () => switchView('classSelectionView');

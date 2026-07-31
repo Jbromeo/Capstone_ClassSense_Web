@@ -45,7 +45,7 @@ $queries = [
         session_limit INT DEFAULT 15,
         teacher_uid VARCHAR(128) NOT NULL,
         teacher_name NVARCHAR(255),
-        status NVARCHAR(50) DEFAULT 'Active',
+        status NVARCHAR(50) DEFAULT 'In Progress',
         session_active INT DEFAULT 0,
         session_started_at DATETIME NULL,
         current_nonce NVARCHAR(10) NULL,
@@ -61,52 +61,14 @@ $queries = [
         FOREIGN KEY (class_id) REFERENCES classes(id)
     )",
 
-    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='grading_categories' AND xtype='U')
-    CREATE TABLE grading_categories (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        class_id VARCHAR(36) NOT NULL,
-        quarter VARCHAR(5) NOT NULL,
-        category_key VARCHAR(20) NOT NULL,
-        weight INT NOT NULL DEFAULT 0,
-        CONSTRAINT UQ_class_quarter_cat UNIQUE (class_id, quarter, category_key)
-    )",
-
-    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='grading_components' AND xtype='U')
-    CREATE TABLE grading_components (
-        id VARCHAR(50) PRIMARY KEY,
-        class_id VARCHAR(36) NOT NULL,
-        quarter VARCHAR(5) NOT NULL,
-        category_key VARCHAR(20) NOT NULL,
-        name NVARCHAR(255) NOT NULL,
-        hps INT NOT NULL DEFAULT 0
-    )",
-
-    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='student_scores' AND xtype='U')
-    CREATE TABLE student_scores (
-        component_id VARCHAR(50) NOT NULL,
-        student_uid VARCHAR(128) NOT NULL,
-        score DECIMAL(10,2) NULL,
-        last_updated DATETIME DEFAULT GETDATE(),
-        PRIMARY KEY (component_id, student_uid),
-        FOREIGN KEY (component_id) REFERENCES grading_components(id) ON DELETE CASCADE
-    )",
-
-    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_grading_components_class')
-    CREATE INDEX idx_grading_components_class ON grading_components(class_id, quarter)",
-
-    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_student_scores_student')
-    CREATE INDEX idx_student_scores_student ON student_scores(student_uid)",
-
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='attendance' AND xtype='U')
     CREATE TABLE attendance (
         id INT IDENTITY(1,1) PRIMARY KEY,
         student_uid VARCHAR(128) NOT NULL,
         class_id VARCHAR(36) NOT NULL,
-        date DATE NOT NULL,
-        timestamp DATETIME NULL,
-        time_out DATETIME NULL,
-        status NVARCHAR(50) DEFAULT 'Verified',
-        FOREIGN KEY (class_id) REFERENCES classes(id)
+        date NVARCHAR(20) NOT NULL,
+        timestamp DATETIME DEFAULT GETDATE(),
+        status NVARCHAR(20) DEFAULT 'Present'
     )",
 
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='events' AND xtype='U')
@@ -120,6 +82,53 @@ $queries = [
         description NTEXT,
         created_at DATETIME DEFAULT GETDATE()
     )",
+
+    "-- Session-management columns for classes (live attendance state machine)",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_id')
+    ALTER TABLE classes ADD session_id VARCHAR(36) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_expires_at')
+    ALTER TABLE classes ADD session_expires_at DATETIME NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'last_nonce')
+    ALTER TABLE classes ADD last_nonce NVARCHAR(10) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'nonce_issued_at')
+    ALTER TABLE classes ADD nonce_issued_at DATETIME NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_mode')
+    ALTER TABLE classes ADD session_mode NVARCHAR(10) DEFAULT 'open'",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'require_location')
+    ALTER TABLE classes ADD require_location INT DEFAULT 0",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_lat')
+    ALTER TABLE classes ADD session_lat DECIMAL(10,7) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_lng')
+    ALTER TABLE classes ADD session_lng DECIMAL(10,7) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_radius_m')
+    ALTER TABLE classes ADD session_radius_m INT DEFAULT 150",
+
+    "-- Audit columns for attendance (fraud detection trail)",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'ip_address')
+    ALTER TABLE attendance ADD ip_address VARCHAR(45) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'session_id')
+    ALTER TABLE attendance ADD session_id VARCHAR(36) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'lat')
+    ALTER TABLE attendance ADD lat DECIMAL(10,7) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'lng')
+    ALTER TABLE attendance ADD lng DECIMAL(10,7) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'device_uuid')
+    ALTER TABLE attendance ADD device_uuid VARCHAR(64) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'is_mock')
+    ALTER TABLE attendance ADD is_mock INT NULL",
 
     "-- Add indexes for performance",
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_users_username')
@@ -137,14 +146,11 @@ $queries = [
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_class_students_student')
     CREATE INDEX idx_class_students_student ON class_students(student_uid)",
 
-    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_attendance_class_date')
-    CREATE INDEX idx_attendance_class_date ON attendance(class_id, date)",
-
-    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_attendance_student')
-    CREATE INDEX idx_attendance_student ON attendance(student_uid)",
-
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_events_teacher')
     CREATE INDEX idx_events_teacher ON events(teacher_uid)",
+
+    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_attendance_class_date')
+    CREATE INDEX idx_attendance_class_date ON attendance(class_id, date)",
 
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='pre_approved_students' AND xtype='U')
     CREATE TABLE pre_approved_students (

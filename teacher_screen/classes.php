@@ -101,7 +101,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                             </div>
                         </div>
                         <div class="p-3 border-t border-white/5 flex-shrink-0">
-                            <a href="grades.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
+                            <a href="classes.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
                         </div>
                     </div>
                 </div>
@@ -352,7 +352,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div>
                         <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Status</label>
                         <select id="editStatusInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none italic font-medium">
-                            <option value="Active">Active</option>
                             <option value="In Progress">In Progress</option>
                             <option value="Completed">Completed</option>
                         </select>
@@ -379,6 +378,8 @@ require_once dirname(__DIR__) . '/core/init.php';
         let currentView = 'grid';
         let allCurrentClasses = [];
         let pollInterval = null;
+        let lastClassesSig = '';
+        let hasRendered = false;
 
         // --- UI Modal Handlers ---
         window.openModal = () => {
@@ -491,7 +492,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                 e.stopPropagation();
                 const isHidden = dropdown.classList.contains('hidden');
                 if (isHidden) {
-                    renderNotificationDropdown(pendingAlerts);
                     dropdown.classList.remove('hidden');
                 } else {
                     dropdown.classList.add('hidden');
@@ -503,83 +503,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                     dropdown.classList.add('hidden');
                 }
             });
-        }
-
-        function renderNotificationDropdown(alerts) {
-            const body = document.getElementById('notifDropdownBody');
-            const countLabel = document.getElementById('notifDropdownCount');
-            if (!body) return;
-
-            const total = alerts.reduce((sum, a) => sum + a.missingCount, 0);
-            if (countLabel) countLabel.textContent = total > 0 ? `${total} pending` : '';
-
-            if (alerts.length === 0) {
-                body.innerHTML = `<div class="py-10 text-center"><div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center"><i data-feather="check-circle" class="w-6 h-6 text-green-400"></i></div><p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p><p class="text-[9px] text-gray-600 mt-1 italic">No pending grades.</p></div>`;
-                feather.replace();
-                return;
-            }
-
-            const topAlerts = alerts.sort((a, b) => b.missingCount - a.missingCount).slice(0, 20);
-            body.innerHTML = topAlerts.map(a => {
-                const severity = a.pct >= 95 ? 'green' : (a.pct >= 75 ? 'amber' : 'red');
-                return `<div class="flex items-start gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0" onclick="window.location.href='class_view.php?id=${a.classId}'"><div class="w-8 h-8 mt-0.5 rounded-full bg-${severity}-500/10 flex items-center justify-center flex-shrink-0"><i data-feather="${severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle')}" class="w-4 h-4 text-${severity}-400"></i></div><div class="flex-1 min-w-0"><p class="text-sm font-bold text-white truncate">${a.className}</p><p class="text-xs text-gray-400 truncate">${a.itemName} — <span class="text-${severity}-400 font-bold">${a.missingCount} ${a.missingCount === 1 ? 'student needs' : 'students need'} grading</span></p><div class="flex items-center gap-3 mt-1.5"><span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">${a.gradedCount}/${a.enrolledCount} graded</span><div class="flex-1 h-1 bg-dark-bg rounded-full max-w-[80px] overflow-hidden"><div class="h-full bg-${severity}-500 rounded-full" style="width: ${a.pct}%"></div></div></div></div></div>`;
-            }).join('');
-            feather.replace();
-        }
-
-        async function loadPendingAlerts(classes) {
-            if (!classes.length) {
-                pendingAlerts = [];
-                updateNotificationBadge(0);
-                return;
-            }
-            let totalPending = 0;
-            const alerts = [];
-            for (const cls of classes) {
-                const studentCount = (cls.students || []).length;
-                for (const q of ['1st', '2nd', '3rd', '4th']) {
-                    try {
-                        const data = await api(`/grading.php?class_id=${cls.id}&quarter=${q}`);
-                        const scores = data.scores || {};
-                        const config = data.config || {};
-                        if (!config.written && !config.performance && !config.exam) continue;
-                        const allItems = [
-                            ...(config.written?.items || []).map(i => ({ ...i, cat: 'Written' })),
-                            ...(config.performance?.items || []).map(i => ({ ...i, cat: 'Performance' })),
-                            ...(config.exam?.items || []).map(i => ({ ...i, cat: 'Exam' }))
-                        ];
-                        for (const item of allItems) {
-                            let missingCount = 0;
-                            for (const uid of (cls.students || [])) {
-                                const score = scores[uid]?.[item.id];
-                                if (score === null || score === undefined || score === '') missingCount++;
-                            }
-                            if (missingCount > 0) {
-                                totalPending += missingCount;
-                                alerts.push({
-                                    classId: cls.id, className: cls.class_name || cls.subject || 'Untitled', subject: cls.subject || '',
-                                    itemName: item.name, category: item.cat, enrolledCount: studentCount,
-                                    gradedCount: studentCount - missingCount, missingCount,
-                                    pct: Math.round(((studentCount - missingCount) / studentCount) * 100)
-                                });
-                            }
-                        }
-                    } catch (e) {}
-                }
-            }
-            pendingAlerts = alerts;
-            updateNotificationBadge(totalPending);
-        }
-
-        function updateNotificationBadge(count) {
-            const badge = document.getElementById('notificationBadge');
-            if (!badge) return;
-            if (count > 0) {
-                badge.textContent = count > 9 ? '9+' : count;
-                badge.className = 'absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[8px] font-black text-white bg-primary-500 rounded-full ring-2 ring-dark-bg';
-            } else {
-                badge.classList.add('hidden');
-            }
         }
 
         window.closeModal = () => {
@@ -651,7 +574,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             document.getElementById('editStartTimeInput').value = classData.start_time || '';
             document.getElementById('editEndTimeInput').value = classData.end_time || '';
             document.getElementById('editSessionLimitInput').value = classData.session_limit || '15';
-            document.getElementById('editStatusInput').value = classData.status || 'Active';
+            document.getElementById('editStatusInput').value = classData.status === 'Active' ? 'In Progress' : (classData.status || 'In Progress');
 
             document.querySelectorAll('.edit-day-pill').forEach(pill => {
                 const day = pill.dataset.day;
@@ -730,10 +653,12 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
 
             grid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-12';
+            const cardAnim = hasRendered ? '' : 'animate-fade-in-up ';
+            hasRendered = true;
             grid.innerHTML = classes.map(c => `
-                <article class="class-card relative glass-panel rounded-2xl overflow-hidden animate-fade-in-up flex flex-col h-full group border border-white/5 hover:border-primary-500/30 transition-all duration-300">
+                <article class="class-card relative glass-panel rounded-2xl overflow-hidden ${cardAnim}flex flex-col h-full group border border-white/5 hover:border-primary-500/30 transition-all duration-300">
                     <div class="absolute top-4 right-4 flex items-center gap-2 z-20">
-                        <span class="flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest italic backdrop-blur-md ${c.status === 'In Progress' ? 'bg-amber-500/15 text-amber-400' : c.status === 'Completed' ? 'bg-green-500/15 text-green-400' : 'bg-blue-500/10 text-blue-400'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'In Progress' ? 'bg-amber-500' : c.status === 'Completed' ? 'bg-green-500' : 'bg-blue-500'}"></span>${c.status || 'Active'}</span>
+                        <span class="flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest italic backdrop-blur-md ${c.status === 'Completed' ? 'bg-green-500/15 text-green-400' : 'bg-amber-500/15 text-amber-400'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'Completed' ? 'bg-green-500' : 'bg-amber-500'}"></span>${c.status === 'Completed' ? 'Completed' : 'In Progress'}</span>
                         <button onclick="event.stopPropagation(); window.handleEditClassClick('${c.id}')" class="p-1.5 text-white/40 hover:text-blue-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md"><i data-feather="edit-2" class="w-3.5 h-3.5"></i></button>
                         <button onclick="event.stopPropagation(); window.handleDeleteClassClick('${c.id}', '${(c.class_name || '').replace(/'/g, "\\'")}')" class="p-1.5 text-white/40 hover:text-primary-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md"><i data-feather="trash-2" class="w-3.5 h-3.5"></i></button>
                     </div>
@@ -813,7 +738,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <span class="text-sm font-black text-gray-300">${(c.students || []).length}</span>
                             </td>
                             <td class="p-4 text-center">
-                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest italic ${c.status === 'In Progress' ? 'bg-amber-500/15 text-amber-400' : c.status === 'Completed' ? 'bg-green-500/15 text-green-400' : 'bg-blue-500/10 text-blue-400'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'In Progress' ? 'bg-amber-500' : c.status === 'Completed' ? 'bg-green-500' : 'bg-blue-500'}"></span>${c.status || 'Active'}</span>
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest italic ${c.status === 'Completed' ? 'bg-green-500/15 text-green-400' : 'bg-amber-500/15 text-amber-400'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'Completed' ? 'bg-green-500' : 'bg-amber-500'}"></span>${c.status === 'Completed' ? 'Completed' : 'In Progress'}</span>
                             </td>
                             <td class="p-4 pr-6 text-right">
                                 <button onclick="event.stopPropagation(); window.handleEditClassClick('${c.id}')" class="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-white/5 rounded-md transition-all"><i data-feather="edit-2" class="w-3.5 h-3.5"></i></button>
@@ -886,9 +811,15 @@ require_once dirname(__DIR__) . '/core/init.php';
         async function loadClasses() {
             try {
                 const classes = await api('/classes.php');
+                const sig = JSON.stringify(classes.map(c => [
+                    c.id, c.class_name, c.level, c.subject, c.section_code, c.class_code,
+                    c.schedule, c.start_time, c.end_time, c.time_slot, c.session_limit, c.status,
+                    (c.students || []).slice().sort().join(',')
+                ]));
+                if (sig === lastClassesSig) return;
+                lastClassesSig = sig;
                 allCurrentClasses = classes;
                 applyFilters();
-                loadPendingAlerts(allCurrentClasses);
             } catch (error) {
                 console.error("Poll Error:", error);
                 const grid = document.getElementById('classGrid');
