@@ -104,6 +104,33 @@ function jsonResponse($data, $code = 200) {
     exit;
 }
 
+// Resolve the role for a given uid. Many API endpoints need role-based access
+// control, but verifyToken() only returns the uid (no role). Use this helper
+// to enforce admin/teacher/student boundaries where required.
+function fetchUserRole($pdo, $uid) {
+    $stmt = $pdo->prepare("SELECT role FROM users WHERE uid = ?");
+    $stmt->execute([$uid]);
+    $row = $stmt->fetch();
+    return $row ? $row['role'] : null;
+}
+
+// Ensure the caller has one of the required roles, else 403.
+function requireRole($pdo, $uid, $roles) {
+    $role = fetchUserRole($pdo, $uid);
+    if (!is_array($roles) ? ($role !== $roles) : !in_array($role, $roles, true)) {
+        jsonResponse(['error' => 'Forbidden: insufficient role'], 403);
+    }
+    return $role;
+}
+
+// Capitalize the first letter of each word of a name, e.g.
+// "nel john" -> "Nel John", "la jos" -> "La Jos", empty values stay empty.
+function capitalizeName($name) {
+    if ($name === null || $name === '') return '';
+    $t = trim((string)$name);
+    return $t === '' ? '' : ucfirst(ucwords(strtolower($t)));
+}
+
 function generateToken() {
     return bin2hex(random_bytes(32));
 }

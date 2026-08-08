@@ -277,10 +277,11 @@ require_once dirname(__DIR__) . '/core/init.php';
         async function fetchStudentDetails(uids) {
             if (!uids || uids.length === 0) return [];
             try {
-                return await window.api('/fetch.php', {
+                const students = await window.api('/fetch.php', {
                     method: 'POST',
                     body: JSON.stringify({ collection: 'students', uids })
                 });
+                return students.filter(s => s.exists !== false);
             } catch (err) {
                 console.error("Critical Retrieval Fault:", err);
                 return [];
@@ -398,7 +399,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         initPage(() => {
             setTimeout(() => loadClassData(), 500);
-            classPollInterval = setInterval(loadClassData, 10000);
+            classPollInterval = setInterval(loadClassData, 5000);
             loadPendingAlerts();
             setInterval(loadPendingAlerts, 30000);
         });

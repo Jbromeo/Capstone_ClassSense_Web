@@ -11,19 +11,56 @@ if ($method === 'GET') {
     $date = $_GET['date'] ?? null;
     $studentUid = $_GET['student_uid'] ?? null;
 
+    // Authorization for read access:
+    //  - a student may only read their OWN attendance,
+    //  - a teacher may only read attendance for classes they own,
+    //  - any enrolled student may read their own records within a class.
+    $isAdmin = ($uid && (fetchUserRole($pdo, $uid) === 'admin'));
+
     if ($classId && $date && $studentUid) {
+        if (!$isAdmin && $studentUid !== $uid) {
+            // Allow a student to read only their own; teachers must go class-only below
+            jsonResponse(['error' => 'Unauthorized'], 403);
+        }
+        $ok = $isAdmin || ($studentUid === $uid);
+        if (!$ok) {
+            $t = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
+            $t->execute([$classId]);
+            $c = $t->fetch();
+            $ok = $c && $c['teacher_uid'] === $uid;
+        }
+        if (!$ok) jsonResponse(['error' => 'Unauthorized'], 403);
         $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND date = ? AND student_uid = ?");
         $stmt->execute([$classId, $date, $studentUid]);
         jsonResponse($stmt->fetchAll());
     }
 
     if ($classId && $date) {
+        // Scope by class ownership
+        if (!$isAdmin) {
+            $t = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
+            $t->execute([$classId]);
+            $c = $t->fetch();
+            if (!$c || $c['teacher_uid'] !== $uid) {
+                jsonResponse(['error' => 'Unauthorized'], 403);
+            }
+        }
         $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND date = ?");
         $stmt->execute([$classId, $date]);
         jsonResponse($stmt->fetchAll());
     }
 
     if ($classId) {
+        // Class-wide history: only the owning teacher (or admin). Students read
+        // only their own records via the classId+date+studentUid branch above.
+        if (!$isAdmin) {
+            $t = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
+            $t->execute([$classId]);
+            $c = $t->fetch();
+            if (!$c || $c['teacher_uid'] !== $uid) {
+                jsonResponse(['error' => 'Unauthorized'], 403);
+            }
+        }
         $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? ORDER BY date DESC");
         $stmt->execute([$classId]);
         jsonResponse($stmt->fetchAll());

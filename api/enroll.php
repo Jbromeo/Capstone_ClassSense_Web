@@ -12,14 +12,26 @@ if ($method === 'POST') {
         jsonResponse(['error' => 'Invalid JSON'], 400);
     }
 
-    // Student joining by class code
+    // Student joining by class code (open enrollment)
     if (!empty($data['class_code']) && !empty($data['student_uid'])) {
+        // A student may only enroll their own account via class code.
+        if ($data['student_uid'] !== $uid) {
+            jsonResponse(['error' => 'You can only enroll yourself'], 403);
+        }
+
         $stmt = $pdo->prepare("SELECT id, class_name, teacher_uid FROM classes WHERE class_code = ?");
         $stmt->execute([$data['class_code']]);
         $class = $stmt->fetch();
 
         if (!$class) {
             jsonResponse(['error' => 'Invalid class code'], 404);
+        }
+
+        // Verify the target student still exists (FK would otherwise 500)
+        $stmt = $pdo->prepare("SELECT 1 FROM users WHERE uid = ? AND role = 'student'");
+        $stmt->execute([$data['student_uid']]);
+        if (!$stmt->fetch()) {
+            jsonResponse(['error' => 'Student account not found'], 404);
         }
 
         $classId = $class['id'];
@@ -52,12 +64,28 @@ if ($method === 'POST') {
         jsonResponse(['success' => true, 'class_id' => $classId], 201);
     }
 
-    // Teacher enrolling a student by student_id
+    // Teacher enrolling a student by student_uid
     if (!empty($data['class_id']) && !empty($data['student_uid'])) {
         $stmt = $pdo->prepare("SELECT class_name, teacher_uid FROM classes WHERE id = ?");
         $stmt->execute([$data['class_id']]);
         $class = $stmt->fetch();
-        $className = $class ? $class['class_name'] : 'a class';
+        if (!$class) {
+            jsonResponse(['error' => 'Class not found'], 404);
+        }
+
+        // Authorization: only the owning teacher can enroll students into this class
+        if ($class['teacher_uid'] !== $uid) {
+            jsonResponse(['error' => 'You do not own this class'], 403);
+        }
+
+        // Verify the target student still exists
+        $stmt = $pdo->prepare("SELECT 1 FROM users WHERE uid = ? AND role = 'student'");
+        $stmt->execute([$data['student_uid']]);
+        if (!$stmt->fetch()) {
+            jsonResponse(['error' => 'Student account not found'], 404);
+        }
+
+        $className = $class['class_name'];
 
         $stmt = $pdo->prepare("SELECT COUNT(*) as cnt FROM class_students WHERE class_id = ? AND student_uid = ?");
         $stmt->execute([$data['class_id'], $data['student_uid']]);

@@ -49,8 +49,8 @@ if ($method === 'PUT') {
     }
 
     $username = trim($data['username'] ?? '');
-    $firstName = trim($data['firstName'] ?? '');
-    $lastName = trim($data['lastName'] ?? '');
+    $firstName = capitalizeName($data['firstName'] ?? '');
+    $lastName = capitalizeName($data['lastName'] ?? '');
 
     if (!$username) jsonResponse(['error' => 'Username is required'], 400);
     if (!$firstName || !$lastName) jsonResponse(['error' => 'First and last name are required'], 400);

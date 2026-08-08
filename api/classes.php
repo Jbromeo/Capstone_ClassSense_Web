@@ -15,8 +15,9 @@ if ($method === 'GET') {
         $stmt = $pdo->prepare("SELECT c.* FROM classes c JOIN class_students cs ON c.id = cs.class_id WHERE cs.student_uid = ? ORDER BY c.created_at DESC");
         $stmt->execute([$studentUid]);
         $classes = $stmt->fetchAll();
+        // Only include students that still exist in users (defends against orphan rows)
         foreach ($classes as &$c) {
-            $stmt = $pdo->prepare("SELECT student_uid FROM class_students WHERE class_id = ?");
+            $stmt = $pdo->prepare("SELECT cs.student_uid FROM class_students cs JOIN users u ON u.uid = cs.student_uid WHERE cs.class_id = ?");
             $stmt->execute([$c['id']]);
             $c['students'] = array_column($stmt->fetchAll(), 'student_uid');
         }
@@ -41,9 +42,11 @@ if ($method === 'GET') {
                 jsonResponse(['error' => 'Class not found'], 404);
             }
         }
-        $stmt = $pdo->prepare("SELECT student_uid FROM class_students WHERE class_id = ?");
+        // Only count students that still exist in users (defends against orphan rows)
+        $stmt = $pdo->prepare("SELECT cs.student_uid FROM class_students cs JOIN users u ON u.uid = cs.student_uid WHERE cs.class_id = ?");
         $stmt->execute([$classId]);
         $class['students'] = array_column($stmt->fetchAll(), 'student_uid');
+        $class['window'] = classWindow($class);
         jsonResponse($class);
     }
 
@@ -52,11 +55,12 @@ if ($method === 'GET') {
     $classes = $stmt->fetchAll();
 
     foreach ($classes as &$c) {
-        $stmt = $pdo->prepare("SELECT student_uid FROM class_students WHERE class_id = ?");
+        // Only count students that still exist in users (defends against orphan rows)
+        $stmt = $pdo->prepare("SELECT cs.student_uid FROM class_students cs JOIN users u ON u.uid = cs.student_uid WHERE cs.class_id = ?");
         $stmt->execute([$c['id']]);
         $c['students'] = array_column($stmt->fetchAll(), 'student_uid');
+        $c['window'] = classWindow($c);
     }
-
     jsonResponse($classes);
 }
 
@@ -108,6 +112,9 @@ if ($method === 'PUT') {
     $fields = [];
     $params = [];
 
+    // Client inputs are filtered through an allowlist; session expiry/limit are
+    // SERVER-controlled (not settable by clients) so a scan window can't be
+    // forged or extended remotely.
     $allowedFields = ['class_name', 'level', 'subject', 'section_code', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m'];
     foreach ($allowedFields as $f) {
         if (array_key_exists($f, $data)) {
@@ -115,30 +122,96 @@ if ($method === 'PUT') {
             $params[] = $data[$f];
         }
     }
-
     if (empty($fields)) {
         jsonResponse(['error' => 'No valid fields to update'], 400);
     }
 
-    // Session start: server generates a unique session_id for audit traceability
-    if (array_key_exists('session_active', $data) && (int)$data['session_active'] === 1 && empty($data['session_id'])) {
+    // Load the current row: needed to distinguish a fresh start from a resume and
+    // to read the schedule for the time-gate. NOTE: this SQL Server rejects
+    // comparison operators (`=`,`<`,`IS NULL`) in the SELECT list, so we cannot
+    // emit `(session_expires_at IS NULL OR session_expires_at < GETDATE())`.
+    // Instead fetch the signed expiry age via DATEDIFF (a function call, which is
+    // allowed) and compare it to zero in PHP. DATEDIFF uses GETDATE() on the
+    // server, so the PHP/server clock+timezone skew is irrelevant here.
+    $cur = $pdo->prepare("SELECT schedule, start_time, end_time, session_active, session_expires_at, DATEDIFF(SECOND, session_expires_at, GETDATE()) AS expires_age FROM classes WHERE id = ? AND teacher_uid = ?");
+    $cur->execute([$classId, $uid]);
+    $row = $cur->fetch();
+    if (!$row) {
+        jsonResponse(['error' => 'Class not found or no changes'], 404);
+    }
+
+    // "Fresh start" = client wants active=1 but there's NOT a live session right now.
+    // A stale-but-expired session (session_active=1 with a past expiry) counts as
+    // NOT live, so the time-gate still applies instead of silently resuming.
+    $incomingActive = array_key_exists('session_active', $data) ? (int)$data['session_active'] : null;
+    $now = time();
+    $curActive      = (int)$row['session_active'];
+    $expiresAge     = (int)($row['expires_age'] ?? 0); // >0 => already expired; NULL => treated as not expired
+    $currentlyLive  = ($curActive === 1 && $expiresAge <= 0);
+    $freshStart     = ($incomingActive === 1 && !$currentlyLive);
+
+    // Remove client-supplied session expiry/limit so the server owns them
+    // (prevents a client from forging an extended window).
+    $serverOwned = ['session_expires_at', 'session_limit'];
+    $cleaned = []; $cleanedParams = [];
+    foreach ($fields as $i => $f) {
+        $col = preg_replace('/^(.*\S)\s*=\s*\?$/', '$1', $f);
+        if (in_array($col, $serverOwned, true)) continue;
+        $cleaned[] = $f; $cleanedParams[] = $params[$i];
+    }
+    $fields = $cleaned; $params = $cleanedParams;
+
+    // Session start: server generates a unique session_id for audit traceability,
+    // but ONLY on a genuinely fresh start (active 0->1) so resuming a live session
+    // does not mint a new session_id and orphan the audit trail.
+    if ($freshStart && empty($data['session_id'])) {
         $fields[] = "session_id = ?";
         $params[] = strtolower(bin2hex(random_bytes(16)));
     }
 
     // Session end: clear the transient session state
-    if (array_key_exists('session_active', $data) && (int)$data['session_active'] === 0) {
+    if ($incomingActive === 0) {
         $fields[] = "session_id = NULL";
         $fields[] = "last_nonce = NULL";
         $fields[] = "nonce_issued_at = NULL";
         $fields[] = "current_nonce = NULL";
         $fields[] = "session_expires_at = NULL";
         $fields[] = "session_mode = 'open'";
+        $fields[] = "session_limit = 0";
     }
 
-    // Late window switch: drop the previous nonce so only the late-window QR works
+    // Fresh-start time-gate + authoritative expiry.
+    if ($freshStart) {
+        $win = classScheduleWindow($row['schedule'], $row['start_time'], $row['end_time']);
+        if ($win['scheduled'] && !$win['startable']) {
+            jsonResponse([
+                'error'        => 'Attendance can only be started during the class window.',
+                'window_label' => $win['windowLabel'] ?? '',
+                'next_label'   => $win['nextOpenLabel'] ?? '',
+            ], 409);
+        }
+        if (!array_key_exists('session_started_at', $data)) {
+            $fields[] = "session_started_at = GETDATE()";
+        }
+        if ($win['scheduled'] && isset($win['closesAt']) && $win['closesAt'] > 0) {
+            // Authority session expires at the end of the class window.
+            $fields[]  = "session_expires_at = CAST(? AS DATETIME)";
+            $params[]  = date('Y-m-d H:i:s', $win['closesAt']);
+        } else {
+            // Unconstrained (no schedule) -> runs until the teacher stops it.
+            $fields[] = "session_expires_at = NULL";
+        }
+        $fields[] = "session_limit = 0";
+    }
+
+    // Late window switch: drop the previous nonce so only the late-window QR works.
+    // When the session is currently live, re-authoritatively cap expiry to 3 min
+    // (LATE_WINDOW) so the cap does not depend on the client.
     if (array_key_exists('session_mode', $data) && $data['session_mode'] === 'late') {
         $fields[] = "last_nonce = NULL";
+        if ($currentlyLive) {
+            $fields[] = "session_expires_at = DATEADD(MINUTE, 3, GETDATE())";
+        }
     }
 
     if (array_key_exists('start_time', $data) && array_key_exists('end_time', $data) && !array_key_exists('time_slot', $data)) {
@@ -187,4 +260,110 @@ function formatTime($military) {
     $ampm = $hours >= 12 ? 'PM' : 'AM';
     $hours = $hours % 12 ?: 12;
     return "$hours:$minutes $ampm";
+}
+
+// Map PHP wday (0=Sun..6=Sat) to the schedule day code used by the UI.
+function dayCodeForWday($wday) {
+    $map = ['0'=>'SU','1'=>'M','2'=>'T','3'=>'W','4'=>'TH','5'=>'F','6'=>'S'];
+    return $map[(string)$wday] ?? 'SU';
+}
+
+// Attach the schedule-window info to a class record (GET helpers).
+function classWindow($c) {
+    return classScheduleWindow($c['schedule'] ?? '', $c['start_time'] ?? '', $c['end_time'] ?? '');
+}
+
+// One-char/TH/SU name lookup.
+function dayCodeName($code) {
+    $names = ['M'=>'Mon','T'=>'Tue','W'=>'Wed','TH'=>'Thu','F'=>'Fri','S'=>'Sat','SU'=>'Sun'];
+    return $names[$code] ?? $code;
+}
+
+// Split the concatenated schedule string ("MT", "MTH") into tokens,
+// recognizing two-char codes (TH, SU) before one-char codes.
+function scheduleTokens($schedule) {
+    $tokens = [];
+    $s = (string)$schedule;
+    $j = 0; $len = strlen($s);
+    while ($j < $len) {
+        $two = substr($s, $j, 2);
+        if ($two === 'TH' || $two === 'SU') { $tokens[] = $two; $j += 2; }
+        else { $tokens[] = $s[$j]; $j++; }
+    }
+    return $tokens;
+}
+
+// Weekday-name string like "Mon-Tue" for a schedule string.
+function dayCodeToName($schedule) {
+    $tokens = scheduleTokens($schedule);
+    return implode('-', array_map('dayCodeName', $tokens));
+}
+
+// Rough human delta for "in 2h 3m" labels.
+function humanDelta($from, $to) {
+    $diff = max(0, (int)($to - $from));
+    $d = (int)floor($diff / 86400);
+    $h = (int)floor(($diff % 86400) / 3600);
+    $m = (int)floor(($diff % 3600) / 60);
+    if ($d > 0) return "{$d}d {$h}h {$m}m";
+    if ($h > 0) return "{$h}h {$m}m";
+    return "{$m}m";
+}
+
+// Compute the schedule window for a class given a reference time (epoch).
+// scheduled: class has a schedule+times. startable: within window (incl. 5m lead).
+// openNow: alias. closesAt: epoch when an active session auto-expires (window end).
+// nextOpenAt/nextOpenLabel: next time it becomes startable (for locked cards).
+function classScheduleWindow($schedule, $start_time, $end_time, $now = null) {
+    $now = $now ?? time();
+    $res = ['scheduled'=>false,'startable'=>false,'openNow'=>false,
+            'closesAt'=>null,'nextOpenAt'=>null,'nextOpenLabel'=>'',
+            'windowLabel'=>''];
+
+    $schedule = trim((string)$schedule);
+    $start_time = trim((string)$start_time);
+    $end_time = trim((string)$end_time);
+    if ($schedule === '' || $start_time === '' || $end_time === '') {
+        return $res; // unconstrained class -> caller treats as always startable
+    }
+
+    $tokens = scheduleTokens($schedule);
+    if (empty($tokens)) return $res;
+
+    $res['scheduled'] = true;
+    $res['windowLabel'] = dayCodeToName($schedule) . ' ' . formatTime($start_time) . ' — ' . formatTime($end_time);
+
+    $todayWday = (int)date('w', $now);
+    $todayCode = dayCodeForWday($todayWday);
+    $todayDate = date('Y-m-d', $now);
+
+    $startTs = strtotime($todayDate . ' ' . $start_time);
+    $endTs   = strtotime($todayDate . ' ' . $end_time);
+    if ($endTs <= $startTs) $endTs += 86400; // overnight window
+    $unlockTs = $startTs - (5 * 60); // 5-min lead-in before class starts
+
+    if (in_array($todayCode, $tokens, true) && $now >= $unlockTs && $now < $endTs) {
+        $res['openNow'] = true;
+        $res['startable'] = true;
+        $res['closesAt'] = $endTs;
+        return $res;
+    }
+
+    // Find the next day this class is scheduled.
+    for ($i = 1; $i <= 7; $i++) {
+        $d = date('Y-m-d', $now + ($i - 1) * 86400);
+        $w = (int)date('w', strtotime($d));
+        $dc = dayCodeForWday($w);
+        if (!in_array($dc, $tokens, true)) continue;
+        $s = strtotime($d . ' ' . $start_time);
+        $e = strtotime($d . ' ' . $end_time);
+        if ($e <= $s) $e += 86400;
+        $u = $s - (5 * 60);
+        if ($u > $now) {
+            $res['nextOpenAt']    = $u;
+            $res['nextOpenLabel'] = dayCodeName($dc) . ' ' . formatTime($start_time) . ', in ' . humanDelta($now, $u);
+            return $res;
+        }
+    }
+    return $res;
 }

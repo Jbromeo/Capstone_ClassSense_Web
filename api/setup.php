@@ -58,7 +58,8 @@ $queries = [
         student_uid VARCHAR(128) NOT NULL,
         enrolled_at DATETIME DEFAULT GETDATE(),
         PRIMARY KEY (class_id, student_uid),
-        FOREIGN KEY (class_id) REFERENCES classes(id)
+        CONSTRAINT fk_class_students_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+        CONSTRAINT fk_class_students_student FOREIGN KEY (student_uid) REFERENCES users(uid) ON DELETE CASCADE
     )",
 
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='attendance' AND xtype='U')
@@ -174,6 +175,37 @@ $queries = [
 
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_notifications_recipient')
     CREATE INDEX idx_notifications_recipient ON notifications(recipient_uid)",
+
+    "-- Forensic / integrity constraints: cascade deletes so no orphan rows survive.
+    -- NOTE: classes.teacher_uid is intentionally NO ACTION (block) — cascading it
+    -- would create multiple cascade paths into class_students (user->classes->cs and
+    -- user->cs). Teachers are cleaned up in application code (api/fetch.php DELETE
+    -- deletes the teacher's classes first). Run db_repair.sql once to add these
+    -- to an existing database.",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_class_students_student' AND parent_object_id = OBJECT_ID('class_students'))
+    ALTER TABLE class_students ADD CONSTRAINT fk_class_students_student FOREIGN KEY (student_uid) REFERENCES users(uid) ON DELETE CASCADE",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_class_students_class' AND parent_object_id = OBJECT_ID('class_students'))
+    ALTER TABLE class_students ADD CONSTRAINT fk_class_students_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_attendance_student' AND parent_object_id = OBJECT_ID('attendance'))
+    ALTER TABLE attendance ADD CONSTRAINT fk_attendance_student FOREIGN KEY (student_uid) REFERENCES users(uid) ON DELETE CASCADE",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_attendance_class' AND parent_object_id = OBJECT_ID('attendance'))
+    ALTER TABLE attendance ADD CONSTRAINT fk_attendance_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_classes_teacher' AND parent_object_id = OBJECT_ID('classes'))
+    ALTER TABLE classes ADD CONSTRAINT fk_classes_teacher FOREIGN KEY (teacher_uid) REFERENCES users(uid)",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_events_teacher' AND parent_object_id = OBJECT_ID('events'))
+    ALTER TABLE events ADD CONSTRAINT fk_events_teacher FOREIGN KEY (teacher_uid) REFERENCES users(uid) ON DELETE CASCADE",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_sessions_user' AND parent_object_id = OBJECT_ID('sessions'))
+    ALTER TABLE sessions ADD CONSTRAINT fk_sessions_user FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_notifications_recipient' AND parent_object_id = OBJECT_ID('notifications'))
+    ALTER TABLE notifications ADD CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_uid) REFERENCES users(uid) ON DELETE CASCADE",
 ];
 
 echo "<pre>\n";

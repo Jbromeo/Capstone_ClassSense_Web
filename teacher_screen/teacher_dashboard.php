@@ -308,7 +308,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         initPage(() => {
             setTimeout(() => loadDashboardData(), 500);
-            setInterval(loadDashboardData, 10000);
+            setInterval(loadDashboardData, 5000);
         });
 
         async function loadDashboardData() {

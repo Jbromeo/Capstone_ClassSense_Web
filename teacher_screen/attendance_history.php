@@ -153,7 +153,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const uids = [...new Set(filtered.map(r => r.student_uid))];
                 const students = await api('/fetch.php', { method: 'POST', body: JSON.stringify({ collection: 'students', uids }) });
                 const studentMap = {};
-                students.forEach(s => { studentMap[s.uid] = s; });
+                students.forEach(s => { if (s.exists !== false) studentMap[s.uid] = s; });
 
                 const rows = [];
                 for (const rec of filtered) {

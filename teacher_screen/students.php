@@ -203,7 +203,8 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             try {
                 const students = await api('/fetch.php', { method: 'POST', body: JSON.stringify({ collection: 'students', uids: studentUids }) });
-                allStudentsInMyClasses = students.map(s => ({
+                // Drop phantom entries for students whose accounts no longer exist
+                allStudentsInMyClasses = students.filter(s => s.exists !== false).map(s => ({
                     ...s,
                     classes: myClasses.filter(c => c.students && c.students.includes(s.uid))
                 }));

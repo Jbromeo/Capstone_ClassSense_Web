@@ -19,8 +19,8 @@ if (empty($data['username']) || empty($data['password']) || empty($data['role'])
 $username = trim($data['username']);
 $password = $data['password'];
 $role = $data['role'];
-$firstName = $data['firstName'] ?? $data['first_name'] ?? '';
-$lastName = $data['lastName'] ?? $data['last_name'] ?? '';
+$firstName = capitalizeName($data['firstName'] ?? $data['first_name'] ?? '');
+$lastName = capitalizeName($data['lastName'] ?? $data['last_name'] ?? '');
 $studentId = $data['studentId'] ?? $data['student_id'] ?? null;
 $employeeId = $data['employeeId'] ?? $data['employee_id'] ?? null;
 $department = $data['department'] ?? null;

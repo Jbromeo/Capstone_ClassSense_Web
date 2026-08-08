@@ -68,15 +68,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <p class="text-sm text-gray-400 font-medium uppercase tracking-tighter opacity-60 italic">Choose a class to start the live attendance session.</p>
                 </div>
 
-                <!-- NEW: Session Timer Settings -->
+                <!-- Session window info (replaces the manual timer buttons) -->
                 <div class="mb-4 flex items-center justify-center gap-6 animate-fade-in-up" style="animation-delay: 100ms">
-                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">Session Limit:</span>
-                    <div class="flex bg-dark-surface/50 p-1 rounded-xl border border-white/5 backdrop-blur-md shadow-2xl">
-                        <button onclick="setGlobalTimer(15)" id="btn-15" class="timer-opt px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all bg-primary-500 text-white shadow-lg shadow-primary-500/20 italic">15 MIN</button>
-                        <button onclick="setGlobalTimer(30)" id="btn-30" class="timer-opt px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-gray-500 hover:text-white italic">30 MIN</button>
-                        <button onclick="setGlobalTimer(60)" id="btn-60" class="timer-opt px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-gray-500 hover:text-white italic">60 MIN</button>
-                        <button onclick="setGlobalTimer(0)" id="btn-inf" class="timer-opt px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all text-gray-500 hover:text-white italic">∞ Live</button>
-                    </div>
+                    <span id="sessionWindowLabel" class="text-[11px] font-black text-gray-400 uppercase tracking-widest italic opacity-80">Session Limit:</span>
                 </div>
 
                 <!-- NEW: GPS Geofence Setting -->
@@ -304,7 +298,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
         };
-        let selectedDuration = 15; // default
         let sessionTimerInterval = null;
         let qrRefreshInterval = null;
         let currentNonce = null;
@@ -312,9 +305,19 @@ require_once dirname(__DIR__) . '/core/init.php';
         let flagMap = new Map();  // student_uid -> [fraud reason strings]
         const LATE_WINDOW_SECONDS = 180; // 3-minute late-arrivals window
         const NONCE_GRACE_SECONDS = 25;  // previous nonce accepted within this window
+        const POLL_INTERVAL_MS = 3000;   // live attendance poll: scan appears within ~3s
 
         const randNonce = () => Math.random().toString(36).substring(2, 10).toUpperCase();
         const parseSql = (s) => s ? new Date(s.replace(' ', 'T')) : null;
+        const formatSqlTime = (s) => {
+            const t = (s || '').trim();
+            if (!t) return '';
+            const d = new Date(t.replace(' ', 'T'));
+            if (isNaN(d.getTime())) return t;
+            let h = d.getHours(), m = String(d.getMinutes()).padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+            return `${h}:${m} ${ampm}`;
+        };
         const sqlFromDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
         const isClassLive = (c) => {
             if (c.session_active != 1) return false;
@@ -347,19 +350,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             countdown.classList.toggle('border-primary-500/20', !late);
         }
 
-        window.setGlobalTimer = (mins) => {
-            selectedDuration = mins;
-            document.querySelectorAll('.timer-opt').forEach(btn => {
-                btn.classList.remove('bg-primary-500', 'text-white', 'shadow-lg', 'shadow-primary-500/20');
-                btn.classList.add('text-gray-500');
-            });
-            const activeId = mins === 0 ? 'btn-inf' : `btn-${mins}`;
-            const activeBtn = document.getElementById(activeId);
-            if(activeBtn) {
-                activeBtn.classList.add('bg-primary-500', 'text-white', 'shadow-lg', 'shadow-primary-500/20');
-                activeBtn.classList.remove('text-gray-500');
-            }
-        };
 
         // 1. Identity Handshake
         initPage((user) => {
@@ -390,9 +380,12 @@ require_once dirname(__DIR__) . '/core/init.php';
 
                 grid.innerHTML = classes.map(c => {
                     const live = isClassLive(c);
+                    const win = c.window || {};
+                    const canOpen = live || !!win.startable;
+                    const locked = !live && !win.startable;
+                    const nextLabel = win.nextOpenLabel || (win.windowLabel ? ('Outside ' + win.windowLabel) : 'Not scheduled');
                     return `
-                    <div class="glass-panel p-6 rounded-xl border ${live ? 'border-green-500/40' : 'border-dark-border'} hover:border-primary-500/50 transition-all cursor-pointer group" 
-                         onclick="window.startAttendanceSession('${c.id}')">
+                    <div class="glass-panel p-6 rounded-xl border ${live ? 'border-green-500/40' : (locked ? 'border-gray-600/40' : 'border-dark-border')} hover:border-primary-500/50 transition-all ${locked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer group'}">
                         <div class="flex justify-between items-start mb-4">
                             <div class="p-3 bg-primary-500/10 rounded-lg">
                                 <i data-feather="book-open" class="w-6 h-6 text-primary-500"></i>
@@ -405,8 +398,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-tighter italic">${c.class_name}</h3>
                         <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-4 opacity-60">${c.subject} &bull; ${c.section_code}</p>
                         <div class="flex items-center gap-2 text-[10px] font-black text-primary-400 uppercase tracking-widest italic">
-                            <span>${live ? 'Resume Live Session' : 'Initialize Hub'}</span>
-                            <i data-feather="arrow-right" class="w-3 h-3 group-hover:translate-x-1 transition-transform"></i>
+                            <span>${live ? 'Resume Live Session' : (locked ? 'Locked' : 'Initialize Hub')}</span>
+                            ${locked ? `<span class="text-[9px] font-black text-gray-400 uppercase opacity-60">(${nextLabel})</span>` : ''}
+                            <i data-feather="arrow-right" class="w-3 h-3 ${locked ? '' : 'group-hover:translate-x-1'} transition-transform"></i>
                         </div>
                     </div>`;
                 }).join('');
@@ -426,12 +420,25 @@ require_once dirname(__DIR__) . '/core/init.php';
         // 2. Start / Resume Live Session
         window.startAttendanceSession = async (classId) => {
             try {
-                // Fetch class details to get full student roster mapping
+                // Fetch class details (now includes .window)
                 currentClassData = await api('/classes.php?id=' + classId);
                 if (!currentClassData) return;
-                
-                // Use class-specific session limit
-                selectedDuration = currentClassData.session_limit !== undefined ? currentClassData.session_limit : 15;
+
+                const win = currentClassData.window || {};
+                const live = isClassLive(currentClassData);
+                const labelEl = document.getElementById('sessionWindowLabel');
+                if (win.windowLabel) labelEl.innerText = win.windowLabel;
+
+                // Gate: if not already live, the schedule window must be open.
+                if (!live && !win.startable) {
+                    labelEl.innerText = win.nextOpenLabel || 'Locked';
+                    switchView('classSelectionView');
+                    alert(win.nextOpenLabel
+                        ? ('Attendance only opens during the class window: ' + (win.windowLabel || '') +
+                           '\n\nNext session: ' + win.nextOpenLabel)
+                        : 'This class has no schedule set; contact your administrator.');
+                    return;
+                }
 
                 // Switch View
                 switchView('liveAttendanceView');
@@ -449,14 +456,15 @@ require_once dirname(__DIR__) . '/core/init.php';
                 document.getElementById('idleEmptyState').classList.remove('hidden');
 
                 // RESUME: class already has a live (unexpired) session — attach to it
-                // instead of restarting. Fixes the reload-extends-the-session bug.
-                if (isClassLive(currentClassData)) {
+                // instead of restarting.
+                if (live) {
                     currentNonce = currentClassData.current_nonce;
                     setModeUI(currentClassData.session_mode === 'late' ? 'late' : 'open');
                     const remainingSec = Math.max(0, Math.floor((parseSql(currentClassData.session_expires_at) - new Date()) / 1000));
                     generateAttendanceQR(classId);
                     startQRRefreshCycle(classId);
                     initAttendanceListener(classId);
+                    labelEl.innerText = (currentClassData.session_expires_at ? 'Until ' + formatSqlTime(currentClassData.session_expires_at) : 'Live session');
                     if (remainingSec > 0) {
                         startSessionCountdownFrom(remainingSec);
                     } else {
@@ -478,7 +486,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                     }
                 }
 
-                // Generate nonce + start session via API BEFORE drawing the QR
+                // Generate nonce + start session via API. Session expiry is owned by
+                // the server (= class-window end); we do not send a TTL client-side.
                 const nonce = randNonce();
                 currentNonce = nonce;
                 const started = nowSql();
@@ -489,8 +498,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     current_nonce: nonce,
                     nonce_issued_at: started,
                     session_mode: 'open',
-                    require_location: requireLocation ? 1 : 0,
-                    session_expires_at: selectedDuration > 0 ? sqlFromDate(new Date(Date.now() + selectedDuration * 60000)) : null
+                    require_location: requireLocation ? 1 : 0
                 };
                 if (anchor) {
                     body.session_lat = anchor.lat;
@@ -508,9 +516,15 @@ require_once dirname(__DIR__) . '/core/init.php';
                 // Generate QR Code (with the live nonce)
                 generateAttendanceQR(classId);
 
-                // Handle Timer Countdown
-                if (selectedDuration > 0) {
-                    startSessionCountdownFrom(selectedDuration * 60);
+                // Refresh to read the server-authoritative session_expires_at
+                // (window end) and count down to it. A 0/Live session runs until
+                // the teacher stops it manually.
+                const refreshed = await api('/classes.php?id=' + classId);
+                const exp = refreshed.session_expires_at ? parseSql(refreshed.session_expires_at) : null;
+                labelEl.innerText = win.windowLabel || 'Live session';
+                if (exp) {
+                    labelEl.innerText = 'Until ' + formatSqlTime(refreshed.session_expires_at);
+                    startSessionCountdownFrom(Math.max(0, Math.floor((exp - new Date()) / 1000)));
                 } else {
                     document.getElementById('sessionCountdown').classList.add('hidden');
                 }
@@ -544,7 +558,16 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
             
             pollAttendance();
-            attendanceListener = setInterval(pollAttendance, 20000);
+            attendanceListener = setInterval(pollAttendance, POLL_INTERVAL_MS);
+
+            // Immediate catch-up when the tab regains focus (browsers throttle
+            // setInterval to ~1/min in background tabs, which otherwise hides
+            // recent scans until the next throttled tick).
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && typeof pollAttendance === 'function') {
+                    pollAttendance();
+                }
+            });
         }
 
         function generateAttendanceQR(classId) {
