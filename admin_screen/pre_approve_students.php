@@ -9,6 +9,14 @@ require_once dirname(__DIR__) . '/core/init.php';
     <style>
         .toast { transform: translateX(120%); transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55); opacity: 0; }
         .toast.show { transform: translateX(0); opacity: 1; }
+        @keyframes idShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .shake { animation: idShake 0.4s ease-in-out; }
     </style>
 </head>
 <body class="antialiased h-screen overflow-hidden flex bg-dark-bg selection:bg-primary-500 selection:text-white">
@@ -37,8 +45,8 @@ require_once dirname(__DIR__) . '/core/init.php';
 
                         <form id="addIdsForm" class="space-y-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Student IDs</label>
-                                <textarea id="studentIdsInput" rows="8" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono placeholder-gray-600" placeholder="ST-00001, ST-00002, ST-00003&#10;&#10;or one per line:&#10;ST-00004&#10;ST-00005"></textarea>
+                                <label id="studentIdsLabel" class="block text-xs font-bold text-gray-500 uppercase mb-2">Student IDs</label>
+                                <textarea id="studentIdsInput" rows="8" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono placeholder-gray-600" placeholder="20250001, 20250002, 20250003&#10;&#10;or one per line:&#10;20250004&#10;20250005"></textarea>
                             </div>
 
                             <button type="submit" id="submitBtn" class="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-white transition-all shadow-lg shadow-blue-500/20 mt-4 flex items-center justify-center gap-2 group">
@@ -109,6 +117,17 @@ require_once dirname(__DIR__) . '/core/init.php';
         const scrollArea = document.getElementById('tableScrollArea');
         const lazyLoader = document.getElementById('lazyLoader');
         const endOfList = document.getElementById('endOfList');
+        const studentIdsInput = document.getElementById('studentIdsInput');
+        const studentIdsLabel = document.getElementById('studentIdsLabel');
+
+        const vibrateLabel = (label) => {
+            if (!label) return;
+            label.classList.remove('shake');
+            void label.offsetWidth;
+            label.classList.add('shake');
+        };
+
+        const isValidStudentId = (id) => /^\d{1,8}$/.test(id);
 
         let registryCache = [];
         let filteredCache = [];
@@ -257,6 +276,11 @@ require_once dirname(__DIR__) . '/core/init.php';
             scrollArea.scrollTo({ top: 0 });
         });
 
+        studentIdsInput.addEventListener('input', () => {
+            const ids = studentIdsInput.value.split(/[,\n]+/).map(s => s.trim()).filter(s => s);
+            if (ids.some(id => !isValidStudentId(id))) vibrateLabel(studentIdsLabel);
+        });
+
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting && hasMore) loadMoreFromCache();
         }, { threshold: 0, root: scrollArea });
@@ -268,13 +292,19 @@ require_once dirname(__DIR__) . '/core/init.php';
             const raw = input.value.trim();
             if (!raw) return;
 
+            // Split by comma or newline
+            const ids = raw.split(/[,\n]+/).map(s => s.trim()).filter(s => s);
+            const invalidIds = ids.filter(id => !isValidStudentId(id));
+            if (invalidIds.length) {
+                vibrateLabel(studentIdsLabel);
+                return window.showStatus(`Invalid Student ID: "${invalidIds[0]}" - numbers only, 8 digits maximum.`);
+            }
+
             subBtn.disabled = true;
             document.getElementById('btnLoader').classList.remove('hidden');
             document.getElementById('btnText').textContent = 'Adding...';
 
             try {
-                // Split by comma or newline
-                const ids = raw.split(/[,\n]+/).map(s => s.trim()).filter(s => s);
                 const result = await api('/admin/pre_approve.php', {
                     method: 'POST',
                     body: JSON.stringify({ student_ids: ids })

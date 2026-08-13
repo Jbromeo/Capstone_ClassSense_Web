@@ -16,6 +16,28 @@ const confirmBtn = document.getElementById('confirmPurgeBtn');
 const cancelBtn = document.getElementById('cancelPurgeBtn');
 let pendingDelete = null;
 
+const employeeIdInput = document.getElementById('employeeIdInput');
+const employeeIdLabel = document.getElementById('employeeIdLabel');
+
+const vibrateLabel = (label) => {
+    if (!label) return;
+    label.classList.remove('shake');
+    void label.offsetWidth;
+    label.classList.add('shake');
+};
+
+const isValidEmployeeId = (id) => /^\d{1,8}$/.test(id);
+
+if (employeeIdInput && employeeIdLabel) {
+    employeeIdInput.addEventListener('input', () => {
+        const digits = employeeIdInput.value.replace(/\D/g, '').slice(0, 8);
+        if (digits !== employeeIdInput.value) {
+            vibrateLabel(employeeIdLabel);
+            employeeIdInput.value = digits;
+        }
+    });
+}
+
 let registryCache = [];
 let filteredCache = [];
 let isBatchLoading = false;
@@ -160,6 +182,10 @@ addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(addForm);
     const data = Object.fromEntries(formData.entries());
+    if (!isValidEmployeeId(data.employee_id)) {
+        vibrateLabel(employeeIdLabel);
+        return window.showStatus("Invalid Employee ID: numbers only, 8 digits maximum.");
+    }
     subBtn.disabled = true;
     document.getElementById('btnLoader').classList.remove('hidden');
     document.getElementById('btnText').textContent = "Establishing Identity...";

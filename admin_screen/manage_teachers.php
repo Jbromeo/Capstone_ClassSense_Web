@@ -20,6 +20,14 @@ require_once dirname(__DIR__) . '/core/init.php';
             100% { background: transparent; border-color: rgba(255, 255, 255, 0.05); }
         }
         .new-entry-highlight { animation: flashGreen 4s ease-out forwards; border-left: 4px solid #22c55e !important; }
+        @keyframes idShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .shake { animation: idShake 0.4s ease-in-out; }
     </style>
 </head>
 <body class="antialiased h-screen overflow-hidden flex bg-dark-bg selection:bg-primary-500 selection:text-white">
@@ -56,7 +64,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <input type="text" name="username" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="ada_lovelace">
                             </div>
                             <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-2">Employee ID</label><input type="text" name="employee_id" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="EMP-001"></div>
+                                <div><label id="employeeIdLabel" class="block text-xs font-bold text-gray-500 uppercase mb-2">Employee ID</label><input type="text" name="employee_id" id="employeeIdInput" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="20250001"></div>
                                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-2">Password</label><input type="password" name="password" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="••••••••"></div>
                             </div>
                             

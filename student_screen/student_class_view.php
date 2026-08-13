@@ -103,52 +103,22 @@
             </div>
 
             <!-- Assessments Content -->
-            <div id="content-scores" class="hidden grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Quizzes -->
-                <div class="glass-panel rounded-xl p-6 border border-dark-border">
-                    <h3 class="text-md font-bold text-white mb-4 flex items-center gap-2 uppercase tracking-tighter italic"><i data-feather="check-circle" class="w-4 h-4 text-blue-400"></i> Quizzes</h3>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center text-xs font-bold italic uppercase tracking-widest">
-                            <span class="text-gray-400">Quiz 1: Variables</span>
-                            <span class="text-white">15/15</span>
-                        </div>
-                         <div class="flex justify-between items-center text-xs font-bold italic uppercase tracking-widest">
-                            <span class="text-gray-400">Quiz 2: Loops</span>
-                            <span class="text-white">12/15</span>
-                        </div>
-                         <div class="flex justify-between items-center text-xs font-bold italic uppercase tracking-widest">
-                            <span class="text-gray-400">Quiz 3: Arrays</span>
-                            <span class="text-amber-400">Pending</span>
-                        </div>
+            <div id="content-scores" class="hidden">
+                <div class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="flex items-center gap-2 bg-dark-bg/80 backdrop-blur-xl border border-white/5 p-1 rounded-2xl shadow-xl w-fit">
+                        <button onclick="window.studentGrades.setTerm(1)" id="st-1st" class="term-btn active px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all bg-primary-600 text-white shadow-lg shadow-primary-500/20">1st Term</button>
+                        <button onclick="window.studentGrades.setTerm(2)" id="st-2nd" class="term-btn px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">2nd Term</button>
+                        <button onclick="window.studentGrades.setTerm(3)" id="st-3rd" class="term-btn px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">3rd Term</button>
+                    </div>
+                    <div class="glass-panel rounded-xl px-6 py-3 flex items-center gap-4 border-l-4 border-l-green-500 w-fit">
+                        <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">Final Grade</span>
+                        <span id="finalGradeValue" class="text-2xl font-black text-white italic leading-none">—</span>
                     </div>
                 </div>
-                <!-- Exams -->
-                 <div class="glass-panel rounded-xl p-6 border border-dark-border text-xs font-bold italic uppercase tracking-widest">
-                    <h3 class="text-md font-bold text-white mb-4 flex items-center gap-2 uppercase tracking-tighter italic"><i data-feather="file-text" class="w-4 h-4 text-purple-400"></i> Exams</h3>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Prelims</span>
-                            <span class="text-white">45/50</span>
-                        </div>
-                         <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Midterms</span>
-                            <span class="text-gray-600">Locked</span>
-                        </div>
-                    </div>
-                </div>
-                 <!-- Activities -->
-                 <div class="glass-panel rounded-xl p-6 border border-dark-border text-xs font-bold italic uppercase tracking-widest">
-                    <h3 class="text-md font-bold text-white mb-4 flex items-center gap-2 uppercase tracking-tighter italic"><i data-feather="briefcase" class="w-4 h-4 text-emerald-400"></i> Activities</h3>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Activity 1</span>
-                            <span class="text-white">100%</span>
-                        </div>
-                         <div class="flex justify-between items-center">
-                            <span class="text-gray-400">Activity 2</span>
-                            <span class="text-white">95%</span>
-                        </div>
-                    </div>
+                <div id="assessmentsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+                <div id="assessmentsEmpty" class="hidden glass-panel rounded-xl p-12 text-center border border-dark-border">
+                    <i data-feather="file-text" class="w-10 h-10 text-gray-600 mx-auto mb-4"></i>
+                    <p class="text-gray-400 italic uppercase tracking-widest text-[10px] font-black">No assessments recorded for this term yet.</p>
                 </div>
             </div>
 
@@ -240,10 +210,141 @@
             }
         }
 
+        const GRADE_CATEGORIES = {
+            written: { label: 'Written Works', color: 'blue', icon: 'book' },
+            performance: { label: 'Performance Tasks', color: 'purple', icon: 'zap' },
+            exam: { label: 'Examinations', color: 'green', icon: 'clock' }
+        };
+
+        function renderAssessments(data) {
+            const grid = document.getElementById('assessmentsGrid');
+            const empty = document.getElementById('assessmentsEmpty');
+            const finalEl = document.getElementById('finalGradeValue');
+            if (!grid) return;
+
+            const comps = data.components || [];
+            const weights = data.weights || {};
+            const cats = ['written', 'performance', 'exam'];
+            const compsByCat = {};
+            cats.forEach(c => compsByCat[c] = comps.filter(x => x.category === c));
+            const hasAny = cats.some(c => compsByCat[c].length > 0);
+
+            empty.classList.toggle('hidden', hasAny);
+            grid.classList.toggle('hidden', !hasAny);
+
+            const catAvg = (list) => {
+                if (!list.length) return null;
+                let ts = 0, th = 0;
+                list.forEach(c => {
+                    const s = parseFloat(data.grades[c.id]);
+                    if (!isNaN(s)) { ts += s; th += c.hps; }
+                });
+                if (th === 0) return null;
+                return (ts / th) * 100;
+            };
+
+            if (!hasAny) {
+                grid.innerHTML = '';
+                finalEl.textContent = '—';
+                finalEl.className = 'text-2xl font-black italic leading-none text-gray-600';
+                return;
+            }
+
+            grid.innerHTML = cats.map(cat => {
+                const info = GRADE_CATEGORIES[cat];
+                const list = compsByCat[cat];
+                const avg = catAvg(list);
+                const weight = weights[cat] || 0;
+                const rows = list.length
+                    ? list.map(c => {
+                        const s = data.grades[c.id];
+                        const num = parseFloat(s);
+                        const has = s !== undefined && s !== null && s !== '' && !isNaN(num);
+                        return `
+                            <div class="flex justify-between items-center text-xs font-bold italic uppercase tracking-widest">
+                                <span class="text-gray-400">${c.name}</span>
+                                ${has ? `<span class="text-white">${num}/${c.hps}</span>` : `<span class="text-amber-400">Pending</span>`}
+                            </div>`;
+                    }).join('')
+                    : `<p class="text-[10px] text-gray-600 font-bold italic uppercase tracking-widest">No components yet</p>`;
+
+                return `
+                    <div class="glass-panel rounded-xl p-6 border border-dark-border border-t-4 border-t-${info.color}-500">
+                        <div class="flex items-center justify-between mb-4 gap-2">
+                            <h3 class="text-md font-bold text-white flex items-center gap-2 uppercase tracking-tighter italic">
+                                <i data-feather="${info.icon}" class="w-4 h-4 text-${info.color}-400"></i> ${info.label}
+                            </h3>
+                            <span class="text-[9px] font-black text-${info.color}-400 uppercase tracking-widest italic whitespace-nowrap">${weight}% Weight</span>
+                        </div>
+                        <div class="space-y-3">${rows}</div>
+                        <div class="mt-4 pt-3 border-t border-white/5 flex justify-between items-center">
+                            <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic">Score</span>
+                            <span class="font-black italic text-sm ${avg === null ? 'text-gray-600' : avg >= 75 ? 'text-green-400' : 'text-red-400'}">${avg === null ? '—' : avg.toFixed(1) + '%'}</span>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            let total = 0, totalWeight = 0;
+            ['written', 'performance', 'exam', 'attendance'].forEach(cat => {
+                const avg = catAvg(comps.filter(x => x.category === cat));
+                const w = weights[cat] || 0;
+                if (avg !== null && w > 0) { total += avg * (w / 100); totalWeight += w; }
+            });
+            const fg = totalWeight > 0 ? total : null;
+            finalEl.textContent = fg === null ? '—' : fg.toFixed(1);
+            finalEl.className = `text-2xl font-black italic leading-none ${fg === null ? 'text-gray-600' : fg >= 75 ? 'text-green-400' : 'text-red-400'}`;
+        }
+
+        window.studentGrades = (() => {
+            let state = { classId: null, uid: null, term: 1 };
+
+            function highlight() {
+                const names = {1:'1st',2:'2nd',3:'3rd'};
+                document.querySelectorAll('#content-scores .term-btn').forEach(b => b.classList.remove('active', 'bg-primary-600', 'text-white', 'shadow-lg', 'shadow-primary-500/20'));
+                const btn = document.getElementById(`st-${names[state.term]}`);
+                if (btn) btn.classList.add('active', 'bg-primary-600', 'text-white', 'shadow-lg', 'shadow-primary-500/20');
+            }
+
+            async function load() {
+                if (!state.classId || !state.uid) return;
+                const grid = document.getElementById('assessmentsGrid');
+                const empty = document.getElementById('assessmentsEmpty');
+                if (!grid) return;
+                grid.classList.remove('hidden');
+                empty.classList.add('hidden');
+                grid.innerHTML = `<div class="md:col-span-3 text-center py-12 text-gray-500 italic uppercase tracking-widest text-[10px] font-black animate-pulse">Syncing Assessment Grid...</div>`;
+                try {
+                    const data = await api(`/student_grades.php?class_id=${state.classId}&quarter=${state.term}`);
+                    renderAssessments(data);
+                    try { feather.replace(); } catch (e) {}
+                } catch (err) {
+                    grid.innerHTML = `<div class="md:col-span-3 text-center py-12 text-primary-500 italic text-xs font-bold">Failed to load assessments: ${err.message}</div>`;
+                }
+            }
+
+            return {
+                init(classId, uid) {
+                    state.classId = classId;
+                    state.uid = uid;
+                    state.term = Math.min(3, Math.max(1, parseInt(sessionStorage.getItem(`cs_grading_term_${classId}`) || '1') || 1));
+                    highlight();
+                    load();
+                },
+                async setTerm(t) {
+                    state.term = t;
+                    sessionStorage.setItem(`cs_grading_term_${state.classId}`, t);
+                    highlight();
+                    load();
+                },
+                reload: load
+            };
+        })();
+
         initPage((user) => {
             setTimeout(() => {
                 loadClassData();
                 loadAttendance(user.uid);
+                window.studentGrades.init(classId, user.uid);
             }, 500);
             setInterval(loadClassData, 10000);
             setInterval(() => loadAttendance(user.uid), 10000);
@@ -277,6 +378,7 @@
                 scoresContent.classList.remove('hidden');
                 scoresTab.classList.add('text-white', 'border-primary-500');
                 scoresTab.classList.remove('text-gray-500', 'border-transparent');
+                if (window.studentGrades) window.studentGrades.reload();
             }
         }
 

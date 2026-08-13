@@ -24,6 +24,16 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/feather-icons"></script>
+    <style>
+        @keyframes idShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .shake { animation: idShake 0.4s ease-in-out; }
+    </style>
     <script>
         tailwind.config = {
             darkMode: 'class', theme: { extend: { colors: { primary: { DEFAULT: '#ea2628', 50: '#fef2f2', 100: '#fee2e2', 500: '#ea2628', 600: '#dc2626', 700: '#b91c1c', 900: '#7f1d1d' }, secondary: { 500: '#9d8989', 600: '#826a6a' }, dark: { bg: '#0f1115', surface: '#181b21', border: '#2a2e35' } }, fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
@@ -88,27 +98,27 @@
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-2">Student ID</label>
+                                        <label id="studentIdLabel" class="block text-sm font-medium text-gray-300 mb-2">Student ID</label>
                                         <div class="relative">
                                             <i data-feather="hash" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
-                                            <input type="text" name="user_id" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="ST-00000">
+                                            <input type="text" name="user_id" id="studentIdInput" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="20250001">
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
+                                        <label id="phoneLabel" class="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
                                         <div class="relative">
                                             <i data-feather="phone" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
-                                            <input type="tel" name="phone" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="0912-345-6789">
+                                            <input type="tel" name="phone" id="phoneInput" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="09123456789">
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-300 mb-2">Guardian Phone</label>
+                                        <label id="guardianPhoneLabel" class="block text-sm font-medium text-gray-300 mb-2">Guardian Phone</label>
                                         <div class="relative">
                                             <i data-feather="users" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"></i>
-                                            <input type="tel" name="guardian_phone" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="0912-345-6789">
+                                            <input type="tel" name="guardian_phone" id="guardianPhoneInput" required class="w-full bg-dark-bg border border-dark-border rounded-lg pl-9 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all text-sm" placeholder="09123456789">
                                         </div>
                                     </div>
                                 </div>
@@ -253,6 +263,37 @@
         const btnText = document.getElementById('btnText');
         const btnLoader = document.getElementById('btnLoader');
         const btnIcon = document.getElementById('btnIcon');
+        const studentIdInput = document.getElementById('studentIdInput');
+        const studentIdLabel = document.getElementById('studentIdLabel');
+        const phoneInput = document.getElementById('phoneInput');
+        const phoneLabel = document.getElementById('phoneLabel');
+        const guardianPhoneInput = document.getElementById('guardianPhoneInput');
+        const guardianPhoneLabel = document.getElementById('guardianPhoneLabel');
+
+        const vibrateLabel = (label) => {
+            if (!label) return;
+            label.classList.remove('shake');
+            void label.offsetWidth;
+            label.classList.add('shake');
+        };
+
+        const constrainDigits = (input, label, max) => {
+            const digits = input.value.replace(/\D/g, '').slice(0, max);
+            if (digits !== input.value) {
+                vibrateLabel(label);
+                input.value = digits;
+            }
+        };
+
+        if (studentIdInput) {
+            studentIdInput.addEventListener('input', () => constrainDigits(studentIdInput, studentIdLabel, 8));
+        }
+        if (phoneInput) {
+            phoneInput.addEventListener('input', () => constrainDigits(phoneInput, phoneLabel, 11));
+        }
+        if (guardianPhoneInput) {
+            guardianPhoneInput.addEventListener('input', () => constrainDigits(guardianPhoneInput, guardianPhoneLabel, 11));
+        }
 
         if(registerForm) {
             registerForm.addEventListener('submit', async (e) => {
@@ -264,6 +305,18 @@
                 // Validation
                 if (data.password !== data.confirm_password) return showStatus("Passwords do not match!", 'error');
                 if (data.password.length < 6) return showStatus("Password must be at least 6 characters.", 'error');
+                if (!/^\d{1,8}$/.test(data.user_id)) {
+                    vibrateLabel(studentIdLabel);
+                    return showStatus("Student ID must be 8 digits maximum.", 'error');
+                }
+                if (!/^\d{1,11}$/.test(data.phone)) {
+                    vibrateLabel(phoneLabel);
+                    return showStatus("Phone number must be 11 digits maximum.", 'error');
+                }
+                if (!/^\d{1,11}$/.test(data.guardian_phone)) {
+                    vibrateLabel(guardianPhoneLabel);
+                    return showStatus("Guardian phone must be 11 digits maximum.", 'error');
+                }
 
                 // Loading State
                 submitBtn.disabled = true;
