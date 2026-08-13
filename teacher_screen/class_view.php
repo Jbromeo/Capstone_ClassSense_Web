@@ -74,21 +74,11 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <input id="globalSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-xs rounded-full focus:ring-primary-500 focus:border-primary-500 block w-48 pl-10 p-2.5 transition-all focus:w-64 placeholder-gray-600 font-bold uppercase italic" placeholder="Search roster...">
                     </div>
                     <div class="relative">
-                        <button id="notificationBell" class="p-2 text-gray-400 hover:text-white transition-colors relative">
+                        <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors group">
                             <i data-feather="bell" class="w-5 h-5"></i>
-                            <span id="notificationBadge" class="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                            <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
                         </button>
-                        <div id="notificationDropdown" class="absolute right-0 top-full mt-3 w-[380px] bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl hidden animate-fade-in-up origin-top-right z-50 max-h-[480px] flex flex-col">
-                            <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 flex-shrink-0">
-                                <h3 class="text-sm font-black text-white italic uppercase tracking-tighter">Notifications</h3>
-                                <span id="notifDropdownCount" class="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic"></span>
-                            </div>
-                            <div id="notifDropdownBody" class="overflow-y-auto flex-1 custom-scrollbar">
-                                <div class="py-10 text-center opacity-40">
-                                    <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading...</p>
-                                </div>
-                            </div>
-                        </div>
+                        <?php include '../includes/notification_popover.php'; ?>
                     </div>
                 </div>
             </div>
@@ -110,15 +100,16 @@ require_once dirname(__DIR__) . '/core/init.php';
         <!-- Scrollable Page Content -->
         <div class="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8 relative">
             <div id="tabs-container" class="h-full">
-                <?php include 'tabs/tab_students.php'; ?>
-                <?php include 'tabs/tab_grading.php'; ?>
-                <?php include 'tabs/tab_attendance.php'; ?>
+                <?php include 'classes/class_roster.php'; ?>
+                <?php include 'classes/grading_center.php'; ?>
+                <?php include 'classes/attendance_history.php'; ?>
             </div>
         </div>
     </div>
 
     <!-- Modals -->
-    <?php include 'tabs/modals_class.php'; ?>
+    <?php include 'classes/modals_class.php'; ?>
+    <?php include 'classes/confirm_modal_class.php'; ?>
 
     <script type="module">
         import { api, initPage } from '../assets/js/custom-auth.js';
@@ -129,9 +120,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         const classId = urlParams.get('id');
         let cachedStudents = [];
         let lastClassSig = '';
-        let lastAlertsSig = '';
         let searchTerm = '';
-        let pendingAlerts = [];
         let classPollInterval = null;
 
         window.showToast = (message, type = 'success') => {
@@ -220,58 +209,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                 );
                 renderRoster(filtered);
             });
-        }
-
-        const bell = document.getElementById('notificationBell');
-        const dropdown = document.getElementById('notificationDropdown');
-        if (bell && dropdown) {
-            bell.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isHidden = dropdown.classList.contains('hidden');
-                if (isHidden) { renderNotificationDropdown(pendingAlerts); dropdown.classList.remove('hidden'); }
-                else { dropdown.classList.add('hidden'); }
-            });
-            document.addEventListener('click', (e) => {
-                if (!dropdown.contains(e.target) && !bell.contains(e.target)) dropdown.classList.add('hidden');
-            });
-        }
-
-        function renderNotificationDropdown(alerts) {
-            const body = document.getElementById('notifDropdownBody');
-            const countLabel = document.getElementById('notifDropdownCount');
-            if (!body) return;
-            const total = alerts.reduce((sum, a) => sum + a.missingCount, 0);
-            if (countLabel) countLabel.textContent = total > 0 ? `${total} pending` : '';
-            if (alerts.length === 0) {
-                body.innerHTML = `<div class="py-10 text-center"><div class="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center"><i data-feather="check-circle" class="w-6 h-6 text-green-400"></i></div><p class="text-xs font-black text-green-400 uppercase tracking-widest italic">All Clear</p><p class="text-[9px] text-gray-600 mt-1 italic">No pending items.</p></div>`;
-                feather.replace(); return;
-            }
-            const topAlerts = alerts.sort((a, b) => b.missingCount - a.missingCount).slice(0, 20);
-            body.innerHTML = topAlerts.map(a => {
-                const severity = a.pct >= 95 ? 'green' : (a.pct >= 75 ? 'amber' : 'red');
-                return `<div class="flex items-start gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors cursor-pointer border-b border-white/5 last:border-0" onclick="window.location.href='class_view.php?id=${a.classId}'"><div class="w-8 h-8 mt-0.5 rounded-full bg-${severity}-500/10 flex items-center justify-center flex-shrink-0"><i data-feather="${severity === 'green' ? 'check-circle' : (severity === 'amber' ? 'alert-octagon' : 'alert-circle')}" class="w-4 h-4 text-${severity}-400"></i></div><div class="flex-1 min-w-0"><p class="text-sm font-bold text-white truncate">${a.className}</p><p class="text-xs text-gray-400 truncate">${a.itemName} — <span class="text-${severity}-400 font-bold">${a.missingCount} ${a.missingCount === 1 ? 'student needs' : 'students need'} grading</span></p><div class="flex items-center gap-3 mt-1.5"><span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">${a.gradedCount}/${a.enrolledCount} graded</span><div class="flex-1 h-1 bg-dark-bg rounded-full max-w-[80px] overflow-hidden"><div class="h-full bg-${severity}-500 rounded-full" style="width: ${a.pct}%"></div></div></div></div></div>`;
-            }).join('');
-            feather.replace();
-        }
-
-        async function loadPendingAlerts() {
-            try {
-                const stats = await window.api('/stats.php');
-                const sig = JSON.stringify(stats);
-                if (sig === lastAlertsSig) return;
-                lastAlertsSig = sig;
-                pendingAlerts = stats.grade_alerts || [];
-                const totalPending = stats.pending_grading || 0;
-                const badge = document.getElementById('notificationBadge');
-                if (badge) {
-                    if (totalPending > 0) {
-                        badge.textContent = totalPending > 9 ? '9+' : totalPending;
-                        badge.className = 'absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[8px] font-black text-white bg-primary-500 rounded-full ring-2 ring-dark-bg';
-                    } else {
-                        badge.classList.add('hidden');
-                    }
-                }
-            } catch (e) { console.warn("Alert load failed:", e); }
         }
 
         async function fetchStudentDetails(uids) {
@@ -375,6 +312,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 cachedStudents = fullStudentData;
                 applyStatusUI(classData);
                 initGradingSystem(classData, fullStudentData);
+                if (window.attendanceHistory) window.attendanceHistory.init(classData.id);
                 if (!searchTerm) renderRoster(fullStudentData);
                 else {
                     const filtered = fullStudentData.filter(s =>
@@ -400,8 +338,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         initPage(() => {
             setTimeout(() => loadClassData(), 500);
             classPollInterval = setInterval(loadClassData, 5000);
-            loadPendingAlerts();
-            setInterval(loadPendingAlerts, 30000);
         });
 
         document.addEventListener('DOMContentLoaded', () => {

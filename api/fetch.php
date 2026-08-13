@@ -82,9 +82,10 @@ if ($method === 'POST') {
                 'student_id' => $u['student_id'] ?? '',
                 'employeeId' => $u['employee_id'] ?? '',
                 'employee_id' => $u['employee_id'] ?? '',
-                'department' => $u['department'] ?? '',
                 'profilePicture' => $u['profile_picture'] ?? '',
                 'profile_picture' => $u['profile_picture'] ?? '',
+                'phone' => $u['phone'] ?? '',
+                'guardianPhone' => $u['guardian_phone'] ?? '',
                 'exists' => true,
             ];
         }
@@ -96,8 +97,9 @@ if ($method === 'POST') {
                     'uid' => $ruid, 'role' => '', 'firstName' => '', 'lastName' => '',
                     'first_name' => '', 'last_name' => $collection === 'students' ? 'Student' : '',
                     'email' => '', 'studentId' => '', 'student_id' => '',
-                    'employeeId' => '', 'employee_id' => '', 'department' => '',
+                    'employeeId' => '', 'employee_id' => '',
                     'profilePicture' => '', 'profile_picture' => '',
+                    'phone' => '', 'guardianPhone' => '',
                     'exists' => false,
                 ];
             }
@@ -112,11 +114,13 @@ if ($method === 'POST') {
         $username = array_key_exists('username', $data) ? trim($data['username']) : null;
         $studentId = array_key_exists('studentId', $data) ? $data['studentId'] :
                      (array_key_exists('student_id', $data) ? $data['student_id'] : null);
-        $employeeId = array_key_exists('employeeId', $data) ? $data['employeeId'] :
-                      (array_key_exists('employee_id', $data) ? $data['employee_id'] : null);
-        $department = array_key_exists('department', $data) ? $data['department'] : null;
-        $profilePicture = array_key_exists('profilePicture', $data) ? $data['profilePicture'] :
+$employeeId = array_key_exists('employeeId', $data) ? $data['employeeId'] :
+                       (array_key_exists('employee_id', $data) ? $data['employee_id'] : null);
+$profilePicture = array_key_exists('profilePicture', $data) ? $data['profilePicture'] :
                           (array_key_exists('profile_picture', $data) ? $data['profile_picture'] : null);
+        $phone = array_key_exists('phone', $data) ? trim($data['phone']) : null;
+        $guardianPhone = array_key_exists('guardianPhone', $data) ? trim($data['guardianPhone']) :
+                         (array_key_exists('guardian_phone', $data) ? trim($data['guardian_phone']) : null);
 
         $stmt = $pdo->prepare("SELECT 1 FROM users WHERE uid = ?");
         $stmt->execute([$data['uid']]);
@@ -132,8 +136,9 @@ if ($method === 'POST') {
             if ($lastName !== null)    { $set[] = 'last_name = ?';      $params[] = $lastName; }
             if ($studentId !== null)   { $set[] = 'student_id = ?';     $params[] = $studentId; }
             if ($employeeId !== null)  { $set[] = 'employee_id = ?';    $params[] = $employeeId; }
-            if ($department !== null)  { $set[] = 'department = ?';     $params[] = $department; }
             if ($profilePicture !== null) { $set[] = 'profile_picture = ?'; $params[] = $profilePicture; }
+            if ($phone !== null)          { $set[] = 'phone = ?';          $params[] = $phone; }
+            if ($guardianPhone !== null)  { $set[] = 'guardian_phone = ?'; $params[] = $guardianPhone; }
 
             if (!empty($set)) {
                 $params[] = $data['uid'];
@@ -142,7 +147,7 @@ if ($method === 'POST') {
             }
         } else {
             $passwordHash = $data['password_hash'] ?? password_hash(bin2hex(random_bytes(4)), PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, first_name, last_name, student_id, employee_id, department, profile_picture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, first_name, last_name, student_id, employee_id, profile_picture, phone, guardian_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $data['uid'],
                 $username ?? ($data['username'] ?? ''),
@@ -152,8 +157,9 @@ if ($method === 'POST') {
                 $lastName ?? '',
                 $studentId ?? '',
                 $employeeId ?? null,
-                $department ?? null,
                 $profilePicture ?? '',
+                $phone ?? null,
+                $guardianPhone ?? null,
             ]);
         }
         jsonResponse(['success' => true]);
@@ -179,13 +185,13 @@ if ($method === 'GET') {
             'email' => $user['username'] ?? '',
             'studentId' => $user['student_id'] ?? '', 'student_id' => $user['student_id'] ?? '',
             'employeeId' => $user['employee_id'] ?? '', 'employee_id' => $user['employee_id'] ?? '',
-            'department' => $user['department'] ?? '',
             'profilePicture' => $user['profile_picture'] ?? '', 'profile_picture' => $user['profile_picture'] ?? '',
+            'phone' => $user['phone'] ?? '', 'guardianPhone' => $user['guardian_phone'] ?? '',
         ]);
     }
 
     if ($collection === 'teachers') {
-        $stmt = $pdo->query("SELECT uid, username, first_name, last_name, employee_id, department FROM users WHERE role = 'teacher' ORDER BY first_name, last_name");
+        $stmt = $pdo->query("SELECT uid, username, first_name, last_name, employee_id FROM users WHERE role = 'teacher' ORDER BY first_name, last_name");
         $users = $stmt->fetchAll();
         $results = [];
         foreach ($users as $u) {
@@ -196,7 +202,6 @@ if ($method === 'GET') {
                 'email' => $u['username'] ?? '',
                 'employeeId' => $u['employee_id'] ?? '',
                 'employee_id' => $u['employee_id'] ?? '',
-                'department' => $u['department'] ?? '',
             ];
         }
         jsonResponse($results);

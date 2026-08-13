@@ -35,6 +35,26 @@ if ($method === 'GET') {
         jsonResponse($stmt->fetchAll());
     }
 
+    // Student-specific attendance history (no class_id supplied):
+    //  - a student may read their OWN records,
+    //  - a teacher may read a student enrolled in one of their classes,
+    //  - an admin may read any student's records.
+    if ($studentUid && !$classId) {
+        if ($studentUid !== $uid && !$isAdmin) {
+            if (!$uid) {
+                jsonResponse(['error' => 'Unauthorized'], 403);
+            }
+            $chk = $pdo->prepare("SELECT 1 FROM class_students cs JOIN classes c ON cs.class_id = c.id WHERE cs.student_uid = ? AND c.teacher_uid = ?");
+            $chk->execute([$studentUid, $uid]);
+            if (!$chk->fetch()) {
+                jsonResponse(['error' => 'Unauthorized'], 403);
+            }
+        }
+        $stmt = $pdo->prepare("SELECT * FROM attendance WHERE student_uid = ? ORDER BY date DESC");
+        $stmt->execute([$studentUid]);
+        jsonResponse($stmt->fetchAll());
+    }
+
     if ($classId && $date) {
         // Scope by class ownership
         if (!$isAdmin) {
@@ -76,6 +96,38 @@ if ($method === 'POST') {
     }
 
     $classId = $data['class_id'];
+
+    // --- Teacher manual marking (teacher sets Present/Late/Absent for any enrolled student) ---
+    // Bypasses QR/nonce/session checks; authorized only to the owning teacher (or admin).
+    if (!empty($data['manual'])) {
+        $manualStudentUid = $data['student_uid'] ?? null;
+        $manualStatus = $data['status'] ?? null;
+        $manualDate = $data['date'] ?? date('Y-m-d');
+        if (!$manualStudentUid || !in_array($manualStatus, ['Present', 'Late', 'Absent'], true)) {
+            jsonResponse(['error' => 'manual requires student_uid and a valid status (Present/Late/Absent)'], 400);
+        }
+
+        $isAdmin = ($uid && fetchUserRole($pdo, $uid) === 'admin');
+        $stmt = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
+        $stmt->execute([$classId]);
+        $class = $stmt->fetch();
+        if (!$class) {
+            jsonResponse(['error' => 'Class not found'], 404);
+        }
+        if (!$isAdmin && $class['teacher_uid'] !== $uid) {
+            jsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        // UPSERT: remove any existing record for this class/date/student, then insert manual status
+        $del = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND date = ?");
+        $del->execute([$classId, $manualStudentUid, $manualDate]);
+        $ip = clientIp();
+        $ins = $pdo->prepare("INSERT INTO attendance (student_uid, class_id, date, timestamp, status, ip_address, session_id, lat, lng, device_uuid, is_mock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $ins->execute([$manualStudentUid, $classId, $manualDate, date('Y-m-d H:i:s'), $manualStatus, $ip, null, null, null, null, null]);
+
+        jsonResponse(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'status' => $manualStatus], 201);
+    }
+
     // Security: the authenticated uid is ALWAYS the recorded student — clients cannot
     // record attendance for other accounts by forging student_uid.
     $studentUid = $uid;
@@ -169,6 +221,39 @@ if ($method === 'POST') {
     $stmt->execute([$studentUid, $classId, $date, $timestamp, $status, $ip, $class['session_id'], $clientLat, $clientLng, $deviceUuid, $isMock]);
 
     jsonResponse(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'status' => $status], 201);
+}
+
+if ($method === 'DELETE') {
+    // Discard attendance records (wrong scan / fraud correction).
+    // A single record when student_uid is given; ALL records for the
+    // class/date when student_uid is omitted (full-session discard).
+    // Only the owning teacher (or an admin) may discard records.
+    $classId = $_GET['class_id'] ?? null;
+    $studentUid = $_GET['student_uid'] ?? null;
+    if (!$classId) {
+        jsonResponse(['error' => 'Missing class_id'], 400);
+    }
+
+    $isAdmin = ($uid && (fetchUserRole($pdo, $uid) === 'admin'));
+    if (!$isAdmin) {
+        $t = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
+        $t->execute([$classId]);
+        $c = $t->fetch();
+        if (!$c || $c['teacher_uid'] !== $uid) {
+            jsonResponse(['error' => 'Unauthorized'], 403);
+        }
+    }
+
+    $date = $_GET['date'] ?? date('Y-m-d');
+    if ($studentUid) {
+        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND date = ?");
+        $stmt->execute([$classId, $studentUid, $date]);
+    } else {
+        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND date = ?");
+        $stmt->execute([$classId, $date]);
+    }
+
+    jsonResponse(['success' => true, 'deleted' => $stmt->rowCount()]);
 }
 
 jsonResponse(['error' => 'Method not allowed'], 405);

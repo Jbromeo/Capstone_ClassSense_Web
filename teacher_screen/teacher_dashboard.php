@@ -34,31 +34,29 @@ require_once dirname(__DIR__) . '/core/init.php';
                 <h2 class="text-xl font-bold text-white hidden sm:block">Dashboard</h2>
             </div>
             <div class="flex items-center gap-4">
-                <div class="relative hidden md:block group">
+                <div class="relative hidden md:block">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
                     </div>
                     <input id="classSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search classes...">
-                </div>
-                <div class="relative">
-                    <button id="notificationBell" class="p-2 text-gray-400 hover:text-white transition-colors relative">
-                        <i data-feather="bell"></i>
-                        <span id="notificationBadge" class="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
-                    </button>
-                    <div id="notificationDropdown" class="absolute right-0 top-full mt-3 w-[380px] bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl hidden animate-fade-in-up origin-top-right z-50 max-h-[480px] flex flex-col">
-                        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 flex-shrink-0">
-                            <h3 class="text-sm font-black text-white italic uppercase tracking-tighter">Notifications</h3>
-                            <span id="notifDropdownCount" class="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic"></span>
+                    <div id="searchPanel" class="hidden absolute top-full right-0 mt-3 w-96 glass-panel rounded-2xl border border-white/10 shadow-2xl z-50 overflow-hidden" style="max-height: 480px;">
+                        <div class="p-4 border-b border-dark-border flex items-center justify-between">
+                            <h4 class="text-xs font-black text-white uppercase tracking-widest">Classes</h4>
+                            <span id="searchResultCount" class="hidden px-2 py-0.5 bg-primary-500/20 text-primary-400 text-[9px] font-black rounded-full"></span>
                         </div>
-                        <div id="notifDropdownBody" class="overflow-y-auto flex-1 custom-scrollbar">
-                            <div class="py-10 text-center opacity-40">
-                                <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading...</p>
+                        <div id="searchResultsList" class="overflow-y-auto" style="max-height: 360px;">
+                            <div class="p-8 text-center">
+                                <p class="text-[10px] text-gray-500 font-black uppercase tracking-widest italic">Type to search classes...</p>
                             </div>
                         </div>
-                        <div class="p-3 border-t border-white/5 flex-shrink-0">
-                            <a href="classes.php" class="block w-full py-2.5 text-xs font-black text-center text-primary-400 hover:text-white hover:bg-primary-500 rounded-xl transition-all uppercase tracking-[0.2em] italic">View All Grades</a>
-                        </div>
                     </div>
+                </div>
+                <div class="relative">
+                    <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors group">
+                        <i data-feather="bell"></i>
+                        <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
+                    </button>
+                    <?php include '../includes/notification_popover.php'; ?>
                 </div>
                 <button class="p-2 text-gray-400 hover:text-white transition-colors md:hidden">
                     <i data-feather="search"></i>
@@ -68,7 +66,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         <main class="flex-1 overflow-y-auto p-4 md:p-8">
             <!-- Stats Row -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 <div class="glass-panel p-5 rounded-xl border-l-4 border-l-blue-500 hover-card">
                     <div class="flex justify-between items-start">
                         <div>
@@ -79,7 +77,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <i data-feather="users" class="w-5 h-5"></i>
                         </div>
                     </div>
-                    <p class="text-xs text-green-400 mt-2 flex items-center gap-1"><i data-feather="trending-up" class="w-3 h-3"></i> +12% from last semester</p>
                 </div>
 
                 <div class="glass-panel p-5 rounded-xl border-l-4 border-l-primary-500 hover-card">
@@ -92,7 +89,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <i data-feather="book-open" class="w-5 h-5"></i>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">Admin assigned</p>
                 </div>
 
                 <div class="glass-panel p-5 rounded-xl border-l-4 border-l-purple-500 hover-card">
@@ -105,20 +101,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <i data-feather="check-circle" class="w-5 h-5"></i>
                         </div>
                     </div>
-                    <p id="statAttendanceTrend" class="text-xs text-gray-400 mt-2 italic">Calculating...</p>
-                </div>
-
-                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-amber-500 hover-card">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Pending Grading</p>
-                            <h3 id="statPendingGrading" class="text-2xl font-bold text-white mt-1">---</h3>
-                        </div>
-                        <div class="p-2 bg-amber-500/10 rounded-lg text-amber-500">
-                            <i data-feather="clock" class="w-5 h-5"></i>
-                        </div>
-                    </div>
-                    <p class="text-xs text-amber-400 mt-2">Due this week</p>
                 </div>
             </div>
 
@@ -130,7 +112,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <h3 class="text-lg font-bold text-white flex items-center gap-2">
                                 <i data-feather="calendar" class="w-5 h-5 text-primary-500"></i> Today's Schedule
                             </h3>
-                            <button onclick="window.location.href='schedule.php'" class="text-xs text-primary-400 hover:text-primary-300 transition-colors">View Calendar</button>
                         </div>
                         <div id="todayScheduleList" class="relative pl-2 space-y-0">
                             <!-- Populated by JS -->
@@ -185,19 +166,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <span class="text-xs font-medium">My Classes</span>
                             </button>
                         </div>
-                    </div>
-
-                    <div class="glass-panel rounded-xl p-6 flex-1">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-bold text-white">Quiz & Grade Alerts</h3>
-                            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                        </div>
-                        <div id="gradeAlertsList" class="space-y-5">
-                            <div class="py-8 text-center opacity-40">
-                                <p class="text-xs text-gray-500 italic uppercase tracking-widest">Loading grade data...</p>
-                            </div>
-                        </div>
-                        <button onclick="window.location.href='classes.php'" class="w-full mt-6 py-2 text-xs text-center text-gray-400 hover:text-white transition-colors border border-dark-border rounded-lg hover:bg-white/5">Manage All Alerts</button>
                     </div>
                 </div>
             </div>
@@ -267,10 +235,66 @@ require_once dirname(__DIR__) . '/core/init.php';
         let allClasses = [];
         let lastDashboardSig = '';
 
-        // Search bar
+        // Search bar + popover
         const searchInput = document.getElementById('classSearchInput');
+        const searchPanel = document.getElementById('searchPanel');
+        const searchResultsList = document.getElementById('searchResultsList');
+        const searchResultCount = document.getElementById('searchResultCount');
+
+        function renderSearchResults(term) {
+            term = (term || '').toLowerCase().trim();
+            const filtered = term
+                ? allClasses.filter(c =>
+                    (c.class_name && c.class_name.toLowerCase().includes(term)) ||
+                    (c.subject && c.subject.toLowerCase().includes(term)) ||
+                    (c.section_name && c.section_name.toLowerCase().includes(term)))
+                : allClasses;
+
+            if (searchResultCount) {
+                searchResultCount.textContent = filtered.length;
+                searchResultCount.classList.toggle('hidden', filtered.length === 0);
+            }
+
+            if (filtered.length === 0) {
+                searchResultsList.innerHTML = `<div class="p-8 text-center"><div class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3"><i data-feather="search" class="w-5 h-5 text-gray-600"></i></div><p class="text-[11px] text-gray-500 font-medium">No classes match "${term}"</p></div>`;
+                feather.replace();
+                return;
+            }
+
+            const showAll = !term && allClasses.length <= 8;
+            const results = showAll ? filtered : filtered.slice(0, 8);
+
+            searchResultsList.innerHTML = results.map(c => `
+                <div class="search-item px-4 py-3 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors" onclick="window.location.href='class_view.php?id=${c.id}'">
+                    <div class="flex gap-3">
+                        <div class="flex-shrink-0 w-8 h-8 bg-primary-500/10 rounded-full flex items-center justify-center mt-0.5">
+                            <i data-feather="book-open" class="w-4 h-4 text-primary-400"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center justify-between gap-2">
+                                <p class="text-xs font-bold text-white truncate">${c.class_name}</p>
+                                <span class="flex-shrink-0 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] uppercase font-black">${c.section_name || 'N/A'}</span>
+                            </div>
+                            <p class="text-[11px] text-gray-400 mt-0.5 truncate">${c.subject || ''} &bull; ${c.schedule || 'TBA'} &bull; ${c.time_slot || 'TBA'}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            if (!showAll && filtered.length > 8) {
+                searchResultsList.innerHTML += `<div class="px-4 py-3 text-center"><p class="text-[9px] text-gray-600 font-black uppercase tracking-widest italic">${filtered.length - 8} more &mdash; keep typing to narrow</p></div>`;
+            }
+            feather.replace();
+        }
+
         if (searchInput) {
+            searchInput.addEventListener('focus', () => {
+                renderSearchResults(searchInput.value);
+                searchPanel.classList.remove('hidden');
+            });
             searchInput.addEventListener('keyup', () => {
+                renderSearchResults(searchInput.value);
+                searchPanel.classList.remove('hidden');
                 const term = searchInput.value.toLowerCase().trim();
                 if (!term) {
                     renderClassesOverview(allClasses);
@@ -279,29 +303,13 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const filtered = allClasses.filter(c =>
                     (c.class_name && c.class_name.toLowerCase().includes(term)) ||
                     (c.subject && c.subject.toLowerCase().includes(term)) ||
-                    (c.section_code && c.section_code.toLowerCase().includes(term))
+                    (c.section_name && c.section_name.toLowerCase().includes(term))
                 );
                 renderClassesOverview(filtered);
             });
-        }
-
-        // Notification dropdown
-        const bell = document.getElementById('notificationBell');
-        const dropdown = document.getElementById('notificationDropdown');
-        if (bell && dropdown) {
-            bell.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isHidden = dropdown.classList.contains('hidden');
-                if (isHidden) {
-                    dropdown.classList.remove('hidden');
-                } else {
-                    dropdown.classList.add('hidden');
-                }
-            });
-
             document.addEventListener('click', (e) => {
-                if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
-                    dropdown.classList.add('hidden');
+                if (!searchPanel.contains(e.target) && !searchInput.contains(e.target)) {
+                    searchPanel.classList.add('hidden');
                 }
             });
         }
@@ -315,7 +323,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             try {
                 const classes = await api('/classes.php');
                 const sig = JSON.stringify(classes.map(c => [
-                    c.id, c.class_name, c.level, c.subject, c.section_code, c.class_code,
+                    c.id, c.class_name, c.level, c.subject, c.section_name, c.class_code,
                     c.schedule, c.start_time, c.end_time, c.time_slot, c.session_limit, c.status,
                     (c.students || []).slice().sort().join(',')
                 ]));
@@ -347,10 +355,9 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         }
 
-        function calculateAttendanceStats(classes) {
+        async function calculateAttendanceStats(classes) {
             if (classes.length === 0) {
                 document.getElementById('statAvgAttendance').textContent = '0%';
-                document.getElementById('statAttendanceTrend').textContent = 'No records found';
                 return;
             }
 
@@ -399,18 +406,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const prevWeekAvg = calcAvg(prevWeekRecords);
 
                 const avgDisplay = document.getElementById('statAvgAttendance');
-                const trendDisplay = document.getElementById('statAttendanceTrend');
 
                 avgDisplay.textContent = `${Math.round(lastWeekAvg)}%`;
-
-                if (prevWeekAvg > 0) {
-                    const diff = lastWeekAvg - prevWeekAvg;
-                    const isUp = diff >= 0;
-                    trendDisplay.className = `text-xs mt-2 flex items-center gap-1 ${isUp ? 'text-green-400' : 'text-primary-400'}`;
-                    trendDisplay.innerHTML = `<i data-feather="trending-${isUp ? 'up' : 'down'}" class="w-3 h-3"></i> ${isUp ? '+' : ''}${diff.toFixed(1)}% vs last week`;
-                } else {
-                    trendDisplay.textContent = "Insufficient historic data";
-                }
                 feather.replace();
 
             } catch (err) {
@@ -428,6 +425,19 @@ require_once dirname(__DIR__) . '/core/init.php';
             });
             document.getElementById('statTotalStudents').textContent = uniqueStudents.size;
             document.getElementById('statActiveClasses').textContent = classes.length;
+        }
+
+        const DAY_CHIP_ORDER = ['M', 'T', 'W', 'TH', 'F', 'S', 'SU'];
+
+        function renderDayChips(schedule) {
+            if (!schedule) return '';
+            const chips = DAY_CHIP_ORDER.map(code => {
+                const active = schedule.includes(code);
+                if (!active) return '';
+                const isToday = code === CURRENT_DAY_CODE;
+                return `<span class="px-1.5 py-0.5 rounded ${isToday ? 'bg-primary-500 text-white font-black shadow-[0_0_8px_rgba(220,38,38,0.5)]' : 'bg-white/10 text-gray-400 font-bold'}">${code}</span>`;
+            }).join('');
+            return chips ? `<div class="flex items-center gap-1.5">${chips}</div>` : '';
         }
 
         function renderTodaySchedule(classes) {
@@ -464,8 +474,12 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <span class="text-sm ${isPast ? 'text-gray-600' : 'text-gray-300'} font-mono">${formatTime(c.start_time)} - ${formatTime(c.end_time)}</span>
                             </div>
                             <div class="flex items-center gap-4 text-[10px] text-gray-500 font-black uppercase tracking-widest italic tracking-tighter">
-                                <div class="flex items-center gap-1"><i data-feather="map-pin" class="w-3 h-3"></i> ${c.room || 'Room TBA'}</div>
+                                <div class="flex items-center gap-1"><i data-feather="book-open" class="w-3 h-3"></i> ${c.section_name || 'Section TBA'}</div>
                                 <div class="flex items-center gap-1"><i data-feather="users" class="w-3 h-3"></i> ${c.students ? c.students.length : 0} Students</div>
+                            </div>
+                            <div class="mt-3 flex items-center gap-1.5">
+                                <i data-feather="repeat" class="w-3 h-3 text-gray-600"></i>
+                                ${renderDayChips(c.schedule)}
                             </div>
                         </div>
                     </div>`;

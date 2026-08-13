@@ -37,9 +37,13 @@ require_once dirname(__DIR__) . '/core/init.php';
             </div>
 
             <div class="flex items-center gap-4">
-                <button class="relative p-2 text-gray-400 hover:text-white transition-colors">
+                <div class="relative">
+                <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors group">
                     <i data-feather="bell"></i>
+                    <span class="notif-dot hidden absolute top-1.5 right-1.5 block h-2 w-2 rounded-full ring-2 ring-dark-bg bg-primary-500"></span>
                 </button>
+                <?php include '../includes/notification_popover.php'; ?>
+            </div>
             </div>
         </header>
 
@@ -161,10 +165,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                                         <label class="block text-sm font-medium text-gray-400 mb-2 font-black uppercase tracking-widest italic leading-none opacity-60">Email Address</label>
                                         <input id="inEmail" type="email" placeholder="Email Address" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all italic font-medium">
                                     </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-400 mb-2 font-black uppercase tracking-widest italic leading-none opacity-60">Bio</label>
-                                        <textarea id="inBio" rows="3" placeholder="Tell us about yourself..." class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none italic font-medium"></textarea>
-                                    </div>
                                     <div class="flex justify-end">
                                         <button type="submit" class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg transition-all shadow-lg shadow-primary-500/20">
                                             Save Changes
@@ -194,21 +194,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                                     </div>
                                 </form>
                             </div>
-
-                            <div class="glass-panel rounded-xl p-8 border border-amber-500/20 bg-amber-500/5 animate-fade-in">
-                                <div class="flex items-start gap-4">
-                                    <div class="p-2 bg-amber-500/10 rounded-lg text-amber-400">
-                                        <i data-feather="shield" class="w-6 h-6"></i>
-                                    </div>
-                                    <div class="flex-1">
-                                        <h4 class="text-white font-bold mb-1">Two-Factor Authentication</h4>
-                                        <p class="text-sm text-gray-400 mb-4">Add an extra layer of security to your account by enabling 2FA.</p>
-                                        <button class="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-lg text-sm font-medium transition-colors">
-                                            Enable 2FA
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
 
                         <!-- NOTIFICATIONS TAB -->
@@ -216,16 +201,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <div class="glass-panel rounded-xl p-8 animate-fade-in">
                                 <h3 class="text-lg font-bold text-white mb-6">Notification Preferences</h3>
                                 <div class="space-y-6">
-                                    <div class="flex items-center justify-between p-4 bg-dark-bg/40 rounded-lg border border-dark-border">
-                                        <div>
-                                            <h4 class="text-white font-medium">Email Notifications</h4>
-                                            <p class="text-sm text-gray-500">Receive emails about your account activity.</p>
-                                        </div>
-                                        <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" checked class="sr-only peer">
-                                            <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-primary-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                                        </label>
-                                    </div>
                                     <div class="flex items-center justify-between p-4 bg-dark-bg/40 rounded-lg border border-dark-border">
                                         <div>
                                             <h4 class="text-white font-medium">Push Notifications</h4>
@@ -245,21 +220,13 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <div class="glass-panel rounded-xl p-8 animate-fade-in">
                                 <h3 class="text-lg font-bold text-white mb-6">System Preferences</h3>
                                 <div class="space-y-6">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-400 mb-2">Language</label>
-                                        <select class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none">
-                                            <option selected>English (US)</option>
-                                            <option>Spanish</option>
-                                            <option>French</option>
-                                        </select>
-                                    </div>
                                     <div class="flex items-center justify-between p-4 bg-dark-bg/40 rounded-lg border border-dark-border">
                                         <div>
                                             <h4 class="text-white font-medium">Dark Mode</h4>
                                             <p class="text-sm text-gray-500">Toggle between light and dark themes.</p>
                                         </div>
                                         <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" checked class="sr-only peer">
+                                            <input type="checkbox" id="darkModeToggle" class="sr-only peer">
                                             <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-primary-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                         </label>
                                     </div>
@@ -359,7 +326,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         window.updateProfile = async () => {
             const firstName = document.getElementById('inFirstName').value;
             const lastName = document.getElementById('inLastName').value;
-            const bio = document.getElementById('inBio').value;
 
             if (!currentUid) return showToast('Session identity lost.', 'error');
             if (!firstName || !lastName) return showToast('Identity parameters incomplete!', 'error');
@@ -374,8 +340,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                         role: 'teacher',
                         firstName: firstName,
                         lastName: lastName,
-                        full_name: `${firstName} ${lastName}`,
-                        bio: bio
+                        full_name: `${firstName} ${lastName}`
                     })
                 });
 
@@ -384,7 +349,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                 cached.firstName = firstName;
                 cached.lastName = lastName;
                 cached.full_name = `${firstName} ${lastName}`;
-                cached.bio = bio;
                 localStorage.setItem('cs_cached_profile', JSON.stringify(cached));
 
                 showToast('Professional profile updated.', 'success');
@@ -426,8 +390,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             const inputs = {
                 'inFirstName': data.firstName,
                 'inLastName': data.lastName,
-                'inEmail': data.email,
-                'inBio': data.bio
+                'inEmail': data.email
             };
 
             for (const [id, value] of Object.entries(inputs)) {
@@ -449,5 +412,6 @@ require_once dirname(__DIR__) . '/core/init.php';
     </script>
     <!-- Master Orchestration -->
     <script type="module" src="../assets/js/custom-auth.js"></script>
+    <script src="../assets/js/theme-toggle.js" defer></script>
 </body>
 </html>

@@ -54,7 +54,7 @@
 </aside>
 
 <!-- FLOATERS -->
-<div id="profilePopover" class="fixed w-56 bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden animate-fade-in-up origin-bottom z-50">
+<div id="profilePopover" class="fixed w-56 bg-dark-surface/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden animate-fade-in-up origin-bottom z-50">
     <div class="px-4 py-3 border-b border-white/5 mb-1">
         <p id="popoverName" class="text-[11px] font-black text-white truncate uppercase tracking-tighter">Student Account</p>
         <p class="text-[9px] text-gray-500 truncate lowercase font-bold tracking-widest mt-1 italic">Active Identity</p>

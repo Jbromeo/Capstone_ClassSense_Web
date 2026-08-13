@@ -6,6 +6,33 @@ $uid = verifyToken();
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = getPDO();
 
+// Ensure the class exists and is owned by the requesting teacher, else 403/404.
+function requireClassOwner($pdo, $uid, $classId) {
+    $stmt = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
+    $stmt->execute([$classId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        jsonResponse(['error' => 'Class not found'], 404);
+    }
+    if ($row['teacher_uid'] !== $uid) {
+        jsonResponse(['error' => 'Forbidden: you do not own this class'], 403);
+    }
+}
+
+// Resolve the owning class of a component and enforce teacher ownership.
+function requireComponentOwner($pdo, $uid, $componentId) {
+    $stmt = $pdo->prepare("SELECT gc.class_id, c.teacher_uid FROM grade_components gc JOIN classes c ON c.id = gc.class_id WHERE gc.id = ?");
+    $stmt->execute([$componentId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        jsonResponse(['error' => 'Component not found'], 404);
+    }
+    if ($row['teacher_uid'] !== $uid) {
+        jsonResponse(['error' => 'Forbidden: you do not own this class'], 403);
+    }
+    return $row['class_id'];
+}
+
 if ($method === 'GET') {
     $classId = $_GET['class_id'] ?? null;
     $quarter = (int)($_GET['quarter'] ?? 1);
@@ -13,6 +40,8 @@ if ($method === 'GET') {
     if (!$classId) {
         jsonResponse(['error' => 'Missing class_id'], 400);
     }
+
+    requireClassOwner($pdo, $uid, $classId);
 
     $components = [];
     $stmt = $pdo->prepare("SELECT id, category, name, hps, quarter FROM grade_components WHERE class_id = ? AND quarter = ? ORDER BY category, id");
@@ -38,7 +67,7 @@ if ($method === 'GET') {
     }
 
     if (empty($weights)) {
-        $weights = ['written' => 30, 'performance' => 50, 'exam' => 20, 'attendance' => 0];
+        $weights = ['written' => 0, 'performance' => 0, 'exam' => 0, 'attendance' => 0];
     }
 
     $classStmt = $pdo->prepare("SELECT id, class_name FROM classes WHERE id = ?");
@@ -69,10 +98,12 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Missing component_id or student_uid'], 400);
         }
 
-        $stmt = $pdo->prepare("SELECT 1 FROM grade_components WHERE id = ?");
-        $stmt->execute([$componentId]);
+        $classId = requireComponentOwner($pdo, $uid, $componentId);
+
+        $stmt = $pdo->prepare("SELECT 1 FROM class_students WHERE class_id = ? AND student_uid = ?");
+        $stmt->execute([$classId, $studentUid]);
         if (!$stmt->fetch()) {
-            jsonResponse(['error' => 'Component not found'], 404);
+            jsonResponse(['error' => 'Student is not enrolled in this class'], 403);
         }
 
         if ($score === null || $score === '') {
@@ -97,6 +128,17 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Missing class_id, category, or name'], 400);
         }
 
+        requireClassOwner($pdo, $uid, $classId);
+
+        // Weights must be configured (total 100%) before any component can be
+        // added — otherwise scores would be recorded with no weight to compute
+        // a final grade. This also gates the attendance auto-sync.
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(weight_percent), 0) AS total FROM grade_weights WHERE class_id = ?");
+        $stmt->execute([$classId]);
+        if ((int)$stmt->fetch()['total'] !== 100) {
+            jsonResponse(['error' => 'Set grading weights (total 100%) before adding components'], 400);
+        }
+
         $stmt = $pdo->prepare("INSERT INTO grade_components (class_id, category, name, hps, quarter) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$classId, $category, $name, $hps, $quarter]);
         $id = $pdo->lastInsertId();
@@ -111,6 +153,8 @@ if ($method === 'POST') {
         if (!$classId || !$weights) {
             jsonResponse(['error' => 'Missing class_id or weights'], 400);
         }
+
+        requireClassOwner($pdo, $uid, $classId);
 
         $allowed = ['written', 'performance', 'exam', 'attendance'];
         $total = 0;
@@ -142,6 +186,8 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Missing class_id or rows'], 400);
         }
 
+        requireClassOwner($pdo, $uid, $classId);
+
         $stmt = $pdo->prepare("MERGE grades AS target USING (SELECT ? AS component_id, ? AS student_uid, ? AS score) AS source ON target.component_id = source.component_id AND target.student_uid = source.student_uid WHEN MATCHED THEN UPDATE SET score = source.score, updated_at = GETDATE() WHEN NOT MATCHED THEN INSERT (component_id, student_uid, score) VALUES (source.component_id, source.student_uid, source.score);");
         foreach ($rows as $r) {
             if (!empty($r['component_id']) && !empty($r['student_uid']) && isset($r['score'])) {
@@ -164,6 +210,8 @@ if ($method === 'POST') {
 if ($method === 'DELETE') {
     $componentId = $_GET['component_id'] ?? null;
     if (!$componentId) jsonResponse(['error' => 'Missing component_id'], 400);
+
+    requireComponentOwner($pdo, $uid, $componentId);
 
     $stmt = $pdo->prepare("DELETE FROM grade_components WHERE id = ?");
     $stmt->execute([$componentId]);

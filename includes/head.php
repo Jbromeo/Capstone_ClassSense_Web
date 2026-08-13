@@ -9,8 +9,24 @@ $pathPrefix = (strpos($_SERVER['SCRIPT_NAME'], 'admin_screen') !== false ||
 ?>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+    // Theme bootstrapper: system-aware default, persisted override.
+    // Must run before first paint so there is no theme flash.
+    (function () {
+        try {
+            var saved = localStorage.getItem('cs_theme');
+            var theme = saved ||
+                (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+            document.documentElement.classList.toggle('dark', theme !== 'light');
+            window.csThemeIsLight = theme === 'light';
+        } catch (e) {
+            document.documentElement.classList.add('dark');
+            window.csThemeIsLight = false;
+        }
+    })();
+</script>
 <link rel="icon" type="image/png" href="<?php echo $pathPrefix; ?>assets/classsense-logo.png">
-<link rel="stylesheet" href="<?php echo $pathPrefix; ?>style.css">
+<link rel="stylesheet" href="<?php echo $pathPrefix; ?>style.css?v=<?php echo time(); ?>">
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/feather-icons"></script>

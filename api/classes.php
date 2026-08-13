@@ -12,16 +12,22 @@ if ($method === 'GET') {
         if ($studentUid !== $uid) {
             jsonResponse(['error' => 'Unauthorized'], 403);
         }
-        $stmt = $pdo->prepare("SELECT c.* FROM classes c JOIN class_students cs ON c.id = cs.class_id WHERE cs.student_uid = ? ORDER BY c.created_at DESC");
-        $stmt->execute([$studentUid]);
-        $classes = $stmt->fetchAll();
-        // Only include students that still exist in users (defends against orphan rows)
-        foreach ($classes as &$c) {
-            $stmt = $pdo->prepare("SELECT cs.student_uid FROM class_students cs JOIN users u ON u.uid = cs.student_uid WHERE cs.class_id = ?");
-            $stmt->execute([$c['id']]);
-            $c['students'] = array_column($stmt->fetchAll(), 'student_uid');
-        }
-        jsonResponse($classes);
+$stmt = $pdo->prepare("SELECT c.* FROM classes c JOIN class_students cs ON c.id = cs.class_id WHERE cs.student_uid = ? ORDER BY c.created_at DESC");
+    $stmt->execute([$studentUid]);
+    $classes = $stmt->fetchAll();
+    // Only include students that still exist in users (defends against orphan rows)
+    $todayAtt = $pdo->prepare("SELECT status FROM attendance WHERE class_id = ? AND student_uid = ? AND date = CONVERT(date, GETDATE())");
+    foreach ($classes as &$c) {
+        $stmt = $pdo->prepare("SELECT cs.student_uid FROM class_students cs JOIN users u ON u.uid = cs.student_uid WHERE cs.class_id = ?");
+        $stmt->execute([$c['id']]);
+        $c['students'] = array_column($stmt->fetchAll(), 'student_uid');
+        // Today's attendance snapshot for the student timeline (student branch only)
+        $todayAtt->execute([$c['id'], $studentUid]);
+        $attRow = $todayAtt->fetch();
+        $c['attendedToday'] = (bool)$attRow;
+        $c['todayStatus'] = $attRow ? $attRow['status'] : null;
+    }
+    jsonResponse($classes);
     }
 
     $teacherUid = $_GET['teacher_uid'] ?? $uid;
@@ -66,24 +72,28 @@ if ($method === 'GET') {
 
 if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!$data || empty($data['class_name']) || empty($data['section_code'])) {
-        jsonResponse(['error' => 'Missing required fields: class_name, section_code'], 400);
+    if (!$data || empty($data['class_name']) || empty($data['section_name'])) {
+        jsonResponse(['error' => 'Missing required fields: class_name, section_name'], 400);
     }
 
-    $id = $data['id'] ?? strtolower(bin2hex(random_bytes(16)));
+$id = $data['id'] ?? strtolower(bin2hex(random_bytes(16)));
     $classCode = $data['class_code'] ?? substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6);
+    $level = $data['level'] ?? 'Senior High School';
+    if (!in_array($level, ['Junior High School', 'Senior High School'], true)) {
+        jsonResponse(['error' => 'Level must be Junior High School or Senior High School'], 400);
+    }
     $timeSlot = $data['time_slot'] ?? '';
     if (empty($timeSlot) && !empty($data['start_time']) && !empty($data['end_time'])) {
         $timeSlot = formatTime($data['start_time']) . ' — ' . formatTime($data['end_time']);
     }
 
-    $stmt = $pdo->prepare("INSERT INTO classes (id, class_name, level, subject, section_code, class_code, schedule, start_time, end_time, time_slot, session_limit, teacher_uid, teacher_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())");
+    $stmt = $pdo->prepare("INSERT INTO classes (id, class_name, level, subject, section_name, class_code, schedule, start_time, end_time, time_slot, session_limit, teacher_uid, teacher_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())");
     $stmt->execute([
-        $id,
+$id,
         $data['class_name'],
-        $data['level'] ?? 'Senior High School',
+        $level,
         $data['subject'] ?? 'Computer Science',
-        strtoupper($data['section_code']),
+        $data['section_name'],
         $classCode,
         $data['schedule'] ?? '',
         $data['start_time'] ?? '',
@@ -115,9 +125,12 @@ if ($method === 'PUT') {
     // Client inputs are filtered through an allowlist; session expiry/limit are
     // SERVER-controlled (not settable by clients) so a scan window can't be
     // forged or extended remotely.
-    $allowedFields = ['class_name', 'level', 'subject', 'section_code', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m'];
-    foreach ($allowedFields as $f) {
+    $allowedFields = ['class_name', 'level', 'subject', 'section_name', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m'];
+foreach ($allowedFields as $f) {
         if (array_key_exists($f, $data)) {
+            if ($f === 'level' && !in_array($data[$f], ['Junior High School', 'Senior High School'], true)) {
+                jsonResponse(['error' => 'Level must be Junior High School or Senior High School'], 400);
+            }
             $fields[] = "$f = ?";
             $params[] = $data[$f];
         }
@@ -180,16 +193,10 @@ if ($method === 'PUT') {
         $fields[] = "session_limit = 0";
     }
 
-    // Fresh-start time-gate + authoritative expiry.
+    // Fresh-start + authoritative expiry. Schedule gate removed — teachers can
+    // start attendance at any time regardless of the class schedule window.
     if ($freshStart) {
         $win = classScheduleWindow($row['schedule'], $row['start_time'], $row['end_time']);
-        if ($win['scheduled'] && !$win['startable']) {
-            jsonResponse([
-                'error'        => 'Attendance can only be started during the class window.',
-                'window_label' => $win['windowLabel'] ?? '',
-                'next_label'   => $win['nextOpenLabel'] ?? '',
-            ], 409);
-        }
         if (!array_key_exists('session_started_at', $data)) {
             $fields[] = "session_started_at = GETDATE()";
         }

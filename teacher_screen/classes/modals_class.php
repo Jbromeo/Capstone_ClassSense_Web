@@ -1,4 +1,4 @@
-<!-- teacher_screen/tabs/modals_class.php -->
+<!-- teacher_screen/classes/modals_class.php -->
 
 <!-- MODAL: Add Component (Grading) -->
 <div id="addComponentModal" class="fixed inset-0 z-50 hidden group-modal">

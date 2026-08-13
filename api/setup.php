@@ -16,7 +16,6 @@ $queries = [
         last_name NVARCHAR(255),
         student_id NVARCHAR(50),
         employee_id NVARCHAR(50),
-        department NVARCHAR(100),
         profile_picture NVARCHAR(500),
         created_at DATETIME DEFAULT GETDATE()
     )",
@@ -36,7 +35,7 @@ $queries = [
         class_name NVARCHAR(255) NOT NULL,
         level NVARCHAR(100),
         subject NVARCHAR(255),
-        section_code NVARCHAR(50),
+        section_name NVARCHAR(50),
         class_code NVARCHAR(10),
         schedule NVARCHAR(50),
         start_time NVARCHAR(10),
@@ -51,6 +50,10 @@ $queries = [
         current_nonce NVARCHAR(10) NULL,
         created_at DATETIME DEFAULT GETDATE()
     )",
+
+    "-- Section name migration: rename classes.section_code -> section_name (keeps existing values)",
+    "IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('classes') AND name = 'section_code')
+    EXEC sp_rename 'classes.section_code', 'section_name', 'COLUMN'",
 
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='class_students' AND xtype='U')
     CREATE TABLE class_students (
@@ -111,6 +114,13 @@ $queries = [
 
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_radius_m')
     ALTER TABLE classes ADD session_radius_m INT DEFAULT 150",
+
+    "-- Contact columns for users (guardian contact for students)",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'phone')
+    ALTER TABLE users ADD phone NVARCHAR(20) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'guardian_phone')
+    ALTER TABLE users ADD guardian_phone NVARCHAR(20) NULL",
 
     "-- Audit columns for attendance (fraud detection trail)",
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'ip_address')
@@ -175,6 +185,42 @@ $queries = [
 
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_notifications_recipient')
     CREATE INDEX idx_notifications_recipient ON notifications(recipient_uid)",
+
+    "-- Grading center tables (components, scores, and weights per class/term)",
+    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='grade_components' AND xtype='U')
+    CREATE TABLE grade_components (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        class_id VARCHAR(36) NOT NULL,
+        category NVARCHAR(20) NOT NULL,
+        name NVARCHAR(255) NOT NULL,
+        hps INT NOT NULL DEFAULT 50,
+        quarter INT NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT GETDATE(),
+        CONSTRAINT fk_grade_components_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+    )",
+
+    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='grades' AND xtype='U')
+    CREATE TABLE grades (
+        component_id INT NOT NULL,
+        student_uid VARCHAR(128) NOT NULL,
+        score DECIMAL(10,2) NOT NULL,
+        updated_at DATETIME DEFAULT GETDATE(),
+        PRIMARY KEY (component_id, student_uid),
+        CONSTRAINT fk_grades_component FOREIGN KEY (component_id) REFERENCES grade_components(id) ON DELETE CASCADE,
+        CONSTRAINT fk_grades_student FOREIGN KEY (student_uid) REFERENCES users(uid) ON DELETE CASCADE
+    )",
+
+    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='grade_weights' AND xtype='U')
+    CREATE TABLE grade_weights (
+        class_id VARCHAR(36) NOT NULL,
+        category NVARCHAR(20) NOT NULL,
+        weight_percent INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (class_id, category),
+        CONSTRAINT fk_grade_weights_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+    )",
+
+    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_grade_components_class')
+    CREATE INDEX idx_grade_components_class ON grade_components(class_id, quarter)",
 
     "-- Forensic / integrity constraints: cascade deletes so no orphan rows survive.
     -- NOTE: classes.teacher_uid is intentionally NO ACTION (block) — cascading it

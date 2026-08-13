@@ -45,7 +45,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     
                     <div class="flex flex-col md:flex-row items-center gap-8 relative z-10">
                         <div class="relative">
-                            <img src="https://picsum.photos/seed/student123/150/150.jpg" class="w-32 h-32 rounded-3xl object-cover ring-4 ring-dark-bg shadow-2xl">
+                            <div id="profileAvatar" class="w-32 h-32 rounded-full bg-gradient-to-br from-primary-600 to-primary-900 flex items-center justify-center text-white font-black uppercase border border-white/10 shadow-2xl ring-4 ring-dark-bg" style="font-size:2.5rem"></div>
                             <button class="absolute -bottom-2 -right-2 p-3 bg-primary-600 rounded-2xl text-white shadow-lg shadow-primary-500/30 hover:scale-110 active:scale-95 transition-all">
                                 <i data-feather="camera" class="w-5 h-5"></i>
                             </button>
@@ -120,6 +120,30 @@ require_once dirname(__DIR__) . '/core/init.php';
                         </div>
                     </form>
                 </div>
+
+                <!-- Preferences -->
+                <div class="glass-panel rounded-3xl p-8 animate-fade-in-up">
+                    <div class="flex items-center gap-3 mb-8">
+                        <div class="p-2 bg-purple-500/10 rounded-xl text-purple-500">
+                            <i data-feather="settings" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white">System Preferences</h3>
+                            <p class="text-xs text-gray-500 uppercase tracking-tighter italic">Personalize your ClassSense experience</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-dark-bg/40 rounded-2xl border border-dark-border">
+                        <div>
+                            <h4 class="text-white font-medium">Dark Mode</h4>
+                            <p class="text-sm text-gray-500">Toggle between light and dark themes.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="darkModeToggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-primary-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                        </label>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -143,6 +167,10 @@ require_once dirname(__DIR__) . '/core/init.php';
             document.getElementById('formEmail').value = data.email || '';
             document.getElementById('formPhone').value = data.phone || "";
             document.getElementById('formGuardian').value = data.guardianPhone || "";
+
+            // Avatar: initials, matching the sidebar default photo
+            const initials = ((data.firstName?.[0] || '') + (data.lastName?.[0] || '')).toUpperCase() || 'ST';
+            document.getElementById('profileAvatar').textContent = initials;
             
             // Remove italics
             document.getElementById('profileFullName').classList.remove('italic');
@@ -218,9 +246,12 @@ require_once dirname(__DIR__) . '/core/init.php';
             feather.replace();
             setTimeout(() => { toast.remove(); }, 4000);
         }
+        window.showStatus = showStatus;
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { feather.replace(); });
     </script>
+    <script src="../assets/js/theme-toggle.js" defer></script>
+    <script type="module" src="student_auth.js"></script>
 </body>
 </html>

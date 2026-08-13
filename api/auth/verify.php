@@ -26,6 +26,8 @@ try {
         'lastName' => $user['last_name'] ?? '',
         'studentId' => $user['student_id'] ?? '',
         'profilePicture' => $user['profile_picture'] ?? '',
+        'phone' => $user['phone'] ?? '',
+        'guardianPhone' => $user['guardian_phone'] ?? '',
     ]);
 } catch (PDOException $e) {
     jsonResponse(['error' => 'Verification failed'], 500);

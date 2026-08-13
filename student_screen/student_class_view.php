@@ -221,7 +221,7 @@
                     hubName.classList.remove('italic');
                 }
                 if (hubDetails) {
-                    hubDetails.innerText = `${classData.teacher_name || 'Faculty'} • ${classData.schedule || 'TBA'} • ${classData.time_slot || 'TBA'} • ${classData.section_code}`;
+                    hubDetails.innerText = `${classData.teacher_name || 'Faculty'} • ${classData.schedule || 'TBA'} • ${classData.time_slot || 'TBA'} • ${classData.section_name}`;
                     hubDetails.classList.remove('italic');
                 }
 

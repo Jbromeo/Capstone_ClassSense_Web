@@ -1,4 +1,4 @@
-<!-- teacher_screen/tabs/tab_students.php -->
+<!-- teacher_screen/classes/class_roster.php -->
 <div id="tab-students" class="tab-content transition-all animate-fade-in">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div class="flex items-center gap-3">

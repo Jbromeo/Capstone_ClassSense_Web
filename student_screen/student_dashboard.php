@@ -105,14 +105,28 @@ require_once dirname(__DIR__) . '/core/init.php';
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
                  <!-- Schedule -->
                  <div class="glass-panel rounded-2xl p-6 border border-white/5">
-                    <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center justify-between mb-1">
                         <h3 class="text-lg font-black text-white uppercase tracking-tighter leading-none">Daily Timeline</h3>
-                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest opacity-60">Today's Schedule</span>
+                        <span id="tlDayChip" class="text-[9px] font-black text-primary-400 uppercase tracking-widest opacity-80">Syncing...</span>
                     </div>
-                    <div class="space-y-4">
-                        <div class="p-6 text-center">
-                            <p class="text-sm text-gray-500 font-medium">No classes scheduled for today</p>
+                    <p id="tlNextUp" class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-5 min-h-[14px]">Loading your schedule...</p>
+                    <div id="dailyTimeline" class="tl-root relative overflow-hidden">
+                        <!-- Skeleton (default) -->
+                        <div id="tlSkeleton" class="space-y-3 animate-pulse pt-4">
+                            <div class="h-12 bg-white/[0.04] rounded-xl"></div>
+                            <div class="h-12 bg-white/[0.04] rounded-xl"></div>
+                            <div class="h-12 bg-white/[0.04] rounded-xl"></div>
                         </div>
+                        <!-- Empty state (no classes today) -->
+                        <div id="tlEmpty" class="hidden py-12 text-center">
+                            <div class="mx-auto mb-4 w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/5 flex items-center justify-center">
+                                <i data-feather="calendar-off" class="w-6 h-6 text-gray-600"></i>
+                            </div>
+                            <p class="text-sm text-gray-400 font-bold">No subjects scheduled for today</p>
+                            <p class="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-1">You're free — or check My Classes</p>
+                        </div>
+                        <!-- Time grid (rendered by JS) -->
+                        <div id="tlGrid" class="hidden"></div>
                     </div>
                  </div>
 
@@ -134,6 +148,44 @@ require_once dirname(__DIR__) . '/core/init.php';
             </div>
         </main>
     </div>
+
+    <!-- Daily Timeline Styles -->
+    <style>
+        .tl-root { min-height: 120px; }
+        .tl-item {
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 16px; border-radius: 14px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
+            border: 1px solid rgba(255,255,255,0.07);
+            transition: border-color .2s, transform .2s, box-shadow .2s, opacity .2s;
+        }
+        .tl-item:hover { transform: translateX(4px); box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+        .tl-item.tl-live { border-color: rgba(74,222,128,0.45); box-shadow: 0 0 20px rgba(74,222,128,0.08); }
+        .tl-item.tl-done { opacity: 0.5; }
+        .tl-item.tl-done:hover { opacity: 0.85; }
+        .tl-time { display: flex; flex-direction: column; align-items: flex-end; min-width: 88px; }
+        .tl-time-start { font-size: 13px; font-weight: 900; color: #fff; letter-spacing: 0.01em; line-height: 1.1; }
+        .tl-time-end { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.38); letter-spacing: 0.08em; margin-top: 2px; }
+        .tl-title { font-size: 13px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tl-meta { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.40); letter-spacing: 0.08em; margin-top: 3px; text-transform: uppercase; }
+        .tl-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 8px; font-weight: 900; letter-spacing: 0.12em;
+            padding: 2px 7px; border-radius: 999px; text-transform: uppercase; white-space: nowrap;
+        }
+        .tl-badge-live { background: rgba(74,222,128,0.12); color: #4ade80; border: 1px solid rgba(74,222,128,0.25); }
+        .tl-badge-up   { background: rgba(96,165,250,0.10); color: #60a5fa; border: 1px solid rgba(96,165,250,0.22); }
+        .tl-badge-session { background: rgba(251,191,36,0.10); color: #fbbf24; border: 1px solid rgba(251,191,36,0.22); }
+        .tl-badge-done { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.40); border: 1px solid rgba(255,255,255,0.10); }
+        .tl-badge-ok   { color: #4ade80; }
+        .tl-badge-warn { color: #fbbf24; }
+        .tl-badge-miss { color: #f87171; }
+        .tl-dot {
+            width: 6px; height: 6px; border-radius: 999px; display: inline-block;
+            background: currentColor; animation: tlPulse 1.6s ease-in-out infinite;
+        }
+        @keyframes tlPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+    </style>
 
     <!-- LOGIC -->
     <script>
@@ -186,6 +238,157 @@ require_once dirname(__DIR__) . '/core/init.php';
     <script type="module">
         import { api } from '../assets/js/custom-auth.js';
 
+        // ===================== DAILY TIMELINE =====================
+        const TL_DAYS = ['SU', 'M', 'T', 'W', 'TH', 'F', 'S'];
+        let tlCache = [];
+        let tlStarted = false;
+
+        function tlDayCode(d) { return TL_DAYS[d.getDay()]; }
+
+        function tlTokens(s) {
+            const t = [];
+            s = String(s || '');
+            for (let j = 0; j < s.length;) {
+                const two = s.substr(j, 2);
+                if (two === 'TH' || two === 'SU') { t.push(two); j += 2; }
+                else { t.push(s[j]); j++; }
+            }
+            return t;
+        }
+
+        function tlOnDay(schedule, dayCode) { return tlTokens(schedule).includes(dayCode); }
+
+        function tlMin(t) {
+            if (!t) return null;
+            const p = String(t).split(':');
+            return parseInt(p[0], 10) * 60 + (parseInt(p[1], 10) || 0);
+        }
+
+        function tlFmt(t) {
+            if (!t) return 'TBA';
+            const p = String(t).split(':');
+            let h = parseInt(p[0], 10);
+            const m = p[1];
+            const ap = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return h + ':' + m + ' ' + ap;
+        }
+
+        function tlEsc(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        async function loadTimeline(user) {
+            try {
+                const classes = await api('/classes.php?student_uid=' + user.uid);
+                const now = new Date();
+                tlCache = (classes || []).filter(c => tlOnDay(c.schedule, tlDayCode(now)));
+                renderTimeline(now);
+            } catch (e) {
+                console.error('[timeline]', e);
+                const nextUp = document.getElementById('tlNextUp');
+                if (nextUp) nextUp.textContent = 'Timeline sync failed — refresh the page';
+            }
+        }
+
+        function renderTimeline(now) {
+            const grid = document.getElementById('tlGrid');
+            const skeleton = document.getElementById('tlSkeleton');
+            const empty = document.getElementById('tlEmpty');
+            const chip = document.getElementById('tlDayChip');
+            const nextUp = document.getElementById('tlNextUp');
+            if (!grid) return;
+
+            if (chip) {
+                chip.textContent = now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+            }
+
+            if (tlCache.length === 0) {
+                skeleton.classList.add('hidden');
+                empty.classList.remove('hidden');
+                grid.classList.add('hidden');
+                if (nextUp) nextUp.textContent = 'No classes today — you\'re free';
+                return;
+            }
+            empty.classList.add('hidden');
+
+            tlCache.sort((a, b) => tlMin(a.start_time) - tlMin(b.start_time));
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const upcoming = [];
+
+            let html = '<div class="space-y-3">';
+            tlCache.forEach(c => {
+                const s = tlMin(c.start_time);
+                const e = tlMin(c.end_time);
+                const end = (e === null || e <= s) ? (s === null ? nowMin : s + 60) : e;
+
+                // Status is decided from the CLIENT clock + class times, so the
+                // display never depends on the server's clock/timezone:
+                //  - before start time        → Upcoming
+                //  - inside the time window   → In Session (or Live Session when
+                //    the teacher started attendance: session_active = 1)
+                //  - after the end time       → Passed
+                const inWindow = s !== null && nowMin >= s && nowMin < end;
+                const live = inWindow && Number(c.session_active) === 1;
+                const inSession = inWindow && !live;
+                const done = !inWindow && end <= nowMin;
+                if (!done && !inWindow && (s === null || s > nowMin)) upcoming.push(c);
+
+                const accent = live ? 'border-l-green-500' : (inSession ? 'border-l-amber-500' : (done ? 'border-l-gray-700' : 'border-l-primary-500'));
+                const badge = live
+                    ? '<span class="tl-badge tl-badge-live"><span class="tl-dot"></span>Ongoing</span>'
+                    : inSession
+                        ? '<span class="tl-badge tl-badge-session"><span class="tl-dot"></span>In Progress</span>'
+                        : done
+                            ? '<span class="tl-badge tl-badge-done">Passed</span>'
+                            : '<span class="tl-badge tl-badge-up">Upcoming</span>';
+
+                let att = '';
+                if (c.attendedToday) {
+                    const late = c.todayStatus === 'Late';
+                    att = '<span class="tl-badge ' + (late ? 'tl-badge-warn' : 'tl-badge-ok') + '">' + (late ? 'Late' : '\u2713 Present') + '</span>';
+                } else if (done) {
+                    att = '<span class="tl-badge tl-badge-miss">Missed</span>';
+                }
+
+                html += '<a href="student_class_view.php?id=' + encodeURIComponent(c.id) + '" class="tl-item border-l-4 ' + accent + ' '
+                    + (live ? 'tl-live' : '') + (done ? ' tl-done' : '') + '">'
+                    + '<div class="tl-time"><span class="tl-time-start">' + tlFmt(c.start_time) + '</span>'
+                    + '<span class="tl-time-end">' + tlFmt(c.end_time) + '</span></div>'
+                    + '<div class="flex-1 min-w-0">'
+                    + '<div class="flex items-center justify-between gap-2">'
+                    + '<span class="tl-title">' + tlEsc(c.class_name) + '</span>'
+                    + '<span class="flex items-center gap-1.5">' + att + badge + '</span></div>'
+                    + '<div class="tl-meta">' + tlEsc(c.subject) + '<span class="opacity-50">&nbsp;&bull;&nbsp;</span>' + tlEsc(c.teacher_name) + '&nbsp;&bull;&nbsp;' + tlEsc(c.section_name) + '</div>'
+                    + '</div>'
+                    + '<i data-feather="chevron-right" class="w-4 h-4 text-gray-600"></i>'
+                    + '</a>';
+            });
+            html += '</div>';
+
+            grid.innerHTML = html;
+            grid.classList.remove('hidden');
+            skeleton.classList.add('hidden');
+            feather.replace();
+
+            if (nextUp) {
+                const anyLive = tlCache.some(c => {
+                    const s = tlMin(c.start_time);
+                    const e = tlMin(c.end_time);
+                    const end = (e === null || e <= s) ? (s === null ? nowMin : s + 60) : e;
+                    return s !== null && nowMin >= s && nowMin < end;
+                });
+                if (anyLive) {
+                    nextUp.textContent = 'In session right now — tap a subject to enter class';
+                } else if (upcoming.length) {
+                    const n = upcoming[0];
+                    nextUp.textContent = 'Next up: ' + n.class_name + ' at ' + tlFmt(n.start_time);
+                } else {
+                    nextUp.textContent = 'All subjects done for today';
+                }
+            }
+        }
+
         async function loadStats() {
             try {
                 const stats = await api('/student_stats.php');
@@ -222,9 +425,25 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         }
 
-        window.addEventListener('profileLoaded', () => loadStats());
+        window.addEventListener('profileLoaded', (e) => {
+            loadStats();
+            if (!tlStarted) {
+                tlStarted = true;
+                loadTimeline(e.detail || window.csProfile);
+                setInterval(() => renderTimeline(new Date()), 60000);
+                setInterval(() => loadTimeline(e.detail || window.csProfile), 30000);
+            }
+        });
         // Also try immediately if profile already loaded
-        if (window.csProfile) loadStats();
+        if (window.csProfile) {
+            loadStats();
+            if (!tlStarted) {
+                tlStarted = true;
+                loadTimeline(window.csProfile);
+                setInterval(() => renderTimeline(new Date()), 60000);
+                setInterval(() => loadTimeline(window.csProfile), 30000);
+            }
+        }
     </script>
 </body>
 </html>

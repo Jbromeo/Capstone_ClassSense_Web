@@ -37,15 +37,12 @@ const renderTeacherRow = (id, data, isNew = false) => {
                         <p class="text-xs ${isNew ? 'text-green-400 font-black italic' : 'text-gray-400 font-bold'} uppercase tracking-widest mt-2 italic flex items-center gap-2">
                             ${isNew ? '<span class="px-2 py-0.5 bg-green-500/20 rounded text-[9px]">Just Registered</span>' : 'Verified Educator'}
                         </p>
+                        </div>
                     </div>
-                </div>
-            </td>
-            <td class="px-8 py-6">
-                <div class="px-4 py-2 rounded-xl bg-dark-bg border border-dark-border text-xs font-black text-gray-400 uppercase inline-block italic tracking-widest">${data.department?.replace(/_/g, ' ') || 'N/A'}</div>
-            </td>
-            <td class="px-8 py-6 font-mono text-gray-400 text-sm font-black tracking-tight">
-                ${data.employeeId || data.employee_id || 'N/A'}
-            </td>
+                </td>
+                <td class="px-8 py-6 font-mono text-gray-400 text-sm font-black tracking-tight">
+                    ${data.employeeId || data.employee_id || 'N/A'}
+                </td>
             <td class="px-8 py-6 font-mono text-purple-400 text-sm font-black underline decoration-purple-500/30 tracking-tight">
                 ${data.username || data.email || ''}
             </td>
@@ -67,7 +64,7 @@ const syncRegistry = async () => {
         renderInitialBatch();
     } catch (err) {
         console.error("Sync Error:", err);
-        tableBody.innerHTML = `<tr><td colspan="5" class="px-8 py-20 text-center">
+        tableBody.innerHTML = `<tr><td colspan="4" class="px-8 py-20 text-center">
             <p class="text-gray-500 italic text-sm">Failed to load registry</p>
             <p class="text-gray-600 text-[10px] mt-1">${err.message || 'Connection error'}</p>
         </td></tr>`;
@@ -79,7 +76,7 @@ const renderInitialBatch = () => {
     const batch = filteredCache.slice(0, BATCH_SIZE);
     tableBody.innerHTML = batch.length ? 
         batch.map(t => renderTeacherRow(t.uid, t)).join('') : 
-        `<tr><td colspan="5" class="px-8 py-20 text-center text-gray-500 italic">No matching educators found.</td></tr>`;
+        `<tr><td colspan="4" class="px-8 py-20 text-center text-gray-500 italic">No matching educators found.</td></tr>`;
     
     countLabel.innerHTML = `<span>${filteredCache.length} Educators</span>`;
     hasMore = filteredCache.length > BATCH_SIZE;
@@ -148,8 +145,7 @@ searchInput.addEventListener('input', (e) => {
         (t.email || '').toLowerCase().includes(searchQuery) ||
         (t.firstName || '').toLowerCase().includes(searchQuery) ||
         (t.lastName || '').toLowerCase().includes(searchQuery) ||
-        (t.employeeId || '').toLowerCase().includes(searchQuery) ||
-        (t.department || '').toLowerCase().includes(searchQuery)
+        (t.employeeId || '').toLowerCase().includes(searchQuery)
     );
     renderInitialBatch();
     scrollArea.scrollTo({ top: 0 });
@@ -178,13 +174,12 @@ addForm.addEventListener('submit', async (e) => {
                 firstName: data.fname,
                 lastName: data.lname,
                 employeeId: data.employee_id,
-                department: data.department,
             })
         });
         const newTeacher = {
             uid: result.uid, firstName: data.fname, lastName: data.lname,
             email: data.username || `${data.username}@classsense.com`,
-            username: data.username, department: data.department,
+            username: data.username,
             employeeId: data.employee_id,
             role: 'teacher'
         };

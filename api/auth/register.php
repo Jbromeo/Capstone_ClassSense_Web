@@ -23,7 +23,8 @@ $firstName = capitalizeName($data['firstName'] ?? $data['first_name'] ?? '');
 $lastName = capitalizeName($data['lastName'] ?? $data['last_name'] ?? '');
 $studentId = $data['studentId'] ?? $data['student_id'] ?? null;
 $employeeId = $data['employeeId'] ?? $data['employee_id'] ?? null;
-$department = $data['department'] ?? null;
+$phone = $data['phone'] ?? null;
+$guardianPhone = $data['guardianPhone'] ?? $data['guardian_phone'] ?? null;
 
 if (!in_array($role, ['teacher', 'student'])) {
     jsonResponse(['error' => 'Role must be teacher or student'], 400);
@@ -57,8 +58,8 @@ if ($role === 'student' && $studentId) {
     }
 }
 
-$stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, first_name, last_name, student_id, employee_id, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->execute([$uid, $username, $passwordHash, $role, $firstName, $lastName, $studentId, $employeeId, $department]);
+$stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, first_name, last_name, student_id, employee_id, phone, guardian_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->execute([$uid, $username, $passwordHash, $role, $firstName, $lastName, $studentId, $employeeId, $phone, $guardianPhone]);
 
 // Mark pre-approved student ID as used
 if ($role === 'student' && $studentId) {
@@ -84,6 +85,5 @@ jsonResponse([
         'lastName' => $lastName,
         'studentId' => $studentId,
         'employeeId' => $employeeId,
-        'department' => $department,
     ]
 ], 201);

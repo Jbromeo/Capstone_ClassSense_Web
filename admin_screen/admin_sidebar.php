@@ -39,6 +39,11 @@
             Manage Students
         </a>
 
+        <a href="admin_settings.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'admin_settings.php' ? 'active shadow-lg shadow-purple-500/10 text-purple-500' : 'text-gray-400'; ?> rounded-lg">
+            <i data-feather="settings" class="w-5 h-5 mr-3 <?php echo $current_page == 'admin_settings.php' ? 'text-purple-500' : 'text-gray-500'; ?> group-hover:text-purple-500 transition-colors"></i>
+            Settings
+        </a>
+
         <div class="pt-4 mt-4 border-t border-dark-border">
             <button id="adminProfileTrigger" class="nav-item w-full group flex items-center px-4 py-3 text-sm font-medium text-gray-400 hover:text-white rounded-lg transition-all">
                 <div class="relative mr-3">
@@ -57,7 +62,7 @@
 </aside>
 
 <!-- FLOATERS -->
-<div id="adminProfileDropdown" class="fixed w-56 bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden animate-fade-in-up origin-bottom z-50">
+<div id="adminProfileDropdown" class="fixed w-56 bg-dark-surface/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden animate-fade-in-up origin-bottom z-50">
     <div class="px-4 py-3 border-b border-white/5 mb-1 text-center">
         <p id="adminDropdownName" class="text-[11px] font-black text-white truncate italic uppercase tracking-tighter">System Admin</p>
         <p class="text-[9px] text-purple-400 font-bold uppercase mt-1 leading-none tracking-widest italic">Core Access</p>

@@ -70,7 +70,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <div id="tableScrollArea" class="flex-1 overflow-y-auto custom-scroll">
                             <table class="w-full text-left border-collapse">
                                 <thead class="sticky top-0 z-10">
-                                    <tr class="bg-[#1a1c21] text-gray-500 uppercase text-xs font-black tracking-widest border-b border-dark-border">
+                                    <tr class="bg-dark-surface text-gray-500 uppercase text-xs font-black tracking-widest border-b border-dark-border">
                                         <th class="px-6 py-5">Student ID</th>
                                         <th class="px-6 py-5">Status</th>
                                         <th class="px-6 py-5">Registered Name</th>

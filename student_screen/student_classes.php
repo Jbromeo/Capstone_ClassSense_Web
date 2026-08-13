@@ -161,6 +161,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             let currentStudent = null;
             let allClasses = [];
+            let lastClassesKey = null;
 
             // --- UI Setup ---
             const renderClasses = (classes) => {
@@ -173,10 +174,10 @@ require_once dirname(__DIR__) . '/core/init.php';
                         </div>`;
                 } else {
                     grid.innerHTML = classes.map(c => `
-                        <div class="glass-panel rounded-xl overflow-hidden border border-dark-border hover:border-primary-500/30 transition-all group flex flex-col animate-fade-in-up">
+                        <div class="glass-panel rounded-xl overflow-hidden border border-dark-border hover:border-primary-500/30 transition-all group flex flex-col cursor-pointer" onclick="window.location.href='student_class_view.php?id=${c.id}'">
                             <div class="p-5 border-b border-dark-border flex justify-between items-start">
                                 <div>
-                                    <span class="text-[10px] font-black text-primary-400 uppercase tracking-widest">${c.section_code || 'General'}</span>
+                                    <span class="text-[10px] font-black text-primary-400 uppercase tracking-widest">${c.section_name || 'General'}</span>
                                     <h3 class="text-lg font-bold text-white uppercase tracking-tighter leading-none">${c.class_name}</h3>
                                     <p class="text-[9px] text-gray-500 font-bold uppercase mt-1 tracking-widest leading-none">${c.teacher_name || 'Faculty Account'}</p>
                                 </div>
@@ -202,7 +203,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 </div>
                             </div>
                             <div class="p-4 border-t border-dark-border">
-                                <a href="student_class_view.php?id=${c.id}" class="w-full py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-white bg-dark-bg hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center gap-2 border border-white/5">
+                                <a href="student_class_view.php?id=${c.id}" onclick="event.stopPropagation()" class="w-full py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-white bg-dark-bg hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center gap-2 border border-white/5">
                                     OPEN CLASS HUB <i data-feather="chevron-right" class="w-3.5 h-3.5"></i>
                                 </a>
                             </div>
@@ -220,7 +221,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const q = query.toLowerCase();
                 const filtered = allClasses.filter(c =>
                     (c.class_name || '').toLowerCase().includes(q) ||
-                    (c.section_code || '').toLowerCase().includes(q) ||
+                    (c.section_name || '').toLowerCase().includes(q) ||
                     (c.teacher_name || '').toLowerCase().includes(q)
                 );
                 renderClasses(filtered);
@@ -302,6 +303,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                 window.loadStudentClasses = async () => {
                     try {
                         const classes = await api('/classes.php?student_uid=' + user.uid);
+                        const key = JSON.stringify(classes);
+                        if (key === lastClassesKey) return;
+                        lastClassesKey = key;
                         allClasses = classes;
                         const q = searchInput ? searchInput.value : '';
                         if (q) filterClasses(q);

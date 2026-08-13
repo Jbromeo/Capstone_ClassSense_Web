@@ -5,6 +5,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('cs_theme');
+                var theme = saved ||
+                    (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+                document.documentElement.classList.toggle('dark', theme !== 'light');
+                window.csThemeIsLight = theme === 'light';
+            } catch (e) {
+                document.documentElement.classList.add('dark');
+                window.csThemeIsLight = false;
+            }
+        })();
+    </script>
     <title>ClassSense | Create Account</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="style.css">

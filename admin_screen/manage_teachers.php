@@ -59,7 +59,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-2">Employee ID</label><input type="text" name="employee_id" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="EMP-001"></div>
                                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-2">Password</label><input type="password" name="password" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="••••••••"></div>
                             </div>
-                            <div><label class="block text-xs font-bold text-gray-500 uppercase mb-2">Department</label><select name="department" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"><option value="computer_science">Computer Science</option><option value="information_technology">Information Technology</option><option value="engineering">Engineering</option><option value="arts_sciences">Arts & Sciences</option></select></div>
                             
                             <button type="submit" id="submitBtn" class="w-full py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold text-white transition-all shadow-lg shadow-purple-500/20 mt-4 flex items-center justify-center gap-2 group">
                                 <span id="btnText">Establish Account</span>
@@ -91,9 +90,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <div id="tableScrollArea" class="flex-1 overflow-y-auto custom-scroll">
                             <table class="w-full text-left border-collapse">
                                 <thead class="sticky top-0 z-10">
-                                    <tr class="bg-[#1a1c21] text-gray-500 uppercase text-xs font-black tracking-widest border-b border-dark-border">
+                                    <tr class="bg-dark-surface text-gray-500 uppercase text-xs font-black tracking-widest border-b border-dark-border">
                                         <th class="px-8 py-5">Educator</th>
-                                        <th class="px-8 py-5">Department</th>
                                         <th class="px-8 py-5">Employee ID</th>
                                         <th class="px-8 py-5">Username</th>
                                         <th class="px-8 py-5 text-center">Settings</th>

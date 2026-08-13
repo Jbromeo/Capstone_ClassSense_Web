@@ -67,11 +67,6 @@
             Attendance Logs
         </a>
 
-        <a href="schedule.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'schedule.php' ? 'active shadow-lg shadow-primary-500/10 text-primary-500' : 'text-gray-400'; ?> rounded-lg">
-            <i data-feather="calendar" class="w-5 h-5 mr-3 <?php echo $current_page == 'schedule.php' ? 'text-primary-500' : 'text-gray-500'; ?> group-hover:text-primary-500 transition-colors"></i>
-            Schedule
-        </a>
-
         <p class="px-4 text-[10px] font-black text-gray-500 uppercase tracking-widest mt-6 mb-3 italic">Account</p>
 
         <a href="profile_settings.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'profile_settings.php' ? 'active shadow-lg shadow-primary-500/10 text-primary-500' : 'text-gray-400'; ?> rounded-lg">
@@ -97,7 +92,7 @@
 </aside>
 
 <!-- FLOATERS -->
-<div id="profilePopover" class="fixed w-56 bg-[#181b21]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden animate-fade-in-up origin-bottom z-50">
+<div id="profilePopover" class="fixed w-56 bg-dark-surface/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden animate-fade-in-up origin-bottom z-50">
     <div class="px-4 py-3 border-b border-white/5 mb-1 text-center">
         <p class="text-[11px] font-black text-white truncate italic uppercase tracking-tighter leading-none">Professor Panel</p>
         <p class="text-[9px] text-gray-500 font-bold uppercase mt-1 leading-none tracking-widest italic tracking-tighter">Academic Control</p>
