@@ -19,10 +19,15 @@
                                 <p class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Present</p>
                                 <p id="finalPresentCount" class="text-2xl font-bold text-green-400">0</p>
                             </div>
-                            <div class="w-px h-8 bg-white/10"></div>
-                            <div class="text-right">
+                             <div class="w-px h-8 bg-white/10"></div>
+                             <div class="text-right">
                                 <p class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Late</p>
                                 <p id="finalLateCount" class="text-2xl font-bold text-amber-400">0</p>
+                            </div>
+                            <div class="w-px h-8 bg-white/10"></div>
+                            <div class="text-right">
+                                <p class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Absent</p>
+                                <p id="finalAbsentCount" class="text-2xl font-bold text-red-400">0</p>
                             </div>
                             <div class="w-px h-8 bg-white/10"></div>
                             <div class="text-right">
@@ -48,8 +53,8 @@
                                     <th class="p-4 pl-6">Student</th>
                                     <th class="p-4">ID</th>
                                     <th class="p-4">Scan Time</th>
+                                    <th class="p-4">Distance</th>
                                     <th class="p-4">Status</th>
-                                    <th class="p-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="summaryTableBody" class="text-sm">
@@ -57,5 +62,26 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+
+                </div>
+
+            <!-- Shared status picker popover (placed OUTSIDE sessionSummaryView so its
+                 position:fixed is viewport-relative, not hijacked by the retained
+                 translateY(0) transform from animate-fade-in-up) -->
+            <div id="statusPicker" class="hidden fixed z-50 min-w-[150px] glass-panel rounded-xl p-1.5 shadow-2xl animate-fade-in">
+                <div class="flex flex-col gap-1">
+                    <button data-status="Present" class="status-option flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest italic text-left transition-colors hover:bg-green-500/10 text-green-400">
+                        <i data-feather="check-circle" class="w-4 h-4"></i> Present
+                        <i data-feather="check" class="status-check w-3.5 h-3.5 ml-auto hidden"></i>
+                    </button>
+                    <button data-status="Late" class="status-option flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest italic text-left transition-colors hover:bg-amber-500/10 text-amber-400">
+                        <i data-feather="clock" class="w-4 h-4"></i> Late
+                        <i data-feather="check" class="status-check w-3.5 h-3.5 ml-auto hidden"></i>
+                    </button>
+                    <button data-status="Absent" class="status-option flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest italic text-left transition-colors hover:bg-red-500/10 text-red-400">
+                        <i data-feather="x-circle" class="w-4 h-4"></i> Absent
+                        <i data-feather="check" class="status-check w-3.5 h-3.5 ml-auto hidden"></i>
+                    </button>
                 </div>
             </div>

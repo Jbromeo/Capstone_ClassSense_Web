@@ -125,8 +125,8 @@ if ($method === 'PUT') {
     // Client inputs are filtered through an allowlist; session expiry/limit are
     // SERVER-controlled (not settable by clients) so a scan window can't be
     // forged or extended remotely.
-    $allowedFields = ['class_name', 'level', 'subject', 'section_name', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m'];
-foreach ($allowedFields as $f) {
+$allowedFields = ['class_name', 'level', 'subject', 'section_name', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m', 'last_session_id', 'last_session_ended_at'];
+   foreach ($allowedFields as $f) {
         if (array_key_exists($f, $data)) {
             if ($f === 'level' && !in_array($data[$f], ['Junior High School', 'Senior High School'], true)) {
                 jsonResponse(['error' => 'Level must be Junior High School or Senior High School'], 400);
@@ -146,7 +146,7 @@ foreach ($allowedFields as $f) {
     // Instead fetch the signed expiry age via DATEDIFF (a function call, which is
     // allowed) and compare it to zero in PHP. DATEDIFF uses GETDATE() on the
     // server, so the PHP/server clock+timezone skew is irrelevant here.
-    $cur = $pdo->prepare("SELECT schedule, start_time, end_time, session_active, session_expires_at, DATEDIFF(SECOND, session_expires_at, GETDATE()) AS expires_age FROM classes WHERE id = ? AND teacher_uid = ?");
+    $cur = $pdo->prepare("SELECT schedule, start_time, end_time, session_active, session_id, session_expires_at, DATEDIFF(SECOND, session_expires_at, GETDATE()) AS expires_age FROM classes WHERE id = ? AND teacher_uid = ?");
     $cur->execute([$classId, $uid]);
     $row = $cur->fetch();
     if (!$row) {
@@ -182,8 +182,14 @@ foreach ($allowedFields as $f) {
         $params[] = strtolower(bin2hex(random_bytes(16)));
     }
 
-    // Session end: clear the transient session state
+// Session end: clear the transient session state. Remember the ended
+    // session's id/time so the teacher can reopen today's report after reload.
     if ($incomingActive === 0) {
+        if (!empty($row['session_id'])) {
+            $fields[] = "last_session_id = ?";
+            $params[] = $row['session_id'];
+            $fields[] = "last_session_ended_at = GETDATE()";
+        }
         $fields[] = "session_id = NULL";
         $fields[] = "last_nonce = NULL";
         $fields[] = "nonce_issued_at = NULL";

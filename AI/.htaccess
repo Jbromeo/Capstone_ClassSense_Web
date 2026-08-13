@@ -1,0 +1,3 @@
+# Block ALL direct web access to this folder (keys live here).
+# PHP can still require() files internally; browsers cannot download them.
+Require all denied

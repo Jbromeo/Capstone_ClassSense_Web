@@ -60,6 +60,15 @@ require_once dirname(__DIR__) . '/core/init.php';
             color: #ffffff !important;
             font-weight: 700 !important;
         }
+
+        /* Floating Action Button */
+        @keyframes fab-pulse {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        .fab-pulse {
+            animation: fab-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
     </style>
 </head>
 <body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
@@ -135,6 +144,14 @@ require_once dirname(__DIR__) . '/core/init.php';
     <?php include 'classes/purge_class_modal.php'; ?>
     <?php include 'classes/create_class_modal.php'; ?>
     <?php include 'classes/edit_class_modal.php'; ?>
+
+    <!-- ADD CLASS FLOATING ACTION BUTTON (FAB) -->
+    <div class="fixed bottom-6 right-6 z-40">
+        <div class="absolute inset-0 bg-primary-500 rounded-full fab-pulse"></div>
+        <button onclick="openModal()" class="relative flex items-center justify-center w-14 h-14 bg-primary-500 rounded-full shadow-lg shadow-primary-500/30 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-dark-bg transition-all transform hover:scale-105 active:scale-95">
+            <i data-feather="plus" class="w-6 h-6 text-white"></i>
+        </button>
+    </div>
 
     <script type="module" src="classes/classes.js"></script>
 </body>

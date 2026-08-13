@@ -52,63 +52,44 @@ require_once dirname(__DIR__) . '/core/init.php';
             <div class="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
                 
                 <!-- Profile Header Card -->
-                <div class="glass-panel rounded-2xl overflow-hidden relative">
-                    <div class="h-32 bg-gradient-to-r from-primary-900 to-dark-surface"></div>
-                    <div class="px-8 pb-8 -mt-12 relative z-10">
-                        <div class="flex flex-col md:flex-row md:items-end gap-6">
-                            <div class="relative group">
-                                <img id="profileImgLarge" src="https://ui-avatars.com/api/?name=KR&background=ea2628&color=fff&bold=true&size=150" class="w-28 h-28 rounded-2xl border-4 border-dark-bg object-cover shadow-xl">
-                                <button onclick="showToast('Upload Avatar clicked')" class="absolute inset-0 bg-black/50 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                    <i data-feather="camera" class="w-6 h-6 text-white"></i>
-                                </button>
-                            </div>
-                            <div class="flex-1">
-                                <h1 id="profileNameLarge" class="text-2xl font-bold text-white italic truncate tracking-tighter uppercase leading-none">Loading Identity...</h1>
-                                <p id="profileEmailLarge" class="text-gray-400 mt-2 font-medium italic">Handshaking: <span id="diagStatus" class="text-primary-500 animate-pulse">Waiting for Brain...</span></p>
+                <div class="glass-panel rounded-3xl p-8 mb-8 border-l-4 border-l-primary-500 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <i data-feather="user" class="w-32 h-32 text-white"></i>
+                    </div>
 
-                                <script>
-                                    // 🔍 REAL-TIME DIAGNOSTIC + DIRECT CACHE RECOVERY
-                                    setInterval(() => {
-                                        const diag = document.getElementById('diagStatus');
-                                        if (!diag) return;
-                                        
-                                        // Try to find profile in memory or cache
-                                        let profile = window.csProfile;
-                                        if (!profile) {
-                                            const cached = localStorage.getItem('cs_cached_profile');
-                                            if (cached) {
-                                                console.log("Settings: Recovering profile from direct cache.");
-                                                profile = JSON.parse(cached);
-                                                window.csProfile = profile;
-                                            }
-                                        }
-
-                                        if (profile) {
-                                            diag.textContent = "Identity Restored!";
-                                            diag.classList.remove('text-primary-500', 'animate-pulse');
-                                            diag.classList.add('text-green-500');
-
-                                            // 🛡️ AGGRESSIVE OVERWRITE
-                                            const nameEl = document.getElementById('profileNameLarge');
-                                            if (nameEl) {
-                                                nameEl.textContent = profile.full_name || `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || 'Faculty Account';
-                                                nameEl.classList.remove('italic');
-                                            }
-                                            
-                                            if (window.handleProfileLoad) window.handleProfileLoad(profile);
-                                        } else {
-                                            diag.textContent = "Establishing Cloud Sync...";
-                                        }
-                                    }, 800);
-                                </script>
-                            </div>
-                            <div class="flex gap-3">
-                                <span class="px-3 py-1 bg-primary-500/10 text-primary-400 border border-primary-500/30 rounded-full text-sm font-medium">Admin</span>
-                                <span class="px-3 py-1 bg-green-500/10 text-green-400 border border-green-500/30 rounded-full text-sm font-medium">Active</span>
+                    <div class="flex flex-col md:flex-row items-center gap-8 relative z-10">
+                        <div class="relative">
+                            <div id="profileAvatarInit" class="w-32 h-32 rounded-full bg-gradient-to-br from-primary-600 to-primary-900 flex items-center justify-center text-white font-black uppercase border border-white/10 shadow-2xl ring-4 ring-dark-bg" style="font-size:2.5rem">KR</div>
+                        </div>
+                        <div class="text-center md:text-left">
+                            <h1 id="profileNameLarge" class="text-4xl font-black text-white mb-2 leading-none italic animate-fade-in">Loading Profile...</h1>
+                            <p id="profileEmailLarge" class="text-sm text-gray-400 font-medium italic mb-4">Connecting account...</p>
+                            <div class="flex flex-wrap justify-center md:justify-start gap-3">
+                                <span class="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                    <i data-feather="check" class="w-3 h-3"></i> Active
+                                </span>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <script>
+                    // Cache recovery: restore identity once profile data is available.
+                    const recoverTimer = setInterval(() => {
+                        if (!window.handleProfileLoad) return;
+                        let profile = window.csProfile;
+                        if (!profile) {
+                            const cached = localStorage.getItem('cs_cached_profile');
+                            if (cached) {
+                                try { profile = JSON.parse(cached); } catch (e) { profile = null; }
+                            }
+                        }
+                        if (profile) {
+                            window.handleProfileLoad(profile);
+                            clearInterval(recoverTimer);
+                        }
+                    }, 800);
+                </script>
 
                 <!-- Settings Grid -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -205,9 +186,10 @@ require_once dirname(__DIR__) . '/core/init.php';
                                         <div>
                                             <h4 class="text-white font-medium">Push Notifications</h4>
                                             <p class="text-sm text-gray-500">Receive push notifications on your devices.</p>
+                                            <p id="pushStatus" class="text-xs text-gray-600 mt-1">Loading preference...</p>
                                         </div>
                                         <label class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" class="sr-only peer">
+                                            <input type="checkbox" id="pushToggle" class="sr-only peer">
                                             <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-primary-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                         </label>
                                     </div>
@@ -244,6 +226,82 @@ require_once dirname(__DIR__) . '/core/init.php';
         import { api, initPage } from '../assets/js/custom-auth.js';
         window.api = api;
         window.initPage = initPage;
+    </script>
+    <script type="module">
+        import { enablePush, disablePush, savePushSettings, loadPushSettings, onForegroundMessage } from '../assets/js/push-manager.js';
+
+        // --- Push Notification Toggle Logic ---
+        const pushToggle = document.getElementById('pushToggle');
+        const pushStatus = document.getElementById('pushStatus');
+        let lastPushToken = null;
+
+        function setPushStatus(text, type = '') {
+            if (!pushStatus) return;
+            pushStatus.textContent = text;
+            pushStatus.className = 'text-xs mt-1 ' + (type === 'error' ? 'text-red-400' : type === 'success' ? 'text-green-500' : 'text-gray-600');
+        }
+
+        async function initPushToggle() {
+            if (!pushToggle) return;
+            try {
+                const state = await loadPushSettings();
+                pushToggle.checked = !!state.pushEnabled;
+                if (state.deviceCount > 0 && state.pushEnabled) {
+                    setPushStatus(`Enabled on ${state.deviceCount} device${state.deviceCount > 1 ? 's' : ''}.`, 'success');
+                } else if (!state.pushEnabled) {
+                    setPushStatus('Disabled. In-app notifications still work.');
+                }
+            } catch (e) {
+                console.warn('Failed to load push settings:', e);
+                setPushStatus('Could not load preference.');
+            }
+        }
+
+        pushToggle.addEventListener('change', async () => {
+            const enabled = pushToggle.checked;
+            pushToggle.disabled = true;
+
+            if (enabled) {
+                setPushStatus('Requesting permission...');
+                try {
+                    const token = await enablePush();
+                    await savePushSettings(true, token);
+                    lastPushToken = token;
+                    setPushStatus('Enabled. You will receive device notifications.', 'success');
+                    showToast('Push notifications enabled', 'success');
+                } catch (e) {
+                    pushToggle.checked = false;
+                    setPushStatus(e.message || 'Failed to enable push notifications.', 'error');
+                    showToast(e.message || 'Failed to enable push notifications', 'error');
+                } finally {
+                    pushToggle.disabled = false;
+                }
+            } else {
+                setPushStatus('Disabling...');
+                try {
+                    await savePushSettings(false, lastPushToken || undefined);
+                    await disablePush();
+                    lastPushToken = null;
+                    setPushStatus('Disabled. In-app notifications still work.', 'success');
+                    showToast('Push notifications disabled', 'success');
+                } catch (e) {
+                    pushToggle.checked = true;
+                    setPushStatus('Failed to disable push notifications.', 'error');
+                    showToast('Failed to disable push notifications', 'error');
+                } finally {
+                    pushToggle.disabled = false;
+                }
+            }
+        });
+
+        // Foreground delivery while the settings page is open.
+        onForegroundMessage((payload) => {
+            const title = (payload.notification && payload.notification.title) || 'ClassSense';
+            const body = (payload.notification && payload.notification.body) || '';
+            showToast(body ? `${title} — ${body}` : title, 'info');
+        });
+
+        initPushToggle();
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -354,7 +412,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                 showToast('Professional profile updated.', 'success');
                 
                 // Update header immediately
-                document.getElementById('profileNameLarge').textContent = `${firstName} ${lastName}`;
+                const nameEl = document.getElementById('profileNameLarge');
+                nameEl.textContent = `${firstName} ${lastName}`;
+                nameEl.classList.remove('italic');
             } catch (error) {
                 console.error("Profile Sync Error:", error);
                 showToast('Cloud architecture sync failed.', 'error');
@@ -368,7 +428,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             // Update Headers
             const profileHeader = document.getElementById('profileNameLarge');
             const profileEmail = document.getElementById('profileEmailLarge');
-            const profileImg = document.getElementById('profileImgLarge');
+            const profileAvatar = document.getElementById('profileAvatarInit');
 
             if (profileHeader) {
                 profileHeader.textContent = data.full_name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Faculty Account';
@@ -376,14 +436,10 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
             if (profileEmail) profileEmail.textContent = data.email || 'No email provided';
             
-            // Handle Profile Image with Initials Fallback
-            if (profileImg) {
-                if (data.profileImage) {
-                    profileImg.src = data.profileImage;
-                } else {
-                    const initials = `${data.firstName?.[0] || data.full_name?.[0] || 'K'}${data.lastName?.[0] || ''}`;
-                    profileImg.src = `https://ui-avatars.com/api/?name=${initials}&background=ea2628&color=fff&bold=true&size=150`;
-                }
+            // Handle Avatar Initials
+            if (profileAvatar) {
+                const initials = `${data.firstName?.[0] || data.full_name?.[0] || 'K'}${data.lastName?.[0] || ''}`;
+                profileAvatar.textContent = initials.toUpperCase();
             }
 
             // Populate Form Fields

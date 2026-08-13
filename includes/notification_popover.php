@@ -31,11 +31,12 @@
     const notifyBtn = document.getElementById('headerNotifyBtn');
 
     const NOTIF_API = (window.CS_ROOT || '/ClassSense/') + 'api/notifications.php';
-    const icons = {
+const icons = {
         enrollment: { icon: 'user-plus', color: 'text-blue-500', bg: 'bg-blue-500/10' },
         attendance: { icon: 'check-circle', color: 'text-green-500', bg: 'bg-green-500/10' },
         grade: { icon: 'bar-chart-2', color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
         alert: { icon: 'alert-triangle', color: 'text-primary-500', bg: 'bg-primary-500/10' },
+        ai_insight: { icon: 'cpu', color: 'text-purple-500', bg: 'bg-purple-500/10' },
     };
 
     function getIconConfig(type) { return icons[type] || { icon: 'bell', color: 'text-gray-400', bg: 'bg-white/5' }; }

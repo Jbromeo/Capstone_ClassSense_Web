@@ -64,6 +64,10 @@
                                 <div class="text-[10px] uppercase text-gray-500 font-bold tracking-widest">Present</div>
                             </div>
                             <div class="bg-dark-bg rounded-lg p-4 text-center">
+                                <div id="suspiciousCount" class="text-3xl font-bold text-amber-400">0</div>
+                                <div class="text-[10px] uppercase text-gray-500 font-bold tracking-widest">Suspicious</div>
+                            </div>
+                            <div class="bg-dark-bg rounded-lg p-4 text-center">
                                 <div id="totalCount" class="text-3xl font-bold text-gray-300">0</div>
                                 <div class="text-[10px] uppercase text-gray-500 font-bold tracking-widest">Total</div>
                             </div>
@@ -78,6 +82,9 @@
                             <i data-feather="user-plus" class="w-16 h-16 mx-auto mb-4 text-gray-500"></i>
                             <h3 class="text-xl font-bold text-gray-400">Waiting for scan...</h3>
                             <p class="text-sm text-gray-600 mt-2">Live feed will appear here</p>
+                            <p id="geofenceRadiusLabel" class="hidden mt-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest italic text-primary-400 bg-primary-500/10 border border-primary-500/30 px-3 py-1.5 rounded-full">
+                                <i data-feather="map-pin" class="w-3 h-3"></i> <span id="geofenceRadiusText">Geofence active — 150m radius</span>
+                            </p>
                         </div>
                         
                         <!-- 2. Idle List State (Shown when > 0 students & no active scan) -->

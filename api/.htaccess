@@ -1,0 +1,5 @@
+# Block direct web access to config files (DB creds, Firebase key, secrets).
+# PHP reads them server-side via file_get_contents/require; browsers cannot.
+<FilesMatch "\.(json|env)$">
+    Require all denied
+</FilesMatch>

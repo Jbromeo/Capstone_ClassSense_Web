@@ -38,9 +38,6 @@
                     </button>
                     <?php include '../includes/notification_popover.php'; ?>
                 </div>
-                <a href="student_classes.php" class="text-[10px] font-black text-gray-400 hover:text-white flex items-center gap-1 transition-colors uppercase tracking-widest italic tracking-tighter">
-                    <i data-feather="arrow-left" class="w-3.5 h-3.5"></i> Back to Classes
-                </a>
             </div>
         </header>
 
@@ -65,11 +62,14 @@
                             <i data-feather="cpu" class="w-4 h-4"></i>
                         </div>
                         <h3 class="text-sm font-bold text-primary-400 uppercase tracking-wider">AI Academic Insight</h3>
+                        <span id="aiInsightMeta" class="hidden ml-auto text-[9px] font-black text-gray-500 uppercase tracking-widest italic whitespace-nowrap"></span>
                     </div>
-                    <p class="text-sm text-gray-300">
-                        Your attendance is excellent, but your quiz scores in <span class="font-bold text-white">Chapter 3</span> are slightly below your average. 
-                        I recommend reviewing the materials for <span class="font-bold text-white">Loops & Iterations</span> before the upcoming midterm.
-                    </p>
+                    <div id="aiInsightBody">
+                        <p id="aiInsightLoading" class="text-sm text-gray-400 animate-pulse"><i data-feather="loader" class="w-3.5 h-3.5 inline mr-1"></i> Analyzing your performance...</p>
+                        <p id="aiInsightText" class="hidden text-sm text-gray-300 leading-relaxed"></p>
+                        <ul id="aiInsightTips" class="hidden mt-4 space-y-2"></ul>
+                        <p id="aiInsightFallback" class="hidden text-sm text-gray-500 italic"></p>
+                    </div>
                 </div>
             </div>
             
@@ -110,9 +110,12 @@
                         <button onclick="window.studentGrades.setTerm(2)" id="st-2nd" class="term-btn px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">2nd Term</button>
                         <button onclick="window.studentGrades.setTerm(3)" id="st-3rd" class="term-btn px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all text-gray-500 hover:text-white hover:bg-white/5">3rd Term</button>
                     </div>
-                    <div class="glass-panel rounded-xl px-6 py-3 flex items-center gap-4 border-l-4 border-l-green-500 w-fit">
-                        <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">Final Grade</span>
-                        <span id="finalGradeValue" class="text-2xl font-black text-white italic leading-none">—</span>
+                    <div class="glass-panel rounded-xl px-6 py-3 border-l-4 border-l-green-500 w-fit">
+                        <div class="flex items-center gap-4">
+                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">Final Grade</span>
+                            <span id="finalGradeValue" class="text-2xl font-black text-white italic leading-none">&#8212;</span>
+                        </div>
+                        <span id="finalGradeNote" class="hidden block mt-1 text-[8px] font-bold text-gray-500 uppercase tracking-widest italic">Final grade appears once all weighted categories have scores</span>
                     </div>
                 </div>
                 <div id="assessmentsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
@@ -220,6 +223,7 @@
             const grid = document.getElementById('assessmentsGrid');
             const empty = document.getElementById('assessmentsEmpty');
             const finalEl = document.getElementById('finalGradeValue');
+            const noteEl = document.getElementById('finalGradeNote');
             if (!grid) return;
 
             const comps = data.components || [];
@@ -247,6 +251,7 @@
                 grid.innerHTML = '';
                 finalEl.textContent = '—';
                 finalEl.className = 'text-2xl font-black italic leading-none text-gray-600';
+                if (noteEl) noteEl.classList.add('hidden');
                 return;
             }
 
@@ -284,15 +289,24 @@
                     </div>`;
             }).join('');
 
+            const catsAll = ['written', 'performance', 'exam', 'attendance'];
+            const weightTotal = catsAll.reduce((s, cat) => s + (weights[cat] || 0), 0);
+            const complete = weightTotal > 0 && catsAll.every(cat => {
+                if ((weights[cat] || 0) === 0) return true;
+                const list = comps.filter(x => x.category === cat);
+                return list.length > 0 && list.some(x => !isNaN(parseFloat(data.grades[x.id])));
+            });
+
             let total = 0, totalWeight = 0;
-            ['written', 'performance', 'exam', 'attendance'].forEach(cat => {
+            catsAll.forEach(cat => {
                 const avg = catAvg(comps.filter(x => x.category === cat));
                 const w = weights[cat] || 0;
                 if (avg !== null && w > 0) { total += avg * (w / 100); totalWeight += w; }
             });
-            const fg = totalWeight > 0 ? total : null;
+            const fg = complete ? total : null;
             finalEl.textContent = fg === null ? '—' : fg.toFixed(1);
             finalEl.className = `text-2xl font-black italic leading-none ${fg === null ? 'text-gray-600' : fg >= 75 ? 'text-green-400' : 'text-red-400'}`;
+            if (noteEl) noteEl.classList.toggle('hidden', fg !== null);
         }
 
         window.studentGrades = (() => {
@@ -340,11 +354,61 @@
             };
         })();
 
+        async function loadAIInsight() {
+            const loading = document.getElementById('aiInsightLoading');
+            const textEl = document.getElementById('aiInsightText');
+            const tipsEl = document.getElementById('aiInsightTips');
+            const fallbackEl = document.getElementById('aiInsightFallback');
+            const metaEl = document.getElementById('aiInsightMeta');
+            if (!classId || !loading) return;
+
+            loading.classList.remove('hidden');
+            textEl.classList.add('hidden');
+            tipsEl.classList.add('hidden');
+            fallbackEl.classList.add('hidden');
+            metaEl.classList.add('hidden');
+
+            try {
+                const data = await api(`/ai_insight.php?class_id=${classId}`);
+                if (data.available === false) {
+                    loading.classList.add('hidden');
+                    fallbackEl.classList.remove('hidden');
+                    fallbackEl.textContent = 'AI insights will appear here once configured.';
+                    return;
+                }
+                if (!data.insight || !data.insight.paragraph) throw new Error('Empty insight');
+
+                textEl.textContent = data.insight.paragraph;
+                tipsEl.innerHTML = (data.insight.tips || []).map(tip =>
+                    `<li class="flex items-start gap-2 text-xs text-gray-400">
+                        <i data-feather="check-circle" class="w-3.5 h-3.5 text-primary-400 mt-0.5 shrink-0"></i>
+                        <span class="font-medium">${tip}</span>
+                    </li>`
+                ).join('');
+                loading.classList.add('hidden');
+                textEl.classList.remove('hidden');
+                if (data.insight.tips && data.insight.tips.length) tipsEl.classList.remove('hidden');
+
+                if (data.analyzedAt) {
+                    const mins = Math.max(1, Math.floor((Date.now() - new Date(data.analyzedAt.replace(' ', 'T'))) / 60000));
+                    metaEl.textContent = `Auto-analyzed • ${mins < 60 ? mins + 'm ago' : Math.floor(mins / 60) + 'h ago'}`;
+                    metaEl.classList.remove('hidden');
+                }
+                try { feather.replace(); } catch (e) {}
+            } catch (err) {
+                console.error('AI Insight Error:', err);
+                loading.classList.add('hidden');
+                fallbackEl.classList.remove('hidden');
+                fallbackEl.textContent = 'AI insights are temporarily unavailable.';
+            }
+        }
+
         initPage((user) => {
             setTimeout(() => {
                 loadClassData();
                 loadAttendance(user.uid);
                 window.studentGrades.init(classId, user.uid);
+                loadAIInsight();
             }, 500);
             setInterval(loadClassData, 10000);
             setInterval(() => loadAttendance(user.uid), 10000);

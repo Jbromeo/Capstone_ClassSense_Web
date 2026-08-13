@@ -50,9 +50,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                 <div class="mb-8">
                     <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
                         <div class="flex-1">
-                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic mb-2 block ml-1">Academic Unit / Hub</label>
+                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic mb-2 block ml-1">Class</label>
                             <select id="classFilter" class="w-full md:w-80 bg-dark-surface border border-dark-border text-white text-sm rounded-xl p-4 focus:ring-primary-500 focus:border-primary-500 uppercase font-black italic tracking-tighter">
-                                <option value="">Loading Hubs...</option>
+                                <option value="">Loading classes...</option>
                             </select>
                         </div>
                         <div class="flex items-center gap-3">
@@ -63,6 +63,18 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <input id="rowSearch" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search student...">
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Selected Class Header -->
+                <div id="selectedClassHeader" class="hidden glass-panel rounded-2xl px-6 py-4 mb-6 border border-primary-500/20 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-primary-500/15 border border-primary-500/20 flex items-center justify-center shrink-0">
+                        <i data-feather="book-open" class="w-6 h-6 text-primary-400"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[9px] font-black uppercase tracking-widest italic text-primary-400 mb-1">Selected Class</p>
+                        <h3 id="selectedClassName" class="text-lg font-black text-white uppercase tracking-tight italic truncate leading-none">Class Name</h3>
+                        <p id="selectedClassSection" class="text-[11px] text-gray-400 font-bold uppercase tracking-wider italic mt-1">Section</p>
                     </div>
                 </div>
 
@@ -154,8 +166,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                 lastClassesSig = sig;
                 allClasses = classes;
 
-                classSelect.innerHTML = `<option value="">Select a Hub</option>` +
-                    classes.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');
+                classSelect.innerHTML = `<option value="">Select a class</option>` +
+                    classes.map(c => `<option value="${c.id}">${c.class_name} — ${c.section_name || 'No Section'}</option>`).join('');
 
                 feather.replace();
             } catch (error) {
@@ -174,12 +186,24 @@ require_once dirname(__DIR__) . '/core/init.php';
             const classId = classSelect.value;
             const date = dateInput.value;
             const tbody = document.getElementById('logsTableBody');
+            const headerEl = document.getElementById('selectedClassHeader');
+            const nameEl = document.getElementById('selectedClassName');
+            const sectionEl = document.getElementById('selectedClassSection');
 
             if (!classId) {
                 tbody.innerHTML = `<tr><td colspan="5" class="p-20 text-center"><div class="flex flex-col items-center opacity-40 italic"><i data-feather="database" class="w-12 h-12 mb-4 text-gray-600"></i><p class="text-sm font-bold uppercase tracking-widest">Select a class to load registry data</p></div></td></tr>`;
                 resetStats();
+                if (headerEl) headerEl.classList.add('hidden');
                 feather.replace();
                 return;
+            }
+
+            // Show selected class header
+            const cls = allClasses.find(c => String(c.id) === String(classId));
+            if (cls && headerEl && nameEl && sectionEl) {
+                nameEl.textContent = cls.class_name;
+                sectionEl.textContent = cls.section_name || 'No Section';
+                headerEl.classList.remove('hidden');
             }
 
             tbody.innerHTML = `<tr><td colspan="5" class="p-20 text-center animate-pulse text-gray-500 italic">Syncing with Registry...</td></tr>`;

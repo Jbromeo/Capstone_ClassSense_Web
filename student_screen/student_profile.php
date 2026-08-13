@@ -8,6 +8,16 @@ require_once dirname(__DIR__) . '/core/init.php';
 <head>
     <title>ClassSense | My Profile</title>
     <?php include '../includes/head.php'; ?>
+    <style>
+        @keyframes idShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .shake { animation: idShake 0.4s ease-in-out; }
+    </style>
 </head>
 <body class="antialiased h-screen overflow-hidden flex selection:bg-primary-500 selection:text-white">
 
@@ -46,18 +56,12 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="flex flex-col md:flex-row items-center gap-8 relative z-10">
                         <div class="relative">
                             <div id="profileAvatar" class="w-32 h-32 rounded-full bg-gradient-to-br from-primary-600 to-primary-900 flex items-center justify-center text-white font-black uppercase border border-white/10 shadow-2xl ring-4 ring-dark-bg" style="font-size:2.5rem"></div>
-                            <button class="absolute -bottom-2 -right-2 p-3 bg-primary-600 rounded-2xl text-white shadow-lg shadow-primary-500/30 hover:scale-110 active:scale-95 transition-all">
-                                <i data-feather="camera" class="w-5 h-5"></i>
-                            </button>
                         </div>
                         <div class="text-center md:text-left">
                             <h1 id="profileFullName" class="text-4xl font-black text-white mb-2 leading-none italic animate-fade-in">Loading Profile...</h1>
                             <div class="flex flex-wrap justify-center md:justify-start gap-3 mt-4">
                                 <span class="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
                                     <i data-feather="hash" class="w-3 h-3"></i> <span id="profileStudentId">---</span>
-                                </span>
-                                <span class="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                                    <i data-feather="award" class="w-3 h-3"></i> BS Information Technology
                                 </span>
                             </div>
                         </div>
@@ -95,17 +99,15 @@ require_once dirname(__DIR__) . '/core/init.php';
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="space-y-2">
-                                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Phone Number</label>
+                                <label id="phoneLabel" class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Phone Number</label>
                                 <div class="relative">
-                                    <span class="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 border-r border-dark-border pr-3 text-sm font-bold">+63</span>
-                                    <input type="tel" name="phone" id="formPhone" required class="w-full bg-dark-bg border border-dark-border rounded-2xl pl-16 pr-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
+                                    <input type="tel" name="phone" id="formPhone" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
                                 </div>
                             </div>
                             <div class="space-y-2">
-                                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Guardian Phone</label>
+                                <label id="guardianPhoneLabel" class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Guardian Phone</label>
                                  <div class="relative">
-                                    <span class="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 border-r border-dark-border pr-3 text-sm font-bold">+63</span>
-                                    <input type="tel" name="guardianPhone" id="formGuardian" required class="w-full bg-dark-bg border border-dark-border rounded-2xl pl-16 pr-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
+                                    <input type="tel" name="guardianPhone" id="formGuardian" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
                                 </div>
                             </div>
                         </div>
@@ -153,6 +155,31 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         let currentUid = null;
 
+        const phoneInput = document.getElementById('formPhone');
+        const guardianInput = document.getElementById('formGuardian');
+        const phoneLabel = document.getElementById('phoneLabel');
+        const guardianLabel = document.getElementById('guardianPhoneLabel');
+
+        const vibrateLabel = (label) => {
+            if (!label) return;
+            label.classList.remove('shake');
+            void label.offsetWidth;
+            label.classList.add('shake');
+        };
+
+        const cleanPhone = (value) => String(value || '').replace(/^\+63\s*/, '').replace(/\D/g, '').slice(0, 11);
+
+        const constrainDigits = (input, label) => {
+            const digits = cleanPhone(input.value);
+            if (digits !== input.value) {
+                vibrateLabel(label);
+                input.value = digits;
+            }
+        };
+
+        if (phoneInput) phoneInput.addEventListener('input', () => constrainDigits(phoneInput, phoneLabel));
+        if (guardianInput) guardianInput.addEventListener('input', () => constrainDigits(guardianInput, guardianLabel));
+
         // 1. Populate data when student profile is loaded
         initPage((data) => {
             currentUid = data.uid;
@@ -165,8 +192,8 @@ require_once dirname(__DIR__) . '/core/init.php';
             document.getElementById('formFname').value = data.firstName || '';
             document.getElementById('formLname').value = data.lastName || '';
             document.getElementById('formEmail').value = data.email || '';
-            document.getElementById('formPhone').value = data.phone || "";
-            document.getElementById('formGuardian').value = data.guardianPhone || "";
+            document.getElementById('formPhone').value = cleanPhone(data.phone || "");
+            document.getElementById('formGuardian').value = cleanPhone(data.guardianPhone || "");
 
             // Avatar: initials, matching the sidebar default photo
             const initials = ((data.firstName?.[0] || '') + (data.lastName?.[0] || '')).toUpperCase() || 'ST';
@@ -188,6 +215,17 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             const formData = new FormData(profileForm);
             const data = Object.fromEntries(formData.entries());
+            data.phone = cleanPhone(data.phone);
+            data.guardianPhone = cleanPhone(data.guardianPhone);
+
+            if (!/^\d{1,11}$/.test(data.phone)) {
+                vibrateLabel(phoneLabel);
+                return showStatus("Phone number must be 11 digits maximum.", 'error');
+            }
+            if (!/^\d{1,11}$/.test(data.guardianPhone)) {
+                vibrateLabel(guardianLabel);
+                return showStatus("Guardian phone must be 11 digits maximum.", 'error');
+            }
 
             // Loading state
             saveBtn.disabled = true;

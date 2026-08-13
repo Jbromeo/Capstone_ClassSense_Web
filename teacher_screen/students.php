@@ -45,13 +45,25 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="relative w-full md:w-64">
                         <i data-feather="filter" class="absolute left-3 top-2.5 w-4 h-4 text-gray-500"></i>
                         <select id="classFilter" class="w-full bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 pl-10 p-2.5 appearance-none cursor-pointer hover:border-gray-600 transition-colors">
-                            <option value="all">All My Classes</option>
+                            <option value="">Select a class</option>
                             <!-- Dynamically loaded -->
                         </select>
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Selected Class Header -->
+            <div id="selectedClassHeader" class="hidden glass-panel rounded-xl px-6 py-4 mb-6 border border-primary-500/20 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-primary-500/15 border border-primary-500/20 flex items-center justify-center shrink-0">
+                    <i data-feather="book-open" class="w-6 h-6 text-primary-400"></i>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[9px] font-black uppercase tracking-widest italic text-primary-400 mb-1">Selected Class</p>
+                    <h3 id="selectedClassName" class="text-lg font-black text-white uppercase tracking-tight italic truncate leading-none">Class Name</h3>
+                    <p id="selectedClassSection" class="text-[11px] text-gray-400 font-bold uppercase tracking-wider italic mt-1">Section</p>
+                </div>
+            </div>
+
             <div class="glass-panel rounded-xl border border-dark-border overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -70,9 +82,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                         </tbody>
                     </table>
                 </div>
-                <div id="tableEmptyState" class="hidden flex-col items-center justify-center py-20 text-gray-500 italic">
+                <div id="tableEmptyState" class="flex flex-col items-center justify-center py-20 text-gray-500 italic">
                     <i data-feather="users" class="w-12 h-12 mb-3 opacity-20"></i>
-                    <p class="text-xs uppercase tracking-widest font-black">No active enrollments detected on this frequency.</p>
+                    <p class="text-xs uppercase tracking-widest font-black">Select a class to load registry data</p>
                 </div>
             </div>
         </main>
@@ -103,7 +115,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         let myClasses = [];
         let allStudentsInMyClasses = [];
-        let currentFilter = 'all';
+        let currentFilter = ''; // empty = no class selected
         let searchTerm = '';
         let lastClassesSig = '';
         let gradeSheetsCache = {};
@@ -178,16 +190,42 @@ require_once dirname(__DIR__) . '/core/init.php';
             const filterSelect = document.getElementById('classFilter');
             if (!filterSelect) return;
 
-            const optionsHTML = myClasses.map(c => `<option value="${c.id}">${c.class_name}</option>`).join('');
-            
-            filterSelect.innerHTML = '<option value="all">All My Classes</option>' + optionsHTML;
+            if (myClasses.length === 0) {
+                filterSelect.innerHTML = '<option value="">No classes assigned</option>';
+                return;
+            }
+
+            const optionsHTML = myClasses.map(c => 
+                `<option value="${c.id}">${c.class_name} — ${c.section_name || 'No Section'}</option>`
+            ).join('');
+
+            filterSelect.innerHTML = '<option value="">Select a class</option>' + optionsHTML;
         }
 
         function applyCurrentFilters() {
-            let data = [...allStudentsInMyClasses];
-            if (currentFilter !== 'all') {
-                data = data.filter(s => s.classes.some(c => c.id === currentFilter));
+            const tbody = document.getElementById('studentsTableBody');
+            const emptyState = document.getElementById('tableEmptyState');
+            const headerEl = document.getElementById('selectedClassHeader');
+            const nameEl = document.getElementById('selectedClassName');
+            const sectionEl = document.getElementById('selectedClassSection');
+
+            if (!currentFilter) {
+                if (tbody) tbody.innerHTML = '';
+                if (emptyState) {
+                    emptyState.classList.remove('hidden');
+                    emptyState.classList.add('flex');
+                }
+                if (headerEl) headerEl.classList.add('hidden');
+                document.getElementById('statTotalStudents').innerText = '0';
+                document.getElementById('statAvgGPA').innerText = '—';
+                document.getElementById('statAtRisk').innerText = '0';
+                document.getElementById('statTopPerformer').innerText = '-';
+                return;
             }
+
+            let data = [...allStudentsInMyClasses];
+            data = data.filter(s => s.classes.some(c => c.id === currentFilter));
+
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 data = data.filter(s =>
@@ -197,7 +235,21 @@ require_once dirname(__DIR__) . '/core/init.php';
                     (s.email && s.email.toLowerCase().includes(term))
                 );
             }
+
+            const cls = myClasses.find(c => c.id === currentFilter);
+            if (cls && headerEl && nameEl && sectionEl) {
+                nameEl.textContent = cls.class_name;
+                sectionEl.textContent = cls.section_name || 'No Section';
+                headerEl.classList.remove('hidden');
+            }
+
+            if (emptyState) {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+            }
+
             renderTable(data);
+            updateStats(data);
         }
 
         // Grade sheets pulled from the SQL Server via api/grades.php — mirrors
@@ -355,9 +407,9 @@ require_once dirname(__DIR__) . '/core/init.php';
             feather.replace();
         }
 
-        function updateStats() {
-            const total = allStudentsInMyClasses.length;
-            const graded = allStudentsInMyClasses
+        function updateStats(data) {
+            const total = data.length;
+            const graded = data
                 .map(s => ({ student: s, grade: computeStudentGrade(s) }))
                 .filter(x => x.grade !== null);
             const avgGrade = graded.length > 0

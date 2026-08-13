@@ -140,7 +140,139 @@ function sendNotification($recipientUid, $type, $title, $message = '', $link = '
         $pdo = getPDO();
         $stmt = $pdo->prepare("INSERT INTO notifications (recipient_uid, type, title, message, link) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$recipientUid, $type, $title, $message, $link]);
+
+        // Best-effort device push if the recipient has push enabled.
+        // Failures here never break the in-app notification flow.
+        try {
+            $userStmt = $pdo->prepare("SELECT push_enabled FROM users WHERE uid = ?");
+            $userStmt->execute([$recipientUid]);
+            $user = $userStmt->fetch();
+            if (!empty($user['push_enabled'])) {
+                $tokStmt = $pdo->prepare("SELECT token FROM push_subscriptions WHERE uid = ?");
+                $tokStmt->execute([$recipientUid]);
+                $tokens = $tokStmt->fetchAll();
+                foreach ($tokens as $t) {
+                    $result = fcmSend($t['token'], $title, $message, $link, $type);
+                    // 400 invalid token, 404 = token not found, 410 = device unregistered: drop it
+                    if ($result === 400 || $result === 404 || $result === 410) {
+                        $del = $pdo->prepare("DELETE FROM push_subscriptions WHERE token = ?");
+                        $del->execute([$t['token']]);
+                    }
+                }
+            }
+        } catch (PDOException $e) {
+            error_log('push dispatch failed: ' . $e->getMessage());
+        }
     } catch (PDOException $e) {
         error_log('sendNotification failed: ' . $e->getMessage());
     }
+}
+
+// --- Firebase Cloud Messaging (HTTP v1) helpers ---
+
+// URL-safe base64 for JWT encoding.
+function base64url($data) {
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+}
+
+// Exchange the service-account credentials for a short-lived OAuth2 access token
+// (JWT signed with RS256 via PHP's built-in OpenSSL).
+function fcmAccessToken() {
+    global $config;
+    $path = $config['fcm_service_account_path'] ?? '';
+    if (!$path || !file_exists($path)) {
+        error_log('fcm: service account not found at ' . $path);
+        return null;
+    }
+    $sa = json_decode(file_get_contents($path), true);
+    if (!$sa || empty($sa['client_email']) || empty($sa['private_key'])) {
+        error_log('fcm: invalid service account json');
+        return null;
+    }
+
+    $now = time();
+    $header  = base64url(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
+    $claims  = base64url(json_encode([
+        'iss'   => $sa['client_email'],
+        'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
+        'aud'   => $sa['token_uri'],
+        'iat'   => $now,
+        'exp'   => $now + 3600,
+    ]));
+    $signingInput = $header . '.' . $claims;
+
+    $signature = '';
+    if (!openssl_sign($signingInput, $signature, $sa['private_key'], OPENSSL_ALGO_SHA256)) {
+        error_log('fcm: openssl_sign failed');
+        return null;
+    }
+    $assertion = $signingInput . '.' . base64url($signature);
+
+    $ch = curl_init($sa['token_uri']);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => http_build_query([
+            'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion'  => $assertion,
+        ]),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        error_log('fcm: token exchange failed http=' . $httpCode . ' body=' . substr((string)$response, 0, 300));
+        return null;
+    }
+    $data = json_decode($response, true);
+    return $data['access_token'] ?? null;
+}
+
+// Send a single web-push notification to one device token.
+// Returns true on success, the HTTP status code on failure.
+function fcmSend($token, $title, $message, $link = '', $type = '') {
+    global $config;
+    $accessToken = fcmAccessToken();
+    if (!$accessToken) return false;
+
+    $payload = [
+        'message' => [
+            'token' => $token,
+            'notification' => [
+                'title' => mb_substr($title ?? '', 0, 100),
+                'body'  => mb_substr($message ?? '', 0, 200),
+            ],
+            'data' => [
+                'link' => $link ?? '',
+                'type' => $type ?? '',
+            ],
+        ],
+    ];
+
+    $url = 'https://fcm.googleapis.com/v1/projects/' . urlencode($config['firebase_project_id']) . '/messages:send';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        error_log('fcm: send failed http=' . $httpCode . ' body=' . substr((string)$response, 0, 300));
+        return $httpCode;
+    }
+    return true;
 }

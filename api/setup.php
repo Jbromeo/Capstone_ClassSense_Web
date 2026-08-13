@@ -115,6 +115,14 @@ $queries = [
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_radius_m')
     ALTER TABLE classes ADD session_radius_m INT DEFAULT 150",
 
+    "-- Pointer to the most recently ended session so the report can be reopened
+    -- after a reload (survives the live session_id being cleared on end).",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'last_session_id')
+    ALTER TABLE classes ADD last_session_id VARCHAR(36) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'last_session_ended_at')
+    ALTER TABLE classes ADD last_session_ended_at DATETIME NULL",
+
     "-- Contact columns for users (guardian contact for students)",
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'phone')
     ALTER TABLE users ADD phone NVARCHAR(20) NULL",
@@ -140,6 +148,13 @@ $queries = [
 
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'is_mock')
     ALTER TABLE attendance ADD is_mock INT NULL",
+
+    "-- Geofence audit columns for attendance (distance + suspicious flag)",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'distance_m')
+    ALTER TABLE attendance ADD distance_m DECIMAL(10,2) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'is_suspicious')
+    ALTER TABLE attendance ADD is_suspicious INT DEFAULT 0",
 
     "-- Add indexes for performance",
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_users_username')
@@ -219,6 +234,21 @@ $queries = [
         CONSTRAINT fk_grade_weights_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
     )",
 
+    "-- AI Academic Insight cache (one analyzed insight per student/class)",
+    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_insights' AND xtype='U')
+    CREATE TABLE ai_insights (
+        id INT IDENTITY PRIMARY KEY,
+        student_uid VARCHAR(128) NOT NULL,
+        class_id VARCHAR(36) NOT NULL,
+        insight_paragraph NTEXT NOT NULL,
+        insight_tips NTEXT NULL,
+        signature NVARCHAR(64) NOT NULL,
+        created_at DATETIME DEFAULT GETDATE(),
+        CONSTRAINT uq_ai_insights_student_class UNIQUE (student_uid, class_id),
+        CONSTRAINT fk_ai_insights_student FOREIGN KEY (student_uid) REFERENCES users(uid) ON DELETE CASCADE,
+        CONSTRAINT fk_ai_insights_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+    )",
+
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_grade_components_class')
     CREATE INDEX idx_grade_components_class ON grade_components(class_id, quarter)",
 
@@ -249,6 +279,22 @@ $queries = [
 
     "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_sessions_user' AND parent_object_id = OBJECT_ID('sessions'))
     ALTER TABLE sessions ADD CONSTRAINT fk_sessions_user FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE",
+
+    "-- Push notifications: per-user master switch + registered device tokens",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'push_enabled')
+    ALTER TABLE users ADD push_enabled INT DEFAULT 0",
+
+    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='push_subscriptions' AND xtype='U')
+    CREATE TABLE push_subscriptions (
+        id INT IDENTITY PRIMARY KEY,
+        uid VARCHAR(128) NOT NULL,
+        token NVARCHAR(255) NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT GETDATE(),
+        CONSTRAINT fk_push_subscriptions_user FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+    )",
+
+    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_push_subscriptions_uid')
+    CREATE INDEX idx_push_subscriptions_uid ON push_subscriptions(uid)",
 
     "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_notifications_recipient' AND parent_object_id = OBJECT_ID('notifications'))
     ALTER TABLE notifications ADD CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_uid) REFERENCES users(uid) ON DELETE CASCADE",

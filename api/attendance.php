@@ -99,11 +99,28 @@ if ($method === 'POST') {
 
     // --- Teacher manual marking (teacher sets Present/Late/Absent for any enrolled student) ---
     // Bypasses QR/nonce/session checks; authorized only to the owning teacher (or admin).
+    // Accepts a single student (student_uid + status) or a bulk list
+    // (students: [{ student_uid, status }, ...]) so session-end absence for an
+    // entire roster can be persisted in one round-trip.
     if (!empty($data['manual'])) {
-        $manualStudentUid = $data['student_uid'] ?? null;
-        $manualStatus = $data['status'] ?? null;
         $manualDate = $data['date'] ?? date('Y-m-d');
-        if (!$manualStudentUid || !in_array($manualStatus, ['Present', 'Late', 'Absent'], true)) {
+        $entries = [];
+        if (!empty($data['students']) && is_array($data['students'])) {
+            foreach ($data['students'] as $s) {
+                $suid = $s['student_uid'] ?? null;
+                $sstatus = $s['status'] ?? null;
+                if ($suid && in_array($sstatus, ['Present', 'Late', 'Absent'], true)) {
+                    $entries[] = ['student_uid' => $suid, 'status' => $sstatus];
+                }
+            }
+        } else {
+            $manualStudentUid = $data['student_uid'] ?? null;
+            $manualStatus = $data['status'] ?? null;
+            if ($manualStudentUid && in_array($manualStatus, ['Present', 'Late', 'Absent'], true)) {
+                $entries[] = ['student_uid' => $manualStudentUid, 'status' => $manualStatus];
+            }
+        }
+        if (!$entries) {
             jsonResponse(['error' => 'manual requires student_uid and a valid status (Present/Late/Absent)'], 400);
         }
 
@@ -118,14 +135,34 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Unauthorized'], 403);
         }
 
-        // UPSERT: remove any existing record for this class/date/student, then insert manual status
-        $del = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND date = ?");
-        $del->execute([$classId, $manualStudentUid, $manualDate]);
+        // UPSERT: if the student already has a record for this class/date, only
+        // the status changes — the scan's audit trail (ip, device, location,
+        // suspicious flag) is preserved. Otherwise insert a fresh manual record.
+        $updated = 0;
+        $inserted = 0;
+        $lastId = null;
+        $lastStatus = null;
+        $existing = $pdo->prepare("SELECT id FROM attendance WHERE class_id = ? AND student_uid = ? AND date = ?");
+        $upd = $pdo->prepare("UPDATE attendance SET status = ? WHERE id = ?");
         $ip = clientIp();
-        $ins = $pdo->prepare("INSERT INTO attendance (student_uid, class_id, date, timestamp, status, ip_address, session_id, lat, lng, device_uuid, is_mock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $ins->execute([$manualStudentUid, $classId, $manualDate, date('Y-m-d H:i:s'), $manualStatus, $ip, null, null, null, null, null]);
+        $ins = $pdo->prepare("INSERT INTO attendance (student_uid, class_id, date, timestamp, status, ip_address, session_id, lat, lng, device_uuid, is_mock, distance_m, is_suspicious) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-        jsonResponse(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'status' => $manualStatus], 201);
+        foreach ($entries as $entry) {
+            $existing->execute([$classId, $entry['student_uid'], $manualDate]);
+            $row = $existing->fetch();
+            if ($row) {
+                $upd->execute([$entry['status'], $row['id']]);
+                $updated++;
+                $lastId = (int)$row['id'];
+            } else {
+                $ins->execute([$entry['student_uid'], $classId, $manualDate, date('Y-m-d H:i:s'), $entry['status'], $ip, null, null, null, null, null, null, 0]);
+                $inserted++;
+                $lastId = (int)$pdo->lastInsertId();
+            }
+            $lastStatus = $entry['status'];
+        }
+
+        jsonResponse(['success' => true, 'id' => $lastId, 'status' => $lastStatus, 'updated' => $updated, 'inserted' => $inserted], 201);
     }
 
     // Security: the authenticated uid is ALWAYS the recorded student — clients cannot
@@ -196,19 +233,22 @@ if ($method === 'POST') {
         jsonResponse(['error' => 'Attendance already recorded for today'], 409);
     }
 
-    // 7. Optional GPS geofence (only when the teacher enabled it for this session)
+    // 7. Optional GPS geofence (only when the teacher enabled it for this session).
+    //    Missing/spoofed location is still rejected — the phone must supply a real
+    //    fix. But a scan that IS supplied yet falls outside the radius is accepted
+    //    and flagged SUSPICIOUS so the teacher can review it in the live feed.
+    $distanceM = null;
+    $isSuspicious = 0;
     if ((int)$class['require_location'] === 1) {
         if ($clientLat === null || $clientLng === null || $isMock === 1) {
             jsonResponse(['error' => 'Location is required for this session. Enable GPS and scan again.'], 422);
         }
         $radius = (int)($class['session_radius_m'] ?? 150);
-        $distance = haversineMeters(
+        $distanceM = round(haversineMeters(
             (float)$class['session_lat'], (float)$class['session_lng'],
             $clientLat, $clientLng
-        );
-        if ($distance > $radius) {
-            jsonResponse(['error' => 'You are outside the class location'], 422);
-        }
+        ), 2);
+        $isSuspicious = ($distanceM > $radius) ? 1 : 0;
     }
 
     // 8. Status is decided by the SERVER, never by the client:
@@ -217,10 +257,10 @@ if ($method === 'POST') {
 
     // 9. Record it with the audit trail
     $timestamp = date('Y-m-d H:i:s');
-    $stmt = $pdo->prepare("INSERT INTO attendance (student_uid, class_id, date, timestamp, status, ip_address, session_id, lat, lng, device_uuid, is_mock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$studentUid, $classId, $date, $timestamp, $status, $ip, $class['session_id'], $clientLat, $clientLng, $deviceUuid, $isMock]);
+    $stmt = $pdo->prepare("INSERT INTO attendance (student_uid, class_id, date, timestamp, status, ip_address, session_id, lat, lng, device_uuid, is_mock, distance_m, is_suspicious) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$studentUid, $classId, $date, $timestamp, $status, $ip, $class['session_id'], $clientLat, $clientLng, $deviceUuid, $isMock, $distanceM, $isSuspicious]);
 
-    jsonResponse(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'status' => $status], 201);
+    jsonResponse(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'status' => $status, 'distance_m' => $distanceM, 'is_suspicious' => $isSuspicious], 201);
 }
 
 if ($method === 'DELETE') {

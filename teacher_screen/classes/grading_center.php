@@ -144,8 +144,15 @@ window.gradingSystem = (() => {
     async function loadFromServer() {
         try {
             const data = await window.api(`/grades.php?class_id=${state.classId}&quarter=${state.term}`);
-            state.components = (data.components || []).map(c => ({ id: c.id, category: c.category, name: c.name, hps: c.hps }));
-            state.grades = data.grades || {};
+            state.components = (data.components || []).map(c => ({ id: c.id, category: c.category, name: c.name, hps: Number(c.hps) }));
+            state.grades = {};
+            Object.keys(data.grades || {}).forEach(compId => {
+                state.grades[compId] = {};
+                Object.keys(data.grades[compId] || {}).forEach(uid => {
+                    const score = Number.parseFloat(data.grades[compId][uid]);
+                    if (!Number.isNaN(score)) state.grades[compId][uid] = score;
+                });
+            });
             state.weights = { ...DEFAULT_WEIGHTS, ...(data.weights || {}) };
         } catch (e) {
             console.error('Grade sheet load failed:', e);
@@ -237,7 +244,9 @@ window.gradingSystem = (() => {
 
     function formatScore(val, decimals = 1) {
         if (val === null || val === undefined) return '—';
-        return val.toFixed(decimals);
+        const n = Number(val);
+        if (isNaN(n)) return '—';
+        return n.toFixed(decimals);
     }
 
     function updateMetaWeights() {
