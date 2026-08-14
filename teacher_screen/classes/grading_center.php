@@ -156,9 +156,8 @@ window.gradingSystem = (() => {
             state.weights = { ...DEFAULT_WEIGHTS, ...(data.weights || {}) };
         } catch (e) {
             console.error('Grade sheet load failed:', e);
-            state.components = [];
-            state.grades = {};
-            state.weights = { ...DEFAULT_WEIGHTS };
+            // Keep the last-known-good state on a transient failure so a
+            // background poll never blanks the sheet.
         }
     }
 
@@ -485,9 +484,24 @@ window.gradingSystem = (() => {
         async init(classId, students) {
             state.classId = classId;
             state.students = students || [];
+            state.components = [];
+            state.grades = {};
+            state.weights = { ...DEFAULT_WEIGHTS };
             const t = parseInt(sessionStorage.getItem(`cs_grading_term_${classId}`) || '1');
             state.term = Math.min(3, Math.max(1, t));
             highlightTermBtn();
+            await loadFromServer();
+            updateMetaWeights();
+            renderTable();
+        },
+
+        async refresh() {
+            // Realtime refresh straight from the SQL database for the current
+            // term. Skipped while the teacher is typing in a cell so a poll
+            // never clobbers an in-progress edit (saves are debounced anyway).
+            if (!state.classId) return;
+            const editing = document.querySelector('.grade-input:focus');
+            if (editing) return;
             await loadFromServer();
             updateMetaWeights();
             renderTable();
@@ -541,17 +555,37 @@ window.gradingSystem = (() => {
             }
         },
 
+        // Convert an attendance component's M/D/YY name (e.g. "8/14/26") to a
+        // YYYY-MM-DD date for deleting matching attendance registry records.
+        // Returns null when the name isn't a valid date (manual components are
+        // left alone so only auto-created per-day columns cascade).
+        attendanceDateFromName(name) {
+            if (!name) return null;
+            const m = String(name).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+            if (!m) return null;
+            const month = parseInt(m[1], 10), day = parseInt(m[2], 10), year = 2000 + parseInt(m[3], 10);
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        },
+
         deleteComponent(componentId) {
             const comp = state.components.find(c => String(c.id) === String(componentId));
             const scoreCount = comp ? Object.keys(state.grades[comp.id] || {}).length : 0;
+            const isAttendance = !!(comp && comp.category === 'attendance');
+            const attDate = isAttendance ? this.attendanceDateFromName(comp.name) : null;
+            const attWarn = isAttendance && attDate
+                ? ` This will ALSO permanently delete ALL attendance registry records for ${comp.name} in the database.`
+                : '';
             window.csConfirm({
                 title: 'Remove Component?',
-                message: `Removing "${comp?.name || 'this component'}" will permanently delete all ${scoreCount} student score${scoreCount === 1 ? '' : 's'} for it. This cannot be undone.`,
+                message: `Removing "${comp?.name || 'this component'}" will permanently delete all ${scoreCount} student score${scoreCount === 1 ? '' : 's'} for it.${attWarn} This cannot be undone.`,
                 okText: 'Remove',
                 danger: true
             }).then(async ok => {
                 if (!ok) return;
                 try {
+                    if (isAttendance && attDate && state.classId) {
+                        await window.api(`/attendance.php?class_id=${encodeURIComponent(state.classId)}&date=${attDate}`, { method: 'DELETE' });
+                    }
                     await window.api(`/grades.php?component_id=${encodeURIComponent(componentId)}`, { method: 'DELETE' });
                 } catch (e) {
                     window.showToast('Remove failed', 'error');
@@ -560,7 +594,10 @@ window.gradingSystem = (() => {
                 state.components = state.components.filter(c => String(c.id) !== String(componentId));
                 delete state.grades[componentId];
                 renderTable();
-                if (comp) window.showToast(`Removed "${comp.name}"`, 'info');
+                if (comp) window.showToast(
+                    isAttendance && attDate ? `Removed "${comp.name}" and its attendance records` : `Removed "${comp.name}"`,
+                    'info'
+                );
             });
         },
 

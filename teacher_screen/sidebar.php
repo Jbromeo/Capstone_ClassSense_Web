@@ -43,11 +43,6 @@
                     <i data-feather="bar-chart-2" class="w-3.5 h-3.5 mr-3 text-gray-500 group-hover:text-primary-500 transition-colors"></i>
                     Grading Center
                 </button>
-
-                <button id="nav-attendance-sidebar" onclick="switchTab('attendance')" class="w-full class-control-nav group flex items-center px-4 py-2 text-[11px] font-bold text-gray-400 hover:text-white rounded-lg transition-all">
-                    <i data-feather="calendar" class="w-3.5 h-3.5 mr-3 text-gray-500 group-hover:text-primary-500 transition-colors"></i>
-                    Attendance History
-                </button>
             </div>
             <?php endif; ?>
         </div>

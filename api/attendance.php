@@ -30,7 +30,7 @@ if ($method === 'GET') {
             $ok = $c && $c['teacher_uid'] === $uid;
         }
         if (!$ok) jsonResponse(['error' => 'Unauthorized'], 403);
-        $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND date = ? AND student_uid = ?");
+        $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND CAST(date AS DATE) = ? AND student_uid = ?");
         $stmt->execute([$classId, $date, $studentUid]);
         jsonResponse($stmt->fetchAll());
     }
@@ -65,7 +65,7 @@ if ($method === 'GET') {
                 jsonResponse(['error' => 'Unauthorized'], 403);
             }
         }
-        $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND date = ?");
+        $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND CAST(date AS DATE) = ? ORDER BY timestamp ASC");
         $stmt->execute([$classId, $date]);
         jsonResponse($stmt->fetchAll());
     }
@@ -135,14 +135,31 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Unauthorized'], 403);
         }
 
+        // Bulk session-end sync (students[] array) must NEVER overwrite a QR
+        // scan: marking a whole roster Absent must not clobber a student who
+        // already scanned Present/Late today. Single-student updates (the
+        // history picker) are deliberate corrections and still allowed.
+        $isBulk = !empty($data['students']);
+
         // UPSERT: if the student already has a record for this class/date, only
         // the status changes — the scan's audit trail (ip, device, location,
         // suspicious flag) is preserved. Otherwise insert a fresh manual record.
+        // Resolve the session_id for this class (last ended session) so manual
+        // absence rows reference the correct session in the registry.
+        // Client may supply session_id explicitly (JS captures it before the PUT
+        // clears it), which takes priority over the server-resolved value.
+        $clientSessionId = $data['session_id'] ?? null;
+        $sessionIdRow = $pdo->prepare("SELECT last_session_id, session_id FROM classes WHERE id = ?");
+        $sessionIdRow->execute([$classId]);
+        $sessionIdData = $sessionIdRow->fetch();
+        $serverSessionId = $sessionIdData ? ($sessionIdData['last_session_id'] ?? $sessionIdData['session_id'] ?? null) : null;
+        $resolvedSessionId = $clientSessionId ?? $serverSessionId;
+
         $updated = 0;
         $inserted = 0;
         $lastId = null;
         $lastStatus = null;
-        $existing = $pdo->prepare("SELECT id FROM attendance WHERE class_id = ? AND student_uid = ? AND date = ?");
+        $existing = $pdo->prepare("SELECT id, session_id, status FROM attendance WHERE class_id = ? AND student_uid = ? AND CAST(date AS DATE) = ?");
         $upd = $pdo->prepare("UPDATE attendance SET status = ? WHERE id = ?");
         $ip = clientIp();
         $ins = $pdo->prepare("INSERT INTO attendance (student_uid, class_id, date, timestamp, status, ip_address, session_id, lat, lng, device_uuid, is_mock, distance_m, is_suspicious) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -151,11 +168,17 @@ if ($method === 'POST') {
             $existing->execute([$classId, $entry['student_uid'], $manualDate]);
             $row = $existing->fetch();
             if ($row) {
+                // Never let a bulk sync flip an existing scan to Absent.
+                if ($isBulk && $entry['status'] === 'Absent' && in_array($row['status'], ['Present', 'Late'], true)) {
+                    continue;
+                }
+                // Preserve the existing session_id if already set (QR scan row);
+                // for new manual rows (Absent) attach the resolved session_id.
                 $upd->execute([$entry['status'], $row['id']]);
                 $updated++;
                 $lastId = (int)$row['id'];
             } else {
-                $ins->execute([$entry['student_uid'], $classId, $manualDate, date('Y-m-d H:i:s'), $entry['status'], $ip, null, null, null, null, null, null, 0]);
+                $ins->execute([$entry['student_uid'], $classId, $manualDate, date('Y-m-d H:i:s'), $entry['status'], $ip, $resolvedSessionId, null, null, null, null, null, 0]);
                 $inserted++;
                 $lastId = (int)$pdo->lastInsertId();
             }
@@ -227,7 +250,7 @@ if ($method === 'POST') {
 
     // 6. No duplicate scan for the same day
     $date = date('Y-m-d');
-    $stmt = $pdo->prepare("SELECT 1 FROM attendance WHERE class_id = ? AND student_uid = ? AND date = ?");
+    $stmt = $pdo->prepare("SELECT 1 FROM attendance WHERE class_id = ? AND student_uid = ? AND CAST(date AS DATE) = ?");
     $stmt->execute([$classId, $studentUid, $date]);
     if ($stmt->fetch()) {
         jsonResponse(['error' => 'Attendance already recorded for today'], 409);
@@ -252,8 +275,15 @@ if ($method === 'POST') {
     }
 
     // 8. Status is decided by the SERVER, never by the client:
-    //    'Late' during a late-arrivals window, otherwise 'Present'
-    $status = ($class['session_mode'] === 'late') ? 'Late' : 'Present';
+    //    'Late' after the 30-second on-time window (or when session_mode was
+    //    flipped to 'late'), otherwise 'Present'. A scan that arrives after
+    //    the on-time window is recorded as Late even if the teacher's
+    //    page has been refreshed or closed.
+    $isLate = ($class['session_mode'] === 'late');
+    if (!$isLate && !empty($class['session_started_at'])) {
+        $isLate = ($nowTs - strtotime($class['session_started_at'])) >= 30; // 30 sec
+    }
+    $status = $isLate ? 'Late' : 'Present';
 
     // 9. Record it with the audit trail
     $timestamp = date('Y-m-d H:i:s');
@@ -266,10 +296,13 @@ if ($method === 'POST') {
 if ($method === 'DELETE') {
     // Discard attendance records (wrong scan / fraud correction).
     // A single record when student_uid is given; ALL records for the
-    // class/date when student_uid is omitted (full-session discard).
+    // class/date when student_uid is omitted. When session_id is supplied the
+    // deletion is scoped to that session only, so discarding one session never
+    // wipes another session's records from the same day.
     // Only the owning teacher (or an admin) may discard records.
     $classId = $_GET['class_id'] ?? null;
     $studentUid = $_GET['student_uid'] ?? null;
+    $sessionId = $_GET['session_id'] ?? null;
     if (!$classId) {
         jsonResponse(['error' => 'Missing class_id'], 400);
     }
@@ -285,11 +318,19 @@ if ($method === 'DELETE') {
     }
 
     $date = $_GET['date'] ?? date('Y-m-d');
-    if ($studentUid) {
-        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND date = ?");
+    if ($sessionId) {
+        if ($studentUid) {
+            $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND session_id = ?");
+            $stmt->execute([$classId, $studentUid, $sessionId]);
+        } else {
+            $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND session_id = ?");
+            $stmt->execute([$classId, $sessionId]);
+        }
+    } elseif ($studentUid) {
+        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND CAST(date AS DATE) = ?");
         $stmt->execute([$classId, $studentUid, $date]);
     } else {
-        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND date = ?");
+        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND CAST(date AS DATE) = ?");
         $stmt->execute([$classId, $date]);
     }
 

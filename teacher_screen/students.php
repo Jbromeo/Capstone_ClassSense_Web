@@ -120,7 +120,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         let lastClassesSig = '';
         let gradeSheetsCache = {};
         let attendanceRecordsCache = [];
-        let attendanceRateByStudent = {};
+        let attendanceRateByClass = {};
 
         // 1. Initial State Handshake
         initPage(() => {
@@ -263,9 +263,26 @@ require_once dirname(__DIR__) . '/core/init.php';
                 } catch (e) {}
                 try {
                     const data = await api(`/grades.php?class_id=${c.id}&quarter=${term}`);
+                    // Ensure all hps and grade scores are parsed as numbers to prevent string concatenation bugs (NaN results)
+                    const parsedComponents = (data.components || []).map(comp => ({
+                        ...comp,
+                        hps: parseFloat(comp.hps) || 0
+                    }));
+                    const parsedGrades = {};
+                    if (data.grades) {
+                        Object.keys(data.grades).forEach(compId => {
+                            parsedGrades[compId] = {};
+                            Object.keys(data.grades[compId] || {}).forEach(uid => {
+                                const val = parseFloat(data.grades[compId][uid]);
+                                if (!isNaN(val)) {
+                                    parsedGrades[compId][uid] = val;
+                                }
+                            });
+                        });
+                    }
                     gradeSheetsCache[c.id] = {
-                        components: data.components || [],
-                        grades: data.grades || {},
+                        components: parsedComponents,
+                        grades: parsedGrades,
                         weights: { written: 0, performance: 0, exam: 0, attendance: 0, ...(data.weights || {}) }
                     };
                 } catch (e) {
@@ -286,19 +303,21 @@ require_once dirname(__DIR__) . '/core/init.php';
                 }
             }));
             
-            // Compute rates
-            attendanceRateByStudent = {};
-            const studentUids = [...new Set(myClasses.flatMap(c => c.students || []))];
-            
-            studentUids.forEach(uid => {
-                const records = attendanceRecordsCache.filter(r => r.student_uid === uid);
-                if (records.length === 0) {
-                    attendanceRateByStudent[uid] = null;
-                    return;
-                }
-                const total = records.length;
-                const attended = records.filter(r => ['Present', 'Verified', 'Late'].includes(r.status)).length;
-                attendanceRateByStudent[uid] = Math.round((attended / total) * 100);
+            // Compute per-class rates
+            attendanceRateByClass = {};
+            (myClasses || []).forEach(c => {
+                attendanceRateByClass[c.id] = {};
+                const studentUids = c.students || [];
+                studentUids.forEach(uid => {
+                    const records = attendanceRecordsCache.filter(r => r.class_id === c.id && r.student_uid === uid);
+                    if (records.length === 0) {
+                        attendanceRateByClass[c.id][uid] = null;
+                        return;
+                    }
+                    const total = records.length;
+                    const attended = records.filter(r => ['Present', 'Verified', 'Late'].includes(r.status)).length;
+                    attendanceRateByClass[c.id][uid] = Math.round((attended / total) * 100);
+                });
             });
         }
 
@@ -316,8 +335,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                 comps.forEach(c => {
                     const s = sheet.grades[c.id]?.[studentUid];
                     if (s !== null && s !== undefined) {
-                        totalScore += s;
-                        totalHps += c.hps;
+                        totalScore += parseFloat(s);
+                        totalHps += parseFloat(c.hps);
                     }
                 });
                 if (totalHps === 0) return;
@@ -329,14 +348,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                 }
             });
             return totalWeight > 0 ? total : null;
-        }
-
-        function computeStudentGrade(student) {
-            const grades = (student.classes || [])
-                .map(c => computeClassFinalGrade(c.id, student.uid))
-                .filter(g => g !== null);
-            if (grades.length === 0) return null;
-            return grades.reduce((a, b) => a + b, 0) / grades.length;
         }
 
         // Search bar
@@ -370,10 +381,10 @@ require_once dirname(__DIR__) . '/core/init.php';
                 const classLabels = student.classes.map(c => 
                     `<span class="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] uppercase font-black mr-1">${c.section_name || 'N/A'}</span>`
                 ).join('');
-                const grade = computeStudentGrade(student);
+                const grade = currentFilter ? computeClassFinalGrade(currentFilter, student.uid) : null;
                 const gradeColor = grade !== null ? (grade >= 75 ? 'text-green-400' : 'text-red-400') : 'text-gray-600';
                 
-                const attendanceRate = attendanceRateByStudent[student.uid];
+                const attendanceRate = currentFilter ? (attendanceRateByClass[currentFilter]?.[student.uid] ?? null) : null;
                 const attendanceDisplay = attendanceRate !== null ? `${attendanceRate}%` : '—';
                 const attendanceColor = attendanceRate !== null ? (attendanceRate >= 80 ? 'text-green-400' : (attendanceRate >= 60 ? 'text-amber-400' : 'text-red-400')) : 'text-gray-600';
 
@@ -410,8 +421,8 @@ require_once dirname(__DIR__) . '/core/init.php';
         function updateStats(data) {
             const total = data.length;
             const graded = data
-                .map(s => ({ student: s, grade: computeStudentGrade(s) }))
-                .filter(x => x.grade !== null);
+                .map(s => ({ student: s, grade: currentFilter ? computeClassFinalGrade(currentFilter, s.uid) : null }))
+                .filter(x => x.grade !== null && !isNaN(x.grade));
             const avgGrade = graded.length > 0
                 ? graded.reduce((a, x) => a + x.grade, 0) / graded.length
                 : null;
@@ -443,12 +454,12 @@ require_once dirname(__DIR__) . '/core/init.php';
             document.getElementById('perfName').innerText = fullName;
             document.getElementById('perfClass').innerText = student.classes.map(c => c.class_name).join(', ');
             document.getElementById('perfAvatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=ea2628&color=fff`;
-            const grade = computeStudentGrade(student);
+            const grade = currentFilter ? computeClassFinalGrade(currentFilter, student.uid) : null;
             const gpaEl = document.getElementById('perfGPA');
             gpaEl.innerText = grade !== null ? grade.toFixed(1) : '—';
             gpaEl.className = 'text-3xl font-bold ' + (grade !== null ? (grade >= 75 ? 'text-green-400' : 'text-red-400') : 'text-primary-500');
 
-            const rate = attendanceRateByStudent[uid];
+            const rate = currentFilter ? (attendanceRateByClass[currentFilter]?.[uid] ?? null) : null;
             const perfAttEl = document.getElementById('perfAttendance');
             perfAttEl.innerText = rate !== null ? rate + '%' : '—';
             perfAttEl.className = 'text-lg font-bold ' + (rate !== null ? (rate >= 80 ? 'text-green-400' : (rate >= 60 ? 'text-amber-400' : 'text-red-400')) : 'text-gray-500');

@@ -241,7 +241,7 @@
                 let ts = 0, th = 0;
                 list.forEach(c => {
                     const s = parseFloat(data.grades[c.id]);
-                    if (!isNaN(s)) { ts += s; th += c.hps; }
+                    if (!isNaN(s)) { ts += s; th += parseFloat(c.hps); }
                 });
                 if (th === 0) return null;
                 return (ts / th) * 100;

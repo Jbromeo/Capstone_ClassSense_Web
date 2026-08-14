@@ -41,7 +41,7 @@ $queries = [
         start_time NVARCHAR(10),
         end_time NVARCHAR(10),
         time_slot NVARCHAR(50),
-        session_limit INT DEFAULT 15,
+        session_limit INT DEFAULT 0,
         teacher_uid VARCHAR(128) NOT NULL,
         teacher_name NVARCHAR(255),
         status NVARCHAR(50) DEFAULT 'In Progress',
@@ -213,6 +213,13 @@ $queries = [
         created_at DATETIME DEFAULT GETDATE(),
         CONSTRAINT fk_grade_components_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
     )",
+
+    "-- Link each attendance grading column to its audit session (one column per session)",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('grade_components') AND name = 'session_id')
+    ALTER TABLE grade_components ADD session_id VARCHAR(36) NULL",
+
+    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_grade_components_session')
+    CREATE INDEX idx_grade_components_session ON grade_components(class_id, category, session_id)",
 
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='grades' AND xtype='U')
     CREATE TABLE grades (

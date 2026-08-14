@@ -7,7 +7,10 @@
                             <i data-feather="arrow-left" class="w-5 h-5"></i>
                         </button>
                         <div>
-                            <h2 id="liveClassName" class="text-xl font-bold text-white">CS101: Intro to Programming</h2>
+                            <div class="flex items-center gap-2">
+                                <h2 id="liveClassName" class="text-xl font-bold text-white">CS101: Intro to Programming</h2>
+                                <span id="liveClassSubject" class="hidden px-2 py-0.5 rounded-full bg-primary-500/10 border border-primary-500/30 text-primary-400 text-[9px] font-black uppercase tracking-widest italic"></span>
+                            </div>
                             <div class="flex items-center gap-4">
                                 <p class="text-xs text-green-400 flex items-center gap-1">
                                     <span id="liveModeDot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -21,10 +24,6 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <button id="lateWindowBtn" onclick="startLateWindow()" class="flex items-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg transition-colors">
-                            <i data-feather="clock" class="w-4 h-4"></i>
-                            LATE WINDOW
-                        </button>
                         <button onclick="confirmEndSession()" class="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg transition-colors">
                             <i data-feather="stop-circle" class="w-4 h-4"></i>
                             End Session
@@ -62,6 +61,10 @@
                             <div class="bg-dark-bg rounded-lg p-4 text-center">
                                 <div id="presentCount" class="text-3xl font-bold text-green-400">0</div>
                                 <div class="text-[10px] uppercase text-gray-500 font-bold tracking-widest">Present</div>
+                            </div>
+                            <div class="bg-dark-bg rounded-lg p-4 text-center">
+                                <div id="lateCount" class="text-3xl font-bold text-amber-400">0</div>
+                                <div class="text-[10px] uppercase text-gray-500 font-bold tracking-widest">Late</div>
                             </div>
                             <div class="bg-dark-bg rounded-lg p-4 text-center">
                                 <div id="suspiciousCount" class="text-3xl font-bold text-amber-400">0</div>

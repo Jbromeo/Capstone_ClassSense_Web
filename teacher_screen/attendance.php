@@ -74,7 +74,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
                 <!-- Session window info (replaces the manual timer buttons) -->
                 <div class="mb-4 flex items-center justify-center gap-6 animate-fade-in-up" style="animation-delay: 100ms">
-                    <span id="sessionWindowLabel" class="text-[11px] font-black text-gray-400 uppercase tracking-widest italic opacity-80">Session Limit:</span>
+                    <span id="sessionWindowLabel" class="text-[11px] font-black text-gray-400 uppercase tracking-widest italic opacity-80">30-Second On-Time Window</span>
                 </div>
 
                 <!-- NEW: GPS Geofence Setting -->
@@ -153,6 +153,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
     </script>
 
-    <script type="module" src="attendance/attendance.js?v=2"></script>
+    <script type="module" src="attendance/attendance.js?v=11"></script>
 </body>
 </html>

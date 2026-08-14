@@ -19,7 +19,6 @@ window.openModal = () => {
     
     document.querySelectorAll('.day-pill').forEach(p => p.classList.remove('active'));
     document.getElementById('scheduleDaysInput').value = '';
-    document.getElementById('sessionLimitInput').value = '15';
 
     modal.classList.remove('hidden-form', 'hidden'); 
     setTimeout(() => { 
@@ -182,7 +181,6 @@ window.handleEditClassClick = (id) => {
     document.getElementById('editScheduleDaysInput').value = classData.schedule || '';
     document.getElementById('editStartTimeInput').value = classData.start_time || '';
     document.getElementById('editEndTimeInput').value = classData.end_time || '';
-    document.getElementById('editSessionLimitInput').value = classData.session_limit || '15';
     document.getElementById('editStatusInput').value = classData.status === 'Active' ? 'In Progress' : (classData.status || 'In Progress');
 
     document.querySelectorAll('.edit-day-pill').forEach(pill => {
@@ -222,7 +220,6 @@ window.handleUpdateClass = async () => {
     const schedule = document.getElementById('editScheduleDaysInput').value;
     const start = document.getElementById('editStartTimeInput').value;
     const end = document.getElementById('editEndTimeInput').value;
-    const sessionLimit = document.getElementById('editSessionLimitInput').value;
     const status = document.getElementById('editStatusInput').value;
 
     if (!name || !section || !schedule || !start || !end) {
@@ -235,7 +232,7 @@ window.handleUpdateClass = async () => {
             method: 'PUT',
             body: JSON.stringify({
                 class_name: name, level, subject, section_name: section,
-                schedule, start_time: start, end_time: end, session_limit: parseInt(sessionLimit), status
+                schedule, start_time: start, end_time: end, status
             })
         });
         window.showToast('Class updated successfully!', 'success');
@@ -288,8 +285,7 @@ const renderClassesGridView = (classes) => {
                     <div class="mt-3 flex items-center gap-2 opacity-70">
                         <i data-feather="clock" class="w-3 h-3 text-primary-400"></i>
                         <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest italic tracking-tighter">
-                            ${c.schedule || 'Schedule TBA'} &bull; ${c.time_slot || 'TBA'} &bull;
-                            <span class="text-primary-400">${c.session_limit && c.session_limit > 0 ? c.session_limit + 'm Limit' : 'Live'}</span>
+                            ${c.schedule || 'Schedule TBA'} &bull; ${c.time_slot || 'TBA'}
                         </span>
                     </div>
                 </div>
@@ -367,7 +363,6 @@ window.handleCreateClass = async () => {
     const scheduleDays = document.getElementById('scheduleDaysInput').value;
     const startTime = document.getElementById('startTimeInput').value;
     const endTime = document.getElementById('endTimeInput').value;
-    const sessionLimit = document.getElementById('sessionLimitInput').value;
 
     if (!user) return window.showToast('Authentication lag. Refresh required.', 'error');
     if (!nameEl.value || !sectionEl.value || !scheduleDays || !startTime || !endTime) {
@@ -395,7 +390,6 @@ window.handleCreateClass = async () => {
                 schedule: scheduleDays || 'TBA',
                 start_time: startTime,
                 end_time: endTime,
-                session_limit: parseInt(sessionLimit),
                 teacher_name: (currentTeacherData && (currentTeacherData.full_name || `${currentTeacherData.firstName || ''} ${currentTeacherData.lastName || ''}`.trim())) || (user.displayName || 'Faculty Account'),
             })
         });

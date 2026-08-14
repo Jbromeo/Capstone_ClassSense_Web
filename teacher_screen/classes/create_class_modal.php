@@ -62,16 +62,6 @@
                                 </div>
                             </div>
 
-                            <div>
-                                <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Session Limit (Minutes)</label>
-                                <select id="sessionLimitInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none italic font-medium">
-                                    <option value="15">15 Minutes</option>
-                                    <option value="30">30 Minutes</option>
-                                    <option value="45">45 Minutes</option>
-                                    <option value="60">60 Minutes</option>
-                                    <option value="0">∞ No Limit (Manual Stop)</option>
-                                </select>
-                            </div>
                     </div>
                     <div class="p-6 bg-dark-bg/50 border-t border-dark-border flex justify-end gap-3">
                         <button onclick="closeModal()" class="px-5 py-2.5 rounded-lg text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium">Cancel</button>

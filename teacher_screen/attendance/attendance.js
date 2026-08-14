@@ -6,6 +6,8 @@ let spotlightTimeout = null;
 let currentClassData = null;
 let verifiedStudentsList = []; // Array of { name, id, avatar, time }
 let processedUids = new Set();
+let initialSyncDone = false;
+let todayStatusByUid = new Map(); // uid -> today's existing {status,time,distance,suspicious}
 let selectedClassId = null;
 let classesCache = [];
 
@@ -23,10 +25,14 @@ let flagMap = new Map();  // student_uid -> [fraud reason strings]
 let sessionGradingPending = false; // set when a session ends; consumed by syncAttendanceToGrading()
 let reportEntries = [];        // full-roster rows (scanned + never-scanned) for the session report
 let reportReadyPromise = null; // resolves when the report table is fully rendered
+let endedSessionId = null;     // session_id captured at confirmEndSession(), passed to manual sync
 
 let attendanceCompId = null;   // id of the ATT grading component auto-created at session end
+let attendanceCompName = null; // display name (e.g. "8/14/26 #2") of that component
 let pickerUid = null;          // uid whose status popover is currently open
-const LATE_WINDOW_SECONDS = 180; // 3-minute late-arrivals window
+const ON_TIME_WINDOW_SECONDS = 30;  // on-time window; after it, scans are Late
+const LATE_WINDOW_SECONDS = 30;      // late window; when it expires, the session auto-ends
+const SESSION_TOTAL_SECONDS = ON_TIME_WINDOW_SECONDS + LATE_WINDOW_SECONDS;
 const NONCE_GRACE_SECONDS = 25;  // previous nonce accepted within this window
 const POLL_INTERVAL_MS = 3000;   // live attendance poll: scan appears within ~3s
 
@@ -60,9 +66,8 @@ const getLocation = () => new Promise((resolve) => {
 function setModeUI(mode) {
     currentMode = mode;
     const late = mode === 'late';
-    document.getElementById('lateWindowBtn').classList.toggle('hidden', late);
-    document.getElementById('liveModeTitle').innerText = late ? 'Late Arrivals Window' : 'Scan to Join';
-    document.getElementById('liveModeLabel').innerText = late ? 'LATE WINDOW ACTIVE' : 'Live Session Active';
+    document.getElementById('liveModeTitle').innerText = late ? 'Late Arrivals' : 'Scan to Join';
+    document.getElementById('liveModeLabel').innerText = late ? 'RECORDING LATE' : 'Live Session Active';
     const dot = document.getElementById('liveModeDot');
     dot.classList.toggle('bg-green-500', !late);
     dot.classList.toggle('bg-amber-500', late);
@@ -71,6 +76,7 @@ function setModeUI(mode) {
     countdown.classList.toggle('border-amber-500/20', late);
     countdown.classList.toggle('bg-primary-500/10', !late);
     countdown.classList.toggle('border-primary-500/20', !late);
+    if (late) document.getElementById('timerValue').innerText = 'LATE';
 }
 
 function applyGeofenceUI(cls) {
@@ -227,6 +233,18 @@ window.startAttendanceSession = async (classId) => {
         if (!currentClassData) return;
         upsertClassCache(currentClassData);
 
+        // Grading weights gate (start): the auto-created attendance column
+        // requires weights totaling 100%, so warn the teacher up front.
+        let weightsTotal = null;
+        try {
+            const gres = await api('/grades.php?class_id=' + classId + '&quarter=1');
+            weightsTotal = Object.values(gres.weights || {}).reduce((s, w) => s + (parseInt(w) || 0), 0);
+        } catch (e) { /* leave null — don't block the session on a fetch failure */ }
+        if (weightsTotal !== null && weightsTotal !== 100) {
+            await showWeightsRequiredAlert(classId);
+            return;
+        }
+
         const win = currentClassData.window || {};
         const live = isClassLive(currentClassData);
         const labelEl = document.getElementById('sessionWindowLabel');
@@ -237,20 +255,29 @@ window.startAttendanceSession = async (classId) => {
         // Switch View
         switchView('liveAttendanceView');
         document.getElementById('liveClassName').innerText = currentClassData.class_name;
+        const subjectBadge = document.getElementById('liveClassSubject');
+        if (subjectBadge) {
+            const subject = (currentClassData.subject || '').trim();
+            subjectBadge.innerText = subject;
+            subjectBadge.classList.toggle('hidden', !subject);
+        }
         document.getElementById('reportClassTitle').innerText = currentClassData.class_name;
         document.getElementById('totalCount').innerText = currentClassData.students ? currentClassData.students.length : 0;
         
     // Clear State
     verifiedStudentsList = [];
     processedUids.clear();
+    flagMap.clear();
+    initialSyncDone = false;
     sessionGradingPending = false;
     attendanceCompId = null;
     reportEntries = [];
     reportReadyPromise = null;
         document.getElementById('presentCount').innerText = '0';
+        updateLateCount();
         updateSuspiciousCount();
         document.getElementById('liveRosterList').innerHTML = '';
-        document.getElementById('spotlightContent').classList.add('hidden');
+        resetLiveSpotlight();
         document.getElementById('idleListState').classList.add('hidden');
         document.getElementById('idleEmptyState').classList.remove('hidden');
 
@@ -258,17 +285,26 @@ window.startAttendanceSession = async (classId) => {
         // instead of restarting.
         if (live) {
             currentNonce = currentClassData.current_nonce;
-            setModeUI(currentClassData.session_mode === 'late' ? 'late' : 'open');
             applyGeofenceUI(currentClassData);
-            const remainingSec = Math.max(0, Math.floor((parseSql(currentClassData.session_expires_at) - new Date()) / 1000));
             generateAttendanceQR(classId);
             startQRRefreshCycle(classId);
-            initAttendanceListener(classId);
+            initAttendanceListener(classId, { loadExisting: true });
             labelEl.innerText = (currentClassData.session_expires_at ? 'Until ' + formatSqlTime(currentClassData.session_expires_at) : 'Live session');
-            if (remainingSec > 0) {
-                startSessionCountdownFrom(remainingSec);
+            const started = parseSql(currentClassData.session_started_at);
+            const elapsed = started && !isNaN(started.getTime())
+                ? Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000))
+                : 0;
+            if (elapsed < ON_TIME_WINDOW_SECONDS) {
+                setModeUI('open');
+                startCountdown(remainingOnTimeWindow(currentClassData.session_started_at), flipToLate);
             } else {
-                document.getElementById('sessionCountdown').classList.add('hidden');
+                setModeUI('late');
+                const lateRemaining = remainingLateWindow(currentClassData.session_started_at);
+                if (lateRemaining > 0) {
+                    startCountdown(lateRemaining, () => window.confirmEndSession());
+                } else {
+                    window.confirmEndSession();
+                }
             }
             return;
         }
@@ -286,8 +322,9 @@ window.startAttendanceSession = async (classId) => {
             }
         }
 
-        // Generate nonce + start session via API. Session expiry is owned by
-        // the server (= class-window end); we do not send a TTL client-side.
+        // Generate nonce + start session via API. The session has NO client-side
+        // TTL — it runs until the 30-second late window expires (auto-end). The
+        // on-time window is tracked via session_started_at on the server.
         const nonce = randNonce();
         currentNonce = nonce;
         const started = nowSql();
@@ -316,41 +353,65 @@ window.startAttendanceSession = async (classId) => {
         // Generate QR Code (with the live nonce)
         generateAttendanceQR(classId);
 
-        // Refresh to read the server-authoritative session_expires_at
-        // (window end) and count down to it. A 0/Live session runs until
-        // the teacher stops it manually.
+        // Refresh to read the server-authoritative session state and start the
+        // 30-second on-time countdown. When it hits 0 the session flips to a
+        // 30-second late window and then auto-ends.
         const refreshed = await api('/classes.php?id=' + classId);
         upsertClassCache(refreshed);
+        currentClassData = refreshed;
         applyGeofenceUI(refreshed);
-        const exp = refreshed.session_expires_at ? parseSql(refreshed.session_expires_at) : null;
         labelEl.innerText = win.windowLabel || 'Live session';
-        if (exp) {
-            labelEl.innerText = 'Until ' + formatSqlTime(refreshed.session_expires_at);
-            startSessionCountdownFrom(Math.max(0, Math.floor((exp - new Date()) / 1000)));
-        } else {
-            document.getElementById('sessionCountdown').classList.add('hidden');
-        }
+        startCountdown(remainingOnTimeWindow(refreshed.session_started_at), flipToLate);
 
         // Start QR Refresh Cycle
         startQRRefreshCycle(classId);
 
         // Start Listener
-        initAttendanceListener(classId);
+        initAttendanceListener(classId, { loadExisting: false });
     } catch (err) {
         console.error("Session Init Failure:", err);
     }
 };
 
-function initAttendanceListener(classId) {
+function initAttendanceListener(classId, opts = {}) {
+    // loadExisting=false (fresh session): today's pre-existing rows are only
+    // seeded into processedUids so the list starts clean; new scans still show.
+    const loadExisting = opts.loadExisting !== false;
     if (attendanceListener) clearInterval(attendanceListener);
     
     async function pollAttendance() {
         try {
             const records = await api('/attendance.php?class_id=' + classId + '&date=' + TODAY_STR);
+            const fresh = [];
             for (const record of records) {
                 if (!processedUids.has(record.student_uid)) {
                     processedUids.add(record.student_uid);
-                    await processNewAttendance(record);
+                    fresh.push(record);
+                }
+            }
+            if (!initialSyncDone) {
+                initialSyncDone = true;
+                if (loadExisting) {
+                    for (const record of fresh) {
+                        await processNewAttendance(record, true);
+                    }
+                    if (verifiedStudentsList.length > 0) {
+                        document.getElementById('idleListState').classList.remove('hidden');
+                        document.getElementById('idleEmptyState').classList.add('hidden');
+                        renderIdleList();
+                    } else {
+                        document.getElementById('idleListState').classList.add('hidden');
+                        document.getElementById('idleEmptyState').classList.remove('hidden');
+                    }
+                } else {
+                    // Fresh session: pre-seed processedUids with today's rows
+                    // silently — the list stays empty until a new scan arrives.
+                    document.getElementById('idleListState').classList.add('hidden');
+                    document.getElementById('idleEmptyState').classList.remove('hidden');
+                }
+            } else {
+                for (const record of fresh) {
+                    await processNewAttendance(record, false);
                 }
             }
             renderFraudFlags(records);
@@ -391,7 +452,7 @@ function generateAttendanceQR(classId) {
         }),
         width: 160,
         height: 160,
-        colorDark: currentMode === 'late' ? "#B45309" : "#000000",
+        colorDark: "#000000",
         colorLight: "#ffffff",
         correctLevel: QRCode.CorrectLevel.H
     });
@@ -421,16 +482,12 @@ function startQRRefreshCycle(classId) {
     }, 10000); // Refresh every 10 seconds
 }
 
-// 2b. Late Arrivals Window: switch the projected QR to a late-only code.
-// Every scan during the window is recorded with status 'Late' by the server.
-window.startLateWindow = async () => {
+// 2b. Auto-late flip: when the 30-second on-time window elapses, switch the
+// projected QR to a late-only code. Every scan from here on is recorded with
+// status 'Late' by the server. A 30-second late window then runs and the
+// session auto-ends when it expires.
+async function flipToLate() {
     if (!currentClassData || currentMode === 'late') return;
-    if (!await window.csConfirm({
-        title: 'Open Late Arrivals Window?',
-        message: 'The next 3 minutes of scans will be recorded as LATE.',
-        okText: 'Open'
-    })) return;
-
     const nonce = randNonce();
     currentNonce = nonce;
 
@@ -440,20 +497,20 @@ window.startLateWindow = async () => {
             body: JSON.stringify({
                 session_mode: 'late',
                 current_nonce: nonce,
-                nonce_issued_at: nowSql(),
-                session_expires_at: sqlFromDate(new Date(Date.now() + LATE_WINDOW_SECONDS * 1000))
+                nonce_issued_at: nowSql()
             })
         });
 
         setModeUI('late');
         generateAttendanceQR(currentClassData.id);
-        startSessionCountdownFrom(LATE_WINDOW_SECONDS);
+        if (window.showToast) window.showToast('On-time window closed — scans now record as LATE', 'info');
+        startCountdown(remainingLateWindow(currentClassData.session_started_at), () => window.confirmEndSession());
     } catch (err) {
-        console.error("Late Window Failure:", err);
+        console.error("Late Mode Flip Failure:", err);
     }
 };
 
-async function processNewAttendance(record) {
+async function processNewAttendance(record, silent = false) {
     try {
         // Fetch student info via fetch.php (reads from SQL)
         const students = await api('/fetch.php', {
@@ -486,11 +543,12 @@ async function processNewAttendance(record) {
         verifiedStudentsList.push(entry);
         
         // Update UI Counters
-        document.getElementById('presentCount').innerText = verifiedStudentsList.length;
+        updateLivePresentCount();
+        updateLateCount();
         updateSuspiciousCount();
         
-        // Trigger Spotlight
-        updateSpotlight(entry);
+        // Trigger Spotlight (skipped during initial sync on start/resume)
+        if (!silent) updateSpotlight(entry);
     } catch (err) {
         console.warn("Student Context Fetch Error:", err);
     }
@@ -544,6 +602,12 @@ function updateSuspiciousCount() {
     el.innerText = verifiedStudentsList.filter(s => s.suspicious).length;
 }
 
+function updateLateCount() {
+    const el = document.getElementById('lateCount');
+    if (!el) return;
+    el.innerText = verifiedStudentsList.filter(s => normalizeStatus(s.status) === 'Late').length;
+}
+
 function updateSpotlight(student) {
     const emptyState = document.getElementById('idleEmptyState');
     const listState = document.getElementById('idleListState');
@@ -582,14 +646,44 @@ function showIdleView() {
     }
 }
 
+function resetLiveSpotlight() {
+    const spotlight = document.getElementById('spotlightContent');
+    if (spotlight) spotlight.classList.add('hidden');
+    const avatar = document.getElementById('spotlightAvatar');
+    if (avatar) avatar.src = '';
+    const name = document.getElementById('spotlightName');
+    if (name) name.innerText = 'Student Name';
+    const time = document.getElementById('spotlightTime');
+    if (time) time.innerText = 'Scanned at --:--';
+    if (spotlightTimeout) {
+        clearTimeout(spotlightTimeout);
+        spotlightTimeout = null;
+    }
+}
+
+function resetLiveFeed() {
+    resetLiveSpotlight();
+    verifiedStudentsList = [];
+    processedUids.clear();
+    flagMap.clear();
+    initialSyncDone = false;
+    document.getElementById('presentCount').innerText = '0';
+    updateLateCount();
+    updateSuspiciousCount();
+    document.getElementById('liveRosterList').innerHTML = '';
+    document.getElementById('idleListState').classList.add('hidden');
+    document.getElementById('idleEmptyState').classList.remove('hidden');
+}
+
 function renderIdleList() {
     const container = document.getElementById('liveRosterList');
     container.innerHTML = [...verifiedStudentsList].reverse().map(s => {
-        const late = s.status === 'Late';
+        const displayStatus = normalizeStatus(s.status);
+        const badge = statusBadge(displayStatus);
         const suspicious = !!s.suspicious;
         const dist = s.distance != null ? Math.round(s.distance) : null;
         return `
-        <div class="p-3 bg-dark-bg/40 border ${suspicious ? 'border-amber-500/40' : late ? 'border-amber-500/30' : 'border-dark-border'} rounded-xl hover:bg-white/5 transition-colors">
+        <div class="p-3 bg-dark-bg/40 border ${suspicious ? 'border-amber-500/40' : displayStatus === 'Late' ? 'border-amber-500/30' : displayStatus === 'Absent' ? 'border-red-500/30' : 'border-dark-border'} rounded-xl hover:bg-white/5 transition-colors">
             <div class="flex items-center">
                 <img src="${s.avatar}" class="w-10 h-10 rounded-full object-cover ring-2 ring-dark-bg mr-3">
                 <div class="flex-1">
@@ -597,9 +691,12 @@ function renderIdleList() {
                     <p class="text-[9px] text-gray-500 font-black uppercase tracking-widest italic opacity-60">${s.time}</p>
                 </div>
                 ${dist !== null ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic ${suspicious ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-primary-500/10 text-primary-400 border border-primary-500/20'}"><i data-feather="map-pin" class="w-3 h-3"></i> ${dist}m</span>` : ''}
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${suspicious ? 'bg-red-500/10 text-red-400 border border-red-500/30' : late ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-green-500/10 text-green-400 border border-green-500/20'} italic">
-                    <span class="w-1.5 h-1.5 rounded-full ${suspicious ? 'bg-red-500' : late ? 'bg-amber-500' : 'bg-green-500'}"></span> ${suspicious ? 'Suspicious' : late ? 'Late' : 'Verified'}
-                </span>
+                <button type="button" onclick="window.openStatusPicker(this, '${s.uid}')" class="status-badge cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${badge.classes} text-[9px] font-black uppercase tracking-widest italic transition-all hover:ring-2 hover:ring-white/15" title="Click to change status">
+                    <span class="w-1.5 h-1.5 rounded-full ${badge.dot}"></span>
+                    ${suspicious ? '<i data-feather="alert-triangle" class="w-3 h-3 text-red-400"></i>' : ''}
+                    ${badge.label}
+                    <i data-feather="chevron-down" class="w-3 h-3 opacity-50"></i>
+                </button>
                 <button onclick="window.discardAttendanceRecord('${s.uid}')" class="ml-2 p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors" title="Discard record">
                     <i data-feather="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
@@ -637,6 +734,9 @@ async function refreshClassesCache() {
 }
 
 window.confirmEndSession = async () => {
+    // Capture session_id BEFORE the PUT clears it server-side (the server moves
+    // session_id -> last_session_id on session_active=0, so we grab it now).
+    endedSessionId = currentClassData?.session_id || null;
     if (currentClassData) {
         try {
             await api('/classes.php?id=' + currentClassData.id, {
@@ -656,38 +756,66 @@ window.confirmEndSession = async () => {
     // Reset mode UI for next session
     setModeUI('open');
     
+    // Clear any stale spotlight overlay before moving to the report view
+    resetLiveSpotlight();
+    
     sessionGradingPending = true;
     reportReadyPromise = generateSummaryReport();
     switchView('sessionSummaryView');
 };
 
-function startSessionCountdownFrom(totalSeconds) {
+// Seconds remaining in the 30-second on-time window for a session started at
+// `startedAt` (SQL string). Falls back to the full window if the start time is
+// missing or unparseable.
+function remainingOnTimeWindow(startedAt) {
+    const started = parseSql(startedAt);
+    if (!started || isNaN(started.getTime())) return ON_TIME_WINDOW_SECONDS;
+    const elapsed = Math.max(0, Math.floor((new Date() - started) / 1000));
+    return Math.max(0, ON_TIME_WINDOW_SECONDS - elapsed);
+}
+
+// Seconds remaining in the 30-second late window (which runs right after the
+// on-time window). Falls back to the full late window if unparseable.
+function remainingLateWindow(startedAt) {
+    const started = parseSql(startedAt);
+    if (!started || isNaN(started.getTime())) return LATE_WINDOW_SECONDS;
+    const elapsed = Math.max(0, Math.floor((new Date() - started) / 1000));
+    return Math.max(0, SESSION_TOTAL_SECONDS - elapsed);
+}
+
+// Generic countdown; calls onComplete() when it reaches 0. The on-time window
+// flips to late mode; the late window auto-ends the session.
+function startCountdown(totalSeconds, onComplete) {
     totalSeconds = Math.max(0, Math.floor(totalSeconds));
     const timerDisplay = document.getElementById('sessionCountdown');
     const timerSpan = document.getElementById('timerValue');
-    
+
     timerDisplay.classList.remove('hidden');
     timerSpan.classList.remove('text-primary', 'animate-pulse');
-    
+
     if (sessionTimerInterval) clearInterval(sessionTimerInterval);
-    
-    sessionTimerInterval = setInterval(() => {
+
+    const tick = () => {
         const displayMins = Math.floor(totalSeconds / 60);
         const displaySecs = totalSeconds % 60;
-        
+
         timerSpan.innerText = `${displayMins}:${displaySecs.toString().padStart(2, '0')}`;
-        
-        if (totalSeconds <= 60 && currentMode === 'open') {
+
+        if (totalSeconds <= 60) {
             timerSpan.classList.add('text-primary', 'animate-pulse');
         }
 
         if (totalSeconds <= 0) {
             clearInterval(sessionTimerInterval);
-            confirmEndSession(); 
+            sessionTimerInterval = null;
+            if (typeof onComplete === 'function') onComplete();
+            return;
         }
-        
+
         totalSeconds--;
-    }, 1000);
+    };
+    tick();
+    sessionTimerInterval = setInterval(tick, 1000);
 }
 
 const STATUS_STYLES = {
@@ -698,6 +826,18 @@ const STATUS_STYLES = {
 
 function statusBadge(status) {
     return STATUS_STYLES[status] || STATUS_STYLES.Absent;
+}
+
+function normalizeStatus(status) {
+    if (status === 'Late') return 'Late';
+    if (status === 'Absent') return 'Absent';
+    return 'Present';
+}
+
+function updateLivePresentCount() {
+    const el = document.getElementById('presentCount');
+    if (!el) return;
+    el.innerText = verifiedStudentsList.filter(s => normalizeStatus(s.status) === 'Present').length;
 }
 
 function initialsAvatar(st, uid) {
@@ -730,6 +870,27 @@ async function generateSummaryReport() {
     const scannedMap = new Map();
     verifiedStudentsList.forEach(s => scannedMap.set(s.uid, s));
 
+    // Load today's existing attendance rows so students who scanned in an
+    // EARLIER same-day session keep their Present/Late status (and don't get
+    // flipped to Absent / overwritten by a second session's Done).
+    todayStatusByUid.clear();
+    if (currentClassData && currentClassData.id) {
+        try {
+            const todayRows = await api('/attendance.php?class_id=' + currentClassData.id + '&date=' + TODAY_STR);
+            (todayRows || []).forEach(r => {
+                if (!r.student_uid) return;
+                todayStatusByUid.set(r.student_uid, {
+                    status: normalizeStatus(r.status || 'Absent'),
+                    time: r.timestamp ? new Date(r.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : '',
+                    distance: r.distance_m != null ? Number(r.distance_m) : null,
+                    suspicious: r.is_suspicious == 1
+                });
+            });
+        } catch (e) {
+            console.warn('Today attendance fetch failed:', e);
+        }
+    }
+
     // Batch-fetch name/id/avatar for enrolled students who never scanned.
     const missingUids = rosterUids.filter(u => !scannedMap.has(u));
     let profileMap = new Map();
@@ -757,23 +918,43 @@ async function generateSummaryReport() {
                 time: sc.time,
                 distance: sc.distance,
                 suspicious: !!sc.suspicious,
-                status: sc.status === 'Late' ? 'Late' : 'Present',
+                status: normalizeStatus(sc.status),
                 scanned: true
             });
         } else {
-            const st = profileMap.get(uid) || {};
-            const avatar = st.profilePicture || st.profile_picture || initialsAvatar(st, uid);
-            entries.push({
-                uid,
-                name: `${st.firstName || ''} ${st.lastName || ''}`.trim() || 'Unknown Student',
-                id: st.studentId || 'N/A',
-                avatar,
-                time: '',
-                distance: null,
-                suspicious: false,
-                status: 'Absent',
-                scanned: false
-            });
+            // Full-day report (one session per day): a student who didn't scan
+            // this run but already scanned earlier today (Present/Late) is still
+            // shown as attended — the report reflects the whole day.
+            const today = todayStatusByUid.get(uid);
+            if (today && (today.status === 'Present' || today.status === 'Late')) {
+                const st = profileMap.get(uid) || {};
+                const avatar = st.profilePicture || st.profile_picture || initialsAvatar(st, uid);
+                entries.push({
+                    uid,
+                    name: `${st.firstName || ''} ${st.lastName || ''}`.trim() || 'Unknown Student',
+                    id: st.studentId || 'N/A',
+                    avatar,
+                    time: today.time,
+                    distance: today.distance,
+                    suspicious: today.suspicious,
+                    status: today.status,
+                    scanned: true
+                });
+            } else {
+                const st = profileMap.get(uid) || {};
+                const avatar = st.profilePicture || st.profile_picture || initialsAvatar(st, uid);
+                entries.push({
+                    uid,
+                    name: `${st.firstName || ''} ${st.lastName || ''}`.trim() || 'Unknown Student',
+                    id: st.studentId || 'N/A',
+                    avatar,
+                    time: '',
+                    distance: null,
+                    suspicious: false,
+                    status: 'Absent',
+                    scanned: false
+                });
+            }
         }
     }
 
@@ -783,7 +964,7 @@ async function generateSummaryReport() {
             entries.push({
                 uid: s.uid, name: s.name, id: s.id, avatar: s.avatar,
                 time: s.time, distance: s.distance, suspicious: !!s.suspicious,
-                status: s.status === 'Late' ? 'Late' : 'Present', scanned: true
+                status: normalizeStatus(s.status), scanned: true
             });
         }
     }
@@ -851,13 +1032,24 @@ function renderSummaryTable() {
     feather.replace();
 }
 
-// --- Manual status switching (report only) ---
+// --- Manual status switching (live roster + session report) ---
 window.updateAttendanceStatus = async (uid, status) => {
-    const entry = reportEntries.find(e => e.uid === uid);
-    if (!entry || entry.status === status) return;
-    const previous = entry.status;
-    entry.status = status;
-    renderSummaryTable();
+    const liveEntry = verifiedStudentsList.find(s => s.uid === uid);
+    const reportEntry = reportEntries.find(e => e.uid === uid);
+    if (!liveEntry && !reportEntry) return;
+
+    const prevLive = liveEntry ? normalizeStatus(liveEntry.status) : null;
+    const prevReport = reportEntry ? normalizeStatus(reportEntry.status) : null;
+    if (prevLive === status && prevReport === status) return;
+
+    if (liveEntry) liveEntry.status = status;
+    if (reportEntry) reportEntry.status = status;
+    if (reportEntry) renderSummaryTable();
+    if (liveEntry) {
+        updateLivePresentCount();
+        updateLateCount();
+        renderIdleList();
+    }
 
     try {
         await api('/attendance.php', {
@@ -871,35 +1063,93 @@ window.updateAttendanceStatus = async (uid, status) => {
             })
         });
     } catch (err) {
-        entry.status = previous;
-        renderSummaryTable();
+        if (liveEntry && prevLive != null) liveEntry.status = prevLive;
+        if (reportEntry && prevReport != null) reportEntry.status = prevReport;
+        if (reportEntry) renderSummaryTable();
+        if (liveEntry) {
+            updateLivePresentCount();
+            updateLateCount();
+            renderIdleList();
+        }
         console.error('Status update failed:', err);
         if (window.showToast) window.showToast('Failed to update status', 'error');
         return;
     }
 
+    if (window.showToast) window.showToast(`Status updated to ${status}`, 'success');
+
     // Keep the ATT grading component in sync with a status change made on the
-    // report (after the session has ended the component already exists).
-    if (attendanceCompId) {
-        const score = status === 'Present' ? 10 : status === 'Late' ? 5 : 0;
-        try {
+    // report. Even if attendanceCompId isn't linked yet (e.g. an edit made in
+    // the report before the session's grading sync has run, or after a fresh
+    // session reset it to null), resolve the day's M/D/YY column and update it.
+    await syncAttendanceScoreToGrading(currentClassData.id, uid, status);
+};
+
+// Mirror a status change into the Grading Center's Attendance component for
+// the current day (Present=10, Late=5, Absent=0). One column per day named
+// M/D/YY: reuse the already-linked component, otherwise search every term for
+// the daily column, and auto-create it in the active term as a last resort.
+// Non-blocking: a grade-sync failure never rolls back the attendance update.
+async function syncAttendanceScoreToGrading(classId, studentUid, status) {
+    if (!classId || !studentUid) return;
+    const score = status === 'Present' ? 10 : status === 'Late' ? 5 : 0;
+    const d = new Date();
+    const dateLabel = `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
+
+    let compId = attendanceCompId;
+    try {
+        if (!compId) {
+            for (let q = 1; q <= 3 && !compId; q++) {
+                const data = await api(`/grades.php?class_id=${classId}&quarter=${q}`);
+                const match = (data.components || []).find(c =>
+                    c.category === 'attendance' && c.name === dateLabel
+                );
+                if (match) compId = match.id;
+            }
+        }
+        if (!compId) {
+            let quarter = 1;
+            try {
+                quarter = Math.min(3, Math.max(1, parseInt(sessionStorage.getItem(`cs_grading_term_${classId}`) || '1') || 1));
+            } catch (e) {}
+            const res = await api('/grades.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'save_component',
+                    class_id: classId,
+                    category: 'attendance',
+                    name: dateLabel,
+                    hps: 10,
+                    quarter
+                })
+            });
+            compId = (res.component || {}).id;
+            if (compId) attendanceCompId = compId;
+        }
+        if (compId) {
             await api('/grades.php', {
                 method: 'POST',
-                body: JSON.stringify({ action: 'save_score', component_id: attendanceCompId, student_uid: uid, score })
+                body: JSON.stringify({ action: 'save_score', component_id: compId, student_uid: studentUid, score })
             });
-        } catch (gradeErr) {
-            console.error('Grade sync failed for status change:', gradeErr);
+            attendanceCompId = compId;
+        }
+    } catch (gradeErr) {
+        console.error('Grade sync failed for status change:', gradeErr);
+        const msg = gradeErr.message || '';
+        if (msg.includes('weights') || msg.includes('Weights')) {
+            if (window.showToast) window.showToast('Set grading weights (total 100%) to sync attendance', 'error');
         }
     }
-};
+}
 
 window.openStatusPicker = (btn, uid) => {
     const picker = document.getElementById('statusPicker');
     if (!picker) return;
     pickerUid = uid;
 
-    const entry = reportEntries.find(e => e.uid === uid);
-    const current = entry ? entry.status : 'Absent';
+    const liveEntry = verifiedStudentsList.find(s => s.uid === uid);
+    const reportEntry = reportEntries.find(e => e.uid === uid);
+    const current = normalizeStatus((reportEntry || liveEntry)?.status || 'Absent');
 
     picker.querySelectorAll('.status-option').forEach(opt => {
         const isActive = opt.dataset.status === current;
@@ -936,11 +1186,13 @@ window.discardAttendanceRecord = async (studentUid) => {
         danger: true
     })) return;
     try {
+        // Per-day model: remove this student's attendance record for today.
         await api('/attendance.php?class_id=' + currentClassData.id + '&student_uid=' + studentUid + '&date=' + TODAY_STR, { method: 'DELETE' });
         verifiedStudentsList = verifiedStudentsList.filter(s => s.uid !== studentUid);
         processedUids.delete(studentUid);
         flagMap.delete(studentUid);
-        document.getElementById('presentCount').innerText = verifiedStudentsList.length;
+        updateLivePresentCount();
+        updateLateCount();
         updateSuspiciousCount();
         generateSummaryReport();
         renderIdleList();
@@ -965,13 +1217,28 @@ window.discardAllRecords = async () => {
         danger: true
     })) return;
     try {
+        // Per-day model: remove ALL of today's attendance rows and today's
+        // auto-created grading column (named M/D/YY), so discarding reverts the
+        // whole day's attendance.
         if (currentClassData) {
             await api('/attendance.php?class_id=' + currentClassData.id + '&date=' + TODAY_STR, { method: 'DELETE' });
         }
-        if (attendanceCompId) {
-            try { await api('/grades.php?component_id=' + attendanceCompId, { method: 'DELETE' }); } catch (e) {}
-            attendanceCompId = null;
+        const todayName = `${new Date().getMonth() + 1}/${new Date().getDate()}/${String(new Date().getFullYear()).slice(-2)}`;
+        let dayCompId = attendanceCompId || null;
+        if (!dayCompId && currentClassData) {
+            for (let quarter = 1; quarter <= 3 && !dayCompId; quarter++) {
+                try {
+                    const res = await api('/grades.php?class_id=' + currentClassData.id + '&quarter=' + quarter);
+                    const match = (res.components || []).find(c => c.category === 'attendance' && c.name === todayName);
+                    if (match) dayCompId = match.id;
+                } catch (e) {}
+            }
         }
+        if (dayCompId) {
+            try { await api('/grades.php?component_id=' + dayCompId, { method: 'DELETE' }); } catch (e) {}
+        }
+        attendanceCompId = null;
+        attendanceCompName = null;
         verifiedStudentsList = [];
         processedUids.clear();
         flagMap.clear();
@@ -1004,6 +1271,26 @@ window.backToClassSelection = async () => {
     switchView('classSelectionView');
     updateSelectionBar();
 };
+
+// Warn the teacher that grading weights are required before attendance grades
+// can appear in the Grading Sheet. Single-button modal: the ONLY option is to
+// open the Grading Center — the teacher can never continue without weights.
+async function showWeightsRequiredAlert(classId) {
+    if (!window.csConfirm) {
+        window.location.href = `class_view.php?id=${classId}&tab=grading`;
+        return true;
+    }
+    return await window.csConfirm({
+        title: 'Grading Weights Required',
+        message: 'This class has no grading weights configured (they must total 100%). Attendance grades will NOT be added to the Grading Sheet until weights are set in the Grading Center.',
+        okText: 'Open Grading Center',
+        danger: false,
+        single: true
+    }).then((ok) => {
+        if (ok) window.location.href = `class_view.php?id=${classId}&tab=grading`;
+        return ok;
+    });
+}
 
 // Auto-create an Attendance component (ATT-n, HPS 10) in the grading sheet
 // when the teacher finishes a session via the Done button. Runs even if no
@@ -1039,18 +1326,44 @@ async function syncAttendanceToGrading() {
     // scanned student's Present/Late row is left untouched, and absent
     // students that only existed in the report now get a real DB record.
     const finalStatus = { present: 'Present', late: 'Late', absent: 'Absent' };
-    const statusRows = roster.map(uid => ({
-        student_uid: uid,
-        status: finalStatus[statusByUid.get(uid)] || 'Absent'
-    }));
+    const statusRows = [];
+    roster.forEach(uid => {
+        const final = finalStatus[statusByUid.get(uid)] || 'Absent';
+        // Protect earlier same-day Present/Late rows: if this session's report
+        // would mark the student Absent but they already have a scanned
+        // (Present/Late) row today from an earlier session, leave it untouched.
+        const existingToday = todayStatusByUid.get(uid);
+        if (final === 'Absent' && existingToday && (existingToday.status === 'Present' || existingToday.status === 'Late')) {
+            return;
+        }
+        statusRows.push({ student_uid: uid, status: final });
+    });
     try {
+        const syncBody = { manual: true, class_id: classId, date: TODAY_STR, students: statusRows };
+        // Pass the captured session_id so absent rows get linked to this session
+        // in the attendance table (the PHP fallback also resolves it server-side).
+        if (endedSessionId) syncBody.session_id = endedSessionId;
         await api('/attendance.php', {
             method: 'POST',
-            body: JSON.stringify({ manual: true, class_id: classId, date: TODAY_STR, students: statusRows })
+            body: JSON.stringify(syncBody)
         });
     } catch (persistErr) {
         console.error('Attendance final-status persist failed:', persistErr);
         if (window.showToast) window.showToast('Failed to save absence records', 'error');
+    }
+
+    // Refresh today's attendance snapshot AFTER the persist so the defensive
+    // fallback below (missing report entries) reflects current DB state, not a
+    // pre-edit snapshot from when the report was generated.
+    todayStatusByUid.clear();
+    try {
+        const todayRows = await api('/attendance.php?class_id=' + classId + '&date=' + TODAY_STR);
+        (todayRows || []).forEach(r => {
+            if (!r.student_uid) return;
+            todayStatusByUid.set(r.student_uid, { status: normalizeStatus(r.status || 'Absent') });
+        });
+    } catch (e) {
+        console.warn('Today attendance refresh failed during sync:', e);
     }
 
     const grades = {};
@@ -1058,7 +1371,22 @@ async function syncAttendanceToGrading() {
         const st = statusByUid.get(uid);
         if (st === 'present') grades[uid] = 10;
         else if (st === 'late') grades[uid] = 5;
-        else grades[uid] = 0; // absent (or not in report) => 0
+        else if (st === 'absent') grades[uid] = 0;
+        else {
+            // Defensive fallback only: the report covers the full roster, so a
+            // missing entry means the student never made it into the report at
+            // all. Keep an earlier same-day Present/Late score rather than
+            // zeroing real attendance. NOTE: an explicit 'absent' report status
+            // is ALWAYS authoritative above (the report already reflects
+            // same-day earlier sessions), so a stale todayStatusByUid snapshot
+            // can never flip a marked-absent student back to Present.
+            const existingToday = todayStatusByUid.get(uid);
+            if (existingToday && (existingToday.status === 'Present' || existingToday.status === 'Late')) {
+                grades[uid] = existingToday.status === 'Late' ? 5 : 10;
+            } else {
+                grades[uid] = 0;
+            }
+        }
     });
 
     try {
@@ -1070,12 +1398,15 @@ async function syncAttendanceToGrading() {
                 category: 'attendance',
                 name: compName,
                 hps: 10,
-                quarter: term
+                quarter: term,
+                session_id: endedSessionId || null
             })
         });
-        const compId = (res.component || {}).id;
+        const comp = res.component || {};
+        const compId = comp.id;
         if (!compId) throw new Error('Component id missing');
         attendanceCompId = compId;
+        attendanceCompName = comp.name || compName;
 
         const rows = Object.entries(grades).map(([studentUid, score]) => ({ component_id: compId, student_uid: studentUid, score }));
         await api('/grades.php', {
@@ -1084,14 +1415,22 @@ async function syncAttendanceToGrading() {
         });
     } catch (e) {
         console.error('Attendance component save failed:', e);
-        if (window.showToast) window.showToast('Attendance component save failed', 'error');
+        const msg = (e && e.message) || '';
+        if (msg.includes('weights') || msg.includes('Weights')) {
+            await showWeightsRequiredAlert(currentClassData.id);
+            return;
+        }
+        if (window.showToast) window.showToast('Attendance component save failed: ' + msg, 'error');
         return;
     }
-    if (window.showToast) window.showToast(`Attendance component ${compName} added to grading sheet (${({1: '1st Term', 2: '2nd Term', 3: '3rd Term'}[term] || '1st Term')})`, 'success');
+    if (window.showToast) window.showToast(`Attendance component ${attendanceCompName} added to grading sheet (${({1: '1st Term', 2: '2nd Term', 3: '3rd Term'}[term] || '1st Term')})`, 'success');
 }
 
 window.goToClassSelection = async () => {
     await syncAttendanceToGrading();
+    // Session is fully ended here: reset the live feed so nothing stale
+    // (spotlight, list, timers) survives into the next session.
+    resetLiveFeed();
     // Clear last_session_id so the "Reopen" button disappears and the class
     // is ready for a fresh session after Done.
     if (currentClassData && currentClassData.id) {
@@ -1143,17 +1482,21 @@ async function fetchStudentProfiles(uids) {
 }
 
 // Link the reopened session to the ATT component that was auto-created at end
-// so post-reopen status edits keep the grade in sync.
-async function linkAttendanceComponent(cls) {
+// so post-reopen status edits keep the grade in sync. Matches by session_id
+// (falls back to the date prefix so older, unnumbered columns still work).
+async function linkAttendanceComponent(cls, sessionId) {
     attendanceCompId = null;
+    attendanceCompName = null;
     const d = new Date();
     const todayName = `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
     for (let quarter = 1; quarter <= 3; quarter++) {
         try {
             const res = await api('/grades.php?class_id=' + cls.id + '&quarter=' + quarter);
             const comps = (res.components || []).filter(c => c.category === 'attendance');
-            const match = comps.find(c => c.name === todayName) || comps[comps.length - 1];
-            if (match) { attendanceCompId = match.id; return; }
+            const match = comps.find(c => c.name === todayName)
+                || (sessionId && comps.find(c => c.session_id === sessionId))
+                || comps[comps.length - 1];
+            if (match) { attendanceCompId = match.id; attendanceCompName = match.name; return; }
         } catch (e) {}
     }
 }
@@ -1167,19 +1510,19 @@ window.loadSessionReportFromServer = async (classId, sessionId) => {
         const cls = await api('/classes.php?id=' + classId);
         if (!cls || !Array.isArray(cls.students)) throw new Error('Class not found or no roster');
         currentClassData = cls;
+        endedSessionId = sessionId || null;
         const titleEl = document.getElementById('reportClassTitle');
         if (titleEl) titleEl.innerText = cls.class_name;
 
         const rows = await api('/attendance.php?class_id=' + classId + '&date=' + TODAY_STR);
         const list = Array.isArray(rows) ? rows : [];
 
-        // Keep the ended session's scan rows plus any manual marks made for it.
-        // Manual marks store session_id = NULL (never-scanned Absent rows are
-        // excluded here and re-derived from the roster below).
+        // Full-day report: show every non-Absent record for today regardless of
+        // which session produced it (one session per day). Never-scanned Absent
+        // rows are excluded here and re-derived from the roster below.
         const scannedMap = new Map();
         for (const r of list) {
-            const inSession = r.session_id === sessionId || (r.session_id === null && r.status !== 'Absent');
-            if (!inSession) continue;
+            if (r.status === 'Absent') continue;
             const prev = scannedMap.get(r.student_uid);
             if (!prev || (r.timestamp || '') > (prev.timestamp || '')) scannedMap.set(r.student_uid, r);
         }
@@ -1226,7 +1569,7 @@ window.loadSessionReportFromServer = async (classId, sessionId) => {
         reportReadyPromise = Promise.resolve();
         sessionGradingPending = true;
 
-        await linkAttendanceComponent(cls);
+        await linkAttendanceComponent(cls, sessionId);
         switchView('sessionSummaryView');
         if (window.showToast) window.showToast('Session report reopened', 'success');
     } catch (err) {
@@ -1251,13 +1594,15 @@ window.csConfirm = (opts = {}) => new Promise((resolve) => {
     okBtn.innerText = opts.okText || 'Confirm';
     cancelBtn.innerText = opts.cancelText || 'Cancel';
     modal.classList.toggle('danger', !!opts.danger);
+    modal.classList.toggle('single', !!opts.single);
     feather.replace();
 
     let settled = false;
     const done = (val) => {
         if (settled) return;
+        if (opts.single && val === false) return;
         settled = true;
-        modal.classList.remove('show');
+        modal.classList.remove('show', 'single');
         setTimeout(() => modal.classList.add('hidden'), 300);
         document.removeEventListener('keydown', onKey);
         resolve(val);

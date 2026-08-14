@@ -17,6 +17,7 @@ $stmt = $pdo->prepare("SELECT c.* FROM classes c JOIN class_students cs ON c.id 
     $classes = $stmt->fetchAll();
     // Only include students that still exist in users (defends against orphan rows)
     $todayAtt = $pdo->prepare("SELECT status FROM attendance WHERE class_id = ? AND student_uid = ? AND date = CONVERT(date, GETDATE())");
+    $classAtt = $pdo->prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('Present','Verified') THEN 1 ELSE 0 END) AS present, SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) AS late FROM attendance WHERE class_id = ? AND student_uid = ?");
     foreach ($classes as &$c) {
         $stmt = $pdo->prepare("SELECT cs.student_uid FROM class_students cs JOIN users u ON u.uid = cs.student_uid WHERE cs.class_id = ?");
         $stmt->execute([$c['id']]);
@@ -26,6 +27,15 @@ $stmt = $pdo->prepare("SELECT c.* FROM classes c JOIN class_students cs ON c.id 
         $attRow = $todayAtt->fetch();
         $c['attendedToday'] = (bool)$attRow;
         $c['todayStatus'] = $attRow ? $attRow['status'] : null;
+        // Per-class attendance rate (mirrors student_stats.php, scoped to this class)
+        $classAtt->execute([$c['id'], $studentUid]);
+        $att = $classAtt->fetch();
+        if ($att && (int)$att['total'] > 0) {
+            $present = (int)$att['present'] + (int)$att['late'];
+            $c['attendanceRate'] = round(($present / (int)$att['total']) * 100);
+        } else {
+            $c['attendanceRate'] = null;
+        }
     }
     jsonResponse($classes);
     }
@@ -98,8 +108,8 @@ $id,
         $data['schedule'] ?? '',
         $data['start_time'] ?? '',
         $data['end_time'] ?? '',
-        $timeSlot,
-        (int)($data['session_limit'] ?? 15),
+$timeSlot,
+        (int)($data['session_limit'] ?? 0),
         $uid,
         $data['teacher_name'] ?? 'Faculty Account',
         $data['status'] ?? 'In Progress'
@@ -139,13 +149,13 @@ $allowedFields = ['class_name', 'level', 'subject', 'section_name', 'schedule', 
         jsonResponse(['error' => 'No valid fields to update'], 400);
     }
 
-    // Load the current row: needed to distinguish a fresh start from a resume and
-    // to read the schedule for the time-gate. NOTE: this SQL Server rejects
-    // comparison operators (`=`,`<`,`IS NULL`) in the SELECT list, so we cannot
-    // emit `(session_expires_at IS NULL OR session_expires_at < GETDATE())`.
-    // Instead fetch the signed expiry age via DATEDIFF (a function call, which is
-    // allowed) and compare it to zero in PHP. DATEDIFF uses GETDATE() on the
-    // server, so the PHP/server clock+timezone skew is irrelevant here.
+    // Load the current row: needed to distinguish a fresh start from a resume.
+    // NOTE: this SQL Server rejects comparison operators (`=`,`<`,`IS NULL`) in
+    // the SELECT list, so we cannot emit `(session_expires_at IS NULL OR
+    // session_expires_at < GETDATE())`. Instead fetch the signed expiry age via
+    // DATEDIFF (a function call, which is allowed) and compare it to zero in
+    // PHP. DATEDIFF uses GETDATE() on the server, so the PHP/server
+    // clock+timezone skew is irrelevant here.
     $cur = $pdo->prepare("SELECT schedule, start_time, end_time, session_active, session_id, session_expires_at, DATEDIFF(SECOND, session_expires_at, GETDATE()) AS expires_age FROM classes WHERE id = ? AND teacher_uid = ?");
     $cur->execute([$classId, $uid]);
     $row = $cur->fetch();
@@ -155,7 +165,7 @@ $allowedFields = ['class_name', 'level', 'subject', 'section_name', 'schedule', 
 
     // "Fresh start" = client wants active=1 but there's NOT a live session right now.
     // A stale-but-expired session (session_active=1 with a past expiry) counts as
-    // NOT live, so the time-gate still applies instead of silently resuming.
+    // NOT live, so a fresh session is minted instead of silently resuming.
     $incomingActive = array_key_exists('session_active', $data) ? (int)$data['session_active'] : null;
     $now = time();
     $curActive      = (int)$row['session_active'];
@@ -199,32 +209,25 @@ $allowedFields = ['class_name', 'level', 'subject', 'section_name', 'schedule', 
         $fields[] = "session_limit = 0";
     }
 
-    // Fresh-start + authoritative expiry. Schedule gate removed — teachers can
+// Fresh-start + authoritative expiry. Schedule gate removed — teachers can
     // start attendance at any time regardless of the class schedule window.
+    // The session has NO auto-expiry server-side: the 30-second late-window
+    // auto-end is driven by the teacher UI. The 30-second on-time window is
+    // enforced server-side in attendance.php, so scans recorded after it
+    // expires are simply marked Late.
     if ($freshStart) {
-        $win = classScheduleWindow($row['schedule'], $row['start_time'], $row['end_time']);
         if (!array_key_exists('session_started_at', $data)) {
             $fields[] = "session_started_at = GETDATE()";
         }
-        if ($win['scheduled'] && isset($win['closesAt']) && $win['closesAt'] > 0) {
-            // Authority session expires at the end of the class window.
-            $fields[]  = "session_expires_at = CAST(? AS DATETIME)";
-            $params[]  = date('Y-m-d H:i:s', $win['closesAt']);
-        } else {
-            // Unconstrained (no schedule) -> runs until the teacher stops it.
-            $fields[] = "session_expires_at = NULL";
-        }
+        $fields[] = "session_expires_at = NULL";
         $fields[] = "session_limit = 0";
     }
 
-    // Late window switch: drop the previous nonce so only the late-window QR works.
-    // When the session is currently live, re-authoritatively cap expiry to 3 min
-    // (LATE_WINDOW) so the cap does not depend on the client.
+    // Late-mode switch: drop the previous nonce so only the late-window QR works.
+    // The session stays open until the teacher stops it — no 3-minute cap.
     if (array_key_exists('session_mode', $data) && $data['session_mode'] === 'late') {
         $fields[] = "last_nonce = NULL";
-        if ($currentlyLive) {
-            $fields[] = "session_expires_at = DATEADD(MINUTE, 3, GETDATE())";
-        }
+        $fields[] = "session_expires_at = NULL";
     }
 
     if (array_key_exists('start_time', $data) && array_key_exists('end_time', $data) && !array_key_exists('time_slot', $data)) {

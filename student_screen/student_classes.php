@@ -164,6 +164,13 @@ require_once dirname(__DIR__) . '/core/init.php';
             let lastClassesKey = null;
 
             // --- UI Setup ---
+            const standingFor = (c) => {
+                const rate = c.attendanceRate;
+                if (rate === null || rate === undefined) return { label: '—', cls: 'text-gray-500', bar: '0%', barCls: 'bg-gray-600' };
+                if (rate >= 80) return { label: 'Good Standing', cls: 'text-green-400', bar: rate + '%', barCls: 'bg-green-500' };
+                return { label: 'Needs Attention', cls: 'text-amber-400', bar: rate + '%', barCls: 'bg-amber-500' };
+            };
+
             const renderClasses = (classes) => {
                 const grid = document.getElementById('studentClassGrid');
                 if (classes.length === 0) {
@@ -173,7 +180,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <p class="text-[10px] font-black uppercase tracking-widest">You haven't joined any classes yet.</p>
                         </div>`;
                 } else {
-                    grid.innerHTML = classes.map(c => `
+                    grid.innerHTML = classes.map(c => {
+                        const st = standingFor(c);
+                        return `
                         <div class="glass-panel rounded-xl overflow-hidden border border-dark-border hover:border-primary-500/30 transition-all group flex flex-col cursor-pointer" onclick="window.location.href='student_class_view.php?id=${c.id}'">
                             <div class="p-5 border-b border-dark-border flex justify-between items-start">
                                 <div>
@@ -196,10 +205,10 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 </div>
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Academic Standing</span>
-                                    <span class="text-[10px] font-black uppercase tracking-widest text-green-400">Syncing...</span>
+                                    <span class="text-[10px] font-black uppercase tracking-widest ${st.cls}">${st.label}</span>
                                 </div>
                                 <div class="w-full h-1 bg-dark-border rounded-full overflow-hidden">
-                                    <div class="h-full bg-primary-500/50 rounded-full animate-pulse" style="width: 100%"></div>
+                                    <div class="h-full ${st.barCls} rounded-full" style="width: ${st.bar}"></div>
                                 </div>
                             </div>
                             <div class="p-4 border-t border-dark-border">
@@ -207,7 +216,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                                     OPEN CLASS HUB <i data-feather="chevron-right" class="w-3.5 h-3.5"></i>
                                 </a>
                             </div>
-                        </div>`).join('');
+                        </div>`;
+                    }).join('');
                 }
                 feather.replace();
             };

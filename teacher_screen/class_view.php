@@ -65,14 +65,8 @@ require_once dirname(__DIR__) . '/core/init.php';
             </div>
             
             <div class="flex items-center gap-2 md:gap-6 shrink-0">
-                <!-- Search & Notification -->
+                <!-- Notification -->
                 <div class="flex items-center gap-4">
-                    <div class="relative hidden md:block group">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
-                        </div>
-                        <input id="globalSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-xs rounded-full focus:ring-primary-500 focus:border-primary-500 block w-48 pl-10 p-2.5 transition-all focus:w-64 placeholder-gray-600 font-bold uppercase italic" placeholder="Search roster...">
-                    </div>
                     <div class="relative">
                         <button id="headerNotifyBtn" class="relative p-2 text-gray-400 hover:text-white transition-colors group">
                             <i data-feather="bell" class="w-5 h-5"></i>
@@ -92,9 +86,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             <button id="nav-grading" onclick="window.switchTab('grading')" class="class-control-nav flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest italic transition-all text-gray-400 hover:text-white hover:bg-white/5">
                 <i data-feather="monitor" class="w-4 h-4 text-gray-500"></i> Grading Center
             </button>
-            <button id="nav-attendance" onclick="window.switchTab('attendance')" class="class-control-nav flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest italic transition-all text-gray-400 hover:text-white hover:bg-white/5">
-                <i data-feather="calendar" class="w-4 h-4 text-gray-500"></i> Attendance History
-            </button>
         </nav>
 
         <!-- Scrollable Page Content -->
@@ -102,7 +93,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             <div id="tabs-container" class="h-full">
                 <?php include 'classes/class_roster.php'; ?>
                 <?php include 'classes/grading_center.php'; ?>
-                <?php include 'classes/attendance_history.php'; ?>
             </div>
         </div>
     </div>
@@ -120,7 +110,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         const classId = urlParams.get('id');
         let cachedStudents = [];
         let lastClassSig = '';
-        let searchTerm = '';
         let classPollInterval = null;
 
         window.showToast = (message, type = 'success') => {
@@ -155,6 +144,12 @@ require_once dirname(__DIR__) . '/core/init.php';
                     if (icon) { icon.classList.add('text-primary-500'); icon.classList.remove('text-gray-500'); }
                 }
             });
+
+            // Grading center is always a live view of the SQL database: opening
+            // the tab re-fetches the current term's components/grades/weights.
+            if (tabName === 'grading' && window.gradingSystem) {
+                window.gradingSystem.refresh();
+            }
         };
 
         window.openModal = (id) => {
@@ -191,26 +186,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         };
 
-        window.processBulkAdd = () => {
-            window.showToast("Bulk enrollment module pending.", "info");
-            window.closeModal('addStudentModal');
-        };
-
-        const searchInput = document.getElementById('globalSearchInput');
-        if (searchInput) {
-            searchInput.addEventListener('keyup', () => {
-                searchTerm = searchInput.value.toLowerCase().trim();
-                if (!searchTerm) { renderRoster(cachedStudents); return; }
-                const filtered = cachedStudents.filter(s =>
-                    (s.firstName && s.firstName.toLowerCase().includes(searchTerm)) ||
-                    (s.lastName && s.lastName.toLowerCase().includes(searchTerm)) ||
-                    (s.studentId && s.studentId.toLowerCase().includes(searchTerm)) ||
-                    (s.email && s.email.toLowerCase().includes(searchTerm))
-                );
-                renderRoster(filtered);
-            });
-        }
-
         async function fetchStudentDetails(uids) {
             if (!uids || uids.length === 0) return [];
             try {
@@ -225,28 +200,23 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         }
 
-        function renderRoster(students) {
-            const tbody = document.getElementById('studentTableBody');
-            const countSpan = document.getElementById('rosterCount');
-            const countTop = document.getElementById('rosterCountTop');
-            if (!students || students.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-32 text-center opacity-40"><div class="flex flex-col items-center gap-6"><i data-feather="user-x" class="w-12 h-12 text-gray-500"></i><p class="text-[10px] font-black uppercase tracking-widest italic tracking-tighter text-white">Hub Connection Empty</p></div></td></tr>`;
-                if (countSpan) countSpan.innerText = "0 ENTITIES ENROLLED";
-                if (countTop) countTop.innerText = "0 ENTITIES ENROLLED";
-                feather.replace(); return;
-            }
-            function rosterAvatar(s) {
-                const initials = ((s.firstName?.[0] || '') + (s.lastName?.[0] || '')).toUpperCase() || 'ST';
-                if (s.profilePicture && s.profilePicture !== '' && !s.profilePicture.includes('ui-avatars')) {
-                    return `<img src="${s.profilePicture}" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
-                }
-                if (s.profile_picture && s.profile_picture !== '' && !s.profile_picture.includes('ui-avatars')) {
-                    return `<img src="${s.profile_picture}" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
-                }
-                return `<img src="https://ui-avatars.com/api/?name=${initials}&background=ea2628&color=fff&bold=true" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
-            }
+        const ROSTER_BATCH = 20;
+        let rosterData = [];
+        let rosterVisibleCount = 0;
 
-            tbody.innerHTML = students.map((s, index) => `
+        function rosterAvatar(s) {
+            const initials = ((s.firstName?.[0] || '') + (s.lastName?.[0] || '')).toUpperCase() || 'ST';
+            if (s.profilePicture && s.profilePicture !== '' && !s.profilePicture.includes('ui-avatars')) {
+                return `<img src="${s.profilePicture}" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
+            }
+            if (s.profile_picture && s.profile_picture !== '' && !s.profile_picture.includes('ui-avatars')) {
+                return `<img src="${s.profile_picture}" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
+            }
+            return `<img src="https://ui-avatars.com/api/?name=${initials}&background=ea2628&color=fff&bold=true" alt="" class="w-10 h-10 rounded-2xl object-cover border border-primary-500/10 shadow-lg shadow-primary-500/5 group-hover:scale-110 transition-transform shrink-0">`;
+        }
+
+        function rosterRowHTML(s, index) {
+            return `
                 <tr class="border-b border-white/5 hover:bg-white/5 transition-colors group">
                     <td class="p-5 text-gray-500 font-mono text-[10px] text-center">${index + 1}</td>
                     <td class="p-5">
@@ -260,15 +230,71 @@ require_once dirname(__DIR__) . '/core/init.php';
                     </td>
                     <td class="p-5 text-gray-400 font-mono text-xs font-black uppercase tracking-widest italic">${s.studentId || 'PENDING'}</td>
                     <td class="p-5">
-                        <div class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-primary-500 hover:bg-primary-500/10 rounded-xl transition-all"><i data-feather="edit-2" class="w-3.5 h-3.5"></i></button>
-                            <button class="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"><i data-feather="trash-2" class="w-3.5 h-3.5"></i></button>
+                        <div class="flex justify-center">
+                            <button onclick="window.removeStudentFromClass('${s.uid}')" title="Remove from class" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest italic text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300 transition-all"><i data-feather="user-x" class="w-3.5 h-3.5"></i> Remove</button>
                         </div>
                     </td>
-                </tr>`).join('');
-            if (countSpan) countSpan.innerText = `${students.length} STUDENT${students.length === 1 ? '' : 'S'} ENROLLED`;
-            if (countTop) countTop.innerText = `${students.length} STUDENT${students.length === 1 ? '' : 'S'} ENROLLED`;
+                </tr>`;
+        }
+
+        function renderRoster(students) {
+            const tbody = document.getElementById('studentTableBody');
+            const countTop = document.getElementById('rosterCountTop');
+            rosterData = students || [];
+            rosterVisibleCount = Math.min(ROSTER_BATCH, rosterData.length);
+            if (rosterData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-32 text-center opacity-40"><div class="flex flex-col items-center gap-6"><i data-feather="user-x" class="w-12 h-12 text-gray-500"></i><p class="text-[10px] font-black uppercase tracking-widest italic tracking-tighter text-white">Hub Connection Empty</p></div></td></tr>`;
+                if (countTop) countTop.innerText = "0 STUDENTS ENROLLED";
+                feather.replace(); return;
+            }
+            tbody.innerHTML = rosterData.slice(0, rosterVisibleCount).map((s, i) => rosterRowHTML(s, i)).join('');
+            if (countTop) countTop.innerText = `${rosterData.length} STUDENT${rosterData.length === 1 ? '' : 'S'} ENROLLED`;
             feather.replace();
+        }
+
+        function loadMoreRoster() {
+            if (rosterVisibleCount >= rosterData.length) return;
+            const tbody = document.getElementById('studentTableBody');
+            const next = rosterData.slice(rosterVisibleCount, rosterVisibleCount + ROSTER_BATCH);
+            tbody.insertAdjacentHTML('beforeend', next.map((s, i) => rosterRowHTML(s, rosterVisibleCount + i)).join(''));
+            rosterVisibleCount += next.length;
+            feather.replace();
+        }
+
+        window.removeStudentFromClass = async (uid) => {
+            const student = rosterData.find(s => s.uid === uid);
+            const name = student ? `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'this student' : 'this student';
+            const ok = await window.csConfirm({
+                title: 'Remove Student',
+                message: `Remove ${name} from this class?`,
+                okText: 'Remove',
+                cancelText: 'Cancel',
+                danger: true
+            });
+            if (!ok) return;
+            try {
+                await window.api('/enroll.php', {
+                    method: 'DELETE',
+                    body: JSON.stringify({ class_id: classId, student_uid: uid })
+                });
+                rosterData = rosterData.filter(s => s.uid !== uid);
+                cachedStudents = rosterData;
+                if (rosterVisibleCount > rosterData.length) rosterVisibleCount = rosterData.length;
+                renderRoster(rosterData);
+                window.showToast('Student removed from class', 'success');
+            } catch (err) {
+                console.error('Remove student failed:', err);
+                window.showToast('Failed to remove student', 'error');
+            }
+        };
+
+        const rosterScroll = document.getElementById('rosterScrollContainer');
+        if (rosterScroll) {
+            rosterScroll.addEventListener('scroll', () => {
+                if (rosterScroll.scrollTop + rosterScroll.clientHeight >= rosterScroll.scrollHeight - 120) {
+                    loadMoreRoster();
+                }
+            });
         }
 
         function applyStatusUI(classData) {
@@ -312,17 +338,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 cachedStudents = fullStudentData;
                 applyStatusUI(classData);
                 initGradingSystem(classData, fullStudentData);
-                if (window.attendanceHistory) window.attendanceHistory.init(classData.id);
-                if (!searchTerm) renderRoster(fullStudentData);
-                else {
-                    const filtered = fullStudentData.filter(s =>
-                        (s.firstName && s.firstName.toLowerCase().includes(searchTerm)) ||
-                        (s.lastName && s.lastName.toLowerCase().includes(searchTerm)) ||
-                        (s.studentId && s.studentId.toLowerCase().includes(searchTerm)) ||
-                        (s.email && s.email.toLowerCase().includes(searchTerm))
-                    );
-                    renderRoster(filtered);
-                }
+                renderRoster(fullStudentData);
             } catch (e) {
                 console.error('Load class data error:', e);
                 window.showToast('Hub Inaccessible or Offline.', 'error');
@@ -338,11 +354,21 @@ require_once dirname(__DIR__) . '/core/init.php';
         initPage(() => {
             setTimeout(() => loadClassData(), 500);
             classPollInterval = setInterval(loadClassData, 5000);
+            // Realtime grading sync: while the Grading tab is visible, re-pull
+            // the current term straight from SQL every 20s so attendance/scores/
+            // weights changed elsewhere show up without a reload.
+            setInterval(() => {
+                const tab = document.getElementById('tab-grading');
+                if (tab && !tab.classList.contains('hidden') && window.gradingSystem) {
+                    window.gradingSystem.refresh();
+                }
+            }, 20000);
         });
 
         document.addEventListener('DOMContentLoaded', () => {
             feather.replace();
-            window.switchTab('students');
+            const tabParam = urlParams.get('tab');
+            window.switchTab(tabParam === 'grading' || tabParam === 'students' ? tabParam : 'students');
         });
     </script>
 </body>

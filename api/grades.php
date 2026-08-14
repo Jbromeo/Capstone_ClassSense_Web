@@ -44,7 +44,7 @@ if ($method === 'GET') {
     requireClassOwner($pdo, $uid, $classId);
 
     $components = [];
-    $stmt = $pdo->prepare("SELECT id, category, name, hps, quarter FROM grade_components WHERE class_id = ? AND quarter = ? ORDER BY category, id");
+    $stmt = $pdo->prepare("SELECT id, category, name, hps, quarter, session_id FROM grade_components WHERE class_id = ? AND quarter = ? ORDER BY category, id");
     $stmt->execute([$classId, $quarter]);
     $components = $stmt->fetchAll();
 
@@ -123,6 +123,7 @@ if ($method === 'POST') {
         $name = $data['name'] ?? null;
         $hps = (int)($data['hps'] ?? 50);
         $quarter = (int)($data['quarter'] ?? 1);
+        $sessionId = $data['session_id'] ?? null;
 
         if (!$classId || !$category || !$name) {
             jsonResponse(['error' => 'Missing class_id, category, or name'], 400);
@@ -139,8 +140,25 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Set grading weights (total 100%) before adding components'], 400);
         }
 
-        $stmt = $pdo->prepare("INSERT INTO grade_components (class_id, category, name, hps, quarter) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$classId, $category, $name, $hps, $quarter]);
+        // Idempotent per day: an Attendance component is named M/D/YY (one
+        // column per day), so the same (class, category, name) is reused instead
+        // of duplicated when a session reopens and syncs again. The component's
+        // session_id is refreshed to the latest run for reference.
+        if ($category === 'attendance') {
+            $stmt = $pdo->prepare("SELECT id, category, name, hps, quarter FROM grade_components WHERE class_id = ? AND category = ? AND name = ?");
+            $stmt->execute([$classId, $category, $name]);
+            $existing = $stmt->fetch();
+            if ($existing) {
+                if ($sessionId) {
+                    $upd = $pdo->prepare("UPDATE grade_components SET session_id = ? WHERE id = ?");
+                    $upd->execute([$sessionId, $existing['id']]);
+                }
+                jsonResponse(['success' => true, 'component' => ['id' => (int)$existing['id'], 'category' => $existing['category'], 'name' => $existing['name'], 'hps' => (int)$existing['hps'], 'quarter' => (int)$existing['quarter']]]);
+            }
+        }
+
+        $stmt = $pdo->prepare("INSERT INTO grade_components (class_id, category, name, hps, quarter, session_id) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$classId, $category, $name, $hps, $quarter, $sessionId]);
         $id = $pdo->lastInsertId();
 
         jsonResponse(['success' => true, 'component' => ['id' => (int)$id, 'category' => $category, 'name' => $name, 'hps' => $hps, 'quarter' => $quarter]], 201);
@@ -209,6 +227,21 @@ if ($method === 'POST') {
 
 if ($method === 'DELETE') {
     $componentId = $_GET['component_id'] ?? null;
+
+    // Session-scoped delete: remove the attendance component(s) belonging to a
+    // single session (used by "Discard All Records" so only that session's
+    // grading column is removed, not the whole day's).
+    $classId = $_GET['class_id'] ?? null;
+    $category = $_GET['category'] ?? null;
+    $sessionId = $_GET['session_id'] ?? null;
+
+    if ($classId && $category && $sessionId) {
+        requireClassOwner($pdo, $uid, $classId);
+        $stmt = $pdo->prepare("DELETE FROM grade_components WHERE class_id = ? AND category = ? AND session_id = ?");
+        $stmt->execute([$classId, $category, $sessionId]);
+        jsonResponse(['success' => true, 'deleted' => $stmt->rowCount()]);
+    }
+
     if (!$componentId) jsonResponse(['error' => 'Missing component_id'], 400);
 
     requireComponentOwner($pdo, $uid, $componentId);
