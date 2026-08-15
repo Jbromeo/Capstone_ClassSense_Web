@@ -76,7 +76,7 @@
             <!-- Tabs -->
             <div class="mb-4 border-b border-dark-border">
                 <nav class="flex gap-4">
-                    <button onclick="switchTab('attendance')" id="tab-attendance" class="px-4 py-2 text-sm font-medium text-white border-b-2 border-primary-500 uppercase tracking-widest italic tracking-tighter italic">QR Attendance Log</button>
+                    <button onclick="switchTab('attendance')" id="tab-attendance" class="px-4 py-2 text-sm font-medium text-white border-b-2 border-primary-500 uppercase tracking-widest italic tracking-tighter italic">Attendance Logs</button>
                     <button onclick="switchTab('scores')" id="tab-scores" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-white transition-colors border-b-2 border-transparent uppercase tracking-widest italic tracking-tighter italic">Assessments</button>
                 </nav>
             </div>
@@ -89,13 +89,12 @@
                             <tr>
                                 <th class="px-6 py-3 font-black tracking-widest italic tracking-tighter italic">Date</th>
                                 <th class="px-6 py-3 font-black tracking-widest italic tracking-tighter italic">Time-In</th>
-                                <th class="px-6 py-3 font-black tracking-widest italic tracking-tighter italic">Time-Out</th>
                                 <th class="px-6 py-3 font-black tracking-widest italic tracking-tighter italic">Status</th>
                             </tr>
                         </thead>
                         <tbody class="text-gray-300">
                              <tr>
-                                <td colspan="4" class="px-6 py-12 text-center text-gray-500 animate-pulse italic uppercase tracking-widest text-[10px] font-black">Establishing Neural Link...</td>
+                                <td colspan="3" class="px-6 py-12 text-center text-gray-500 animate-pulse italic uppercase tracking-widest text-[10px] font-black">Establishing Neural Link...</td>
                              </tr>
                         </tbody>
                     </table>
@@ -139,27 +138,38 @@
             const tbody = document.querySelector('#content-attendance tbody');
             if (!tbody) return;
 
-            const todayStr = new Date().toISOString().split('T')[0];
-
             try {
-                const records = await api(`/attendance.php?class_id=${classId}&date=${todayStr}&student_uid=${uid}`);
+                const records = await api(`/attendance.php?class_id=${classId}&student_uid=${uid}`);
                 if (!records || records.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-gray-500 italic uppercase tracking-widest text-[10px] font-black">No scan records found in this hub.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-12 text-center text-gray-500 italic uppercase tracking-widest text-[10px] font-black">No attendance records found yet.</td></tr>`;
                     return;
                 }
 
                 const sorted = records.sort((a, b) => {
+                    const da = a.date ? new Date(a.date + 'T00:00:00') : new Date(0);
+                    const db = b.date ? new Date(b.date + 'T00:00:00') : new Date(0);
+                    if (db - da !== 0) return db - da;
                     const tsA = a.timestamp ? new Date(a.timestamp) : new Date(0);
                     const tsB = b.timestamp ? new Date(b.timestamp) : new Date(0);
                     return tsB - tsA;
                 });
 
                 tbody.innerHTML = sorted.map(rec => {
-                    const ts = rec.timestamp ? new Date(rec.timestamp) : new Date();
-                    const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                    const timeIn = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-                    const timeOut = rec.time_out ? new Date(rec.time_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:-- --';
-                    const status = rec.status || 'Verified';
+                    const dateObj = rec.date ? new Date(rec.date + 'T00:00:00') : null;
+                    const dateStr = dateObj && !isNaN(dateObj.getTime())
+                        ? dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : (rec.date || '—');
+
+                    const status = rec.status || 'Present';
+                    const hasScan = (status.toLowerCase() === 'present' || status.toLowerCase() === 'late' || status.toLowerCase() === 'verified');
+                    let timeIn = '—';
+                    if (hasScan && rec.timestamp) {
+                        const ts = new Date(rec.timestamp);
+                        if (!isNaN(ts.getTime())) {
+                            timeIn = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                        }
+                    }
+
                     const statusClass = status.toLowerCase() === 'late' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                                       status.toLowerCase() === 'absent' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                       'bg-green-500/10 text-green-400 border-green-500/20';
@@ -168,13 +178,12 @@
                         <tr class="border-b border-dark-border hover:bg-white/5 transition-colors">
                             <td class="px-6 py-4 font-black text-white italic truncate uppercase tracking-tighter">${dateStr}</td>
                             <td class="px-6 py-4 text-gray-300 font-bold italic text-xs">${timeIn}</td>
-                            <td class="px-6 py-4 text-gray-500 italic text-xs">${timeOut}</td>
                             <td class="px-6 py-4"><span class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border italic ${statusClass}">${status}</span></td>
                         </tr>
                     `;
                 }).join('');
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-primary-500 italic text-xs font-bold">Failed to load attendance: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-12 text-center text-primary-500 italic text-xs font-bold">Failed to load attendance: ${err.message}</td></tr>`;
             }
         }
 

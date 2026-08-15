@@ -42,6 +42,8 @@ header('Content-Type: application/json');
 $action = $_GET['action'] ?? 'status';
 $configFile = __DIR__ . '/app_url.json';
 $ngrokExe = 'C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Links\\ngrok.exe';
+$ngrokConfig = 'C:\\Users\\User\\AppData\\Local\\ngrok\\ngrok.yml';
+$ngrokLog = __DIR__ . '/ngrok_stderr.log';
 
 function check_ngrok_running() {
     $output = [];
@@ -125,20 +127,16 @@ if ($action === 'start') {
     // Start ngrok in the background.
     // On Windows, `exec('start ...')` fails in a web-server context (no console
     // session). `proc_open` creates a child process that survives PHP exit.
-    // NOTE: Closing the pipes immediately prevents PHP from blocking on ngrok's
-    // stdout/stderr. ngrok does not panic when its pipes are closed (as opposed
-    // to being redirected to a file via `>`), because it detects the EOF and
-    // falls back to its internal logging.
-    $proc = proc_open(
-        '"' . $ngrokExe . '" http 80',
-        [["pipe", "r"], ["pipe", "w"], ["pipe", "w"]],
-        $pipes
-    );
+    // The explicit --config path matters: Apache runs as LocalSystem, so ngrok
+    // would otherwise look for its authtoken in SYSTEM's profile and die instantly.
+    // stderr is redirected to a log file so failures remain diagnosable.
+    $cmd = '"' . $ngrokExe . '" http 80 --config="' . $ngrokConfig . '"';
+    $descriptors = [["pipe", "r"], ["pipe", "w"], ["file", $ngrokLog, "a"]];
+    $proc = proc_open($cmd, $descriptors, $pipes);
     if (is_resource($proc)) {
         $procPid = proc_get_status($proc)["pid"];
         fclose($pipes[0]);
         fclose($pipes[1]);
-        fclose($pipes[2]);
     }
 
     // Wait for ngrok to initialize (give it up to 8 seconds)
@@ -160,9 +158,15 @@ if ($action === 'start') {
         ]);
     } else {
         http_response_code(500);
+        $tail = '';
+        if (file_exists($ngrokLog)) {
+            $lines = array_slice(file($ngrokLog), -10);
+            $tail = trim(implode('', $lines));
+        }
         echo json_encode([
             'error' => 'ngrok process started but tunnel URL could not be read. Check if ngrok is properly authenticated and port 80 is available.',
-            'running' => check_ngrok_running()
+            'running' => check_ngrok_running(),
+            'stderr_tail' => $tail
         ]);
     }
     exit;

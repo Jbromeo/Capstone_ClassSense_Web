@@ -35,6 +35,22 @@ if ($method === 'GET') {
         jsonResponse($stmt->fetchAll());
     }
 
+    // Student's full history for a single class (no date): a student reads
+    // their OWN records; the owning teacher (or an admin) may read any.
+    if ($classId && $studentUid && !$date) {
+        $ok = $isAdmin || ($studentUid === $uid);
+        if (!$ok) {
+            $t = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
+            $t->execute([$classId]);
+            $c = $t->fetch();
+            $ok = $c && $c['teacher_uid'] === $uid;
+        }
+        if (!$ok) jsonResponse(['error' => 'Unauthorized'], 403);
+        $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND student_uid = ? ORDER BY date DESC, timestamp DESC");
+        $stmt->execute([$classId, $studentUid]);
+        jsonResponse($stmt->fetchAll());
+    }
+
     // Student-specific attendance history (no class_id supplied):
     //  - a student may read their OWN records,
     //  - a teacher may read a student enrolled in one of their classes,
