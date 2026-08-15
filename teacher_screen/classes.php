@@ -9,13 +9,6 @@ require_once dirname(__DIR__) . '/core/init.php';
     <title>ClassSense | My Classes</title>
     <?php include '../includes/head.php'; ?>
     <style>
-        /* Glass Panel Definition */
-        .glass-panel {
-            background: rgba(24, 27, 33, 0.8);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-        }
-        
         /* Modal Transition States */
         .modal-form-state, .modal-success-state {
             transition: opacity 0.3s ease, transform 0.3s ease;

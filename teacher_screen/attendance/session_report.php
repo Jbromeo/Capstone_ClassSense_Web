@@ -3,7 +3,7 @@
                 <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <div class="flex items-center gap-3 text-gray-400 text-sm mb-1">
-                            <span class="hover:text-white cursor-pointer" onclick="goToClassSelection()">Classes</span>
+                            <span class="hover:text-white cursor-pointer" onclick="goToClassSelection({ finalize: false })">Classes</span>
                             <i data-feather="chevron-right" class="w-4 h-4"></i>
                             <span class="hover:text-white cursor-pointer" onclick="goToLiveView()">Live Session</span>
                             <i data-feather="chevron-right" class="w-4 h-4"></i>
@@ -38,7 +38,7 @@
                          <button onclick="discardAllRecords()" class="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl transition-all shadow-lg flex items-center gap-2">
                             <i data-feather="trash-2"></i> Discard
                          </button>
-                         <button onclick="goToClassSelection()" class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-primary-500/25 flex items-center gap-2">
+                         <button id="recordDoneBtn" onclick="goToClassSelection()" class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-primary-500/25 flex items-center gap-2">
                             <i data-feather="check"></i> Done
                          </button>
                     </div>

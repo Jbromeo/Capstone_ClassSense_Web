@@ -65,8 +65,14 @@ if ($method === 'GET') {
                 jsonResponse(['error' => 'Unauthorized'], 403);
             }
         }
-        $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND CAST(date AS DATE) = ? ORDER BY timestamp ASC");
-        $stmt->execute([$classId, $date]);
+        $sessionId = $_GET['session_id'] ?? null;
+        if ($sessionId) {
+            $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND CAST(date AS DATE) = ? AND session_id = ? ORDER BY timestamp ASC");
+            $stmt->execute([$classId, $date, $sessionId]);
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM attendance WHERE class_id = ? AND CAST(date AS DATE) = ? ORDER BY timestamp ASC");
+            $stmt->execute([$classId, $date]);
+        }
         jsonResponse($stmt->fetchAll());
     }
 

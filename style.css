@@ -487,3 +487,9 @@ html:not(.dark) .bg-purple-600\/5 {
     mix-blend-mode: normal;
     opacity: 0.30;
 }
+
+/* Dark-only gradient stops: theme them in light mode so panels that use a
+   dark-surface -> dark-bg fade (e.g. the live-session idle panel) don't stay
+   black. */
+html:not(.dark) .from-dark-surface { --tw-gradient-from: var(--ut-surface) var(--tw-gradient-from-position, 0%); }
+html:not(.dark) .to-dark-bg { --tw-gradient-to: var(--ut-page) var(--tw-gradient-to-position, 100%); }

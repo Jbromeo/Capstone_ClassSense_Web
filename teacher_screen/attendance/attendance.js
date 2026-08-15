@@ -30,6 +30,7 @@ let endedSessionId = null;     // session_id captured at confirmEndSession(), pa
 let attendanceCompId = null;   // id of the ATT grading component auto-created at session end
 let attendanceCompName = null; // display name (e.g. "8/14/26 #2") of that component
 let pickerUid = null;          // uid whose status popover is currently open
+let recordViewMode = false;    // true when viewing a reopened session record (button reads "Update")
 const ON_TIME_WINDOW_SECONDS = 30;  // on-time window; after it, scans are Late
 const LATE_WINDOW_SECONDS = 30;      // late window; when it expires, the session auto-ends
 const SESSION_TOTAL_SECONDS = ON_TIME_WINDOW_SECONDS + LATE_WINDOW_SECONDS;
@@ -147,15 +148,16 @@ function renderClassGrid(classes) {
         const win = c.window || {};
         const nextLabel = win.nextOpenLabel || (win.windowLabel ? ('Outside ' + win.windowLabel) : 'Not scheduled');
         const selected = c.id === selectedClassId;
-        const canReopen = !live && !!c.last_session_id && isTodayDate(c.last_session_ended_at);
+        const modified = !live && !!c.last_session_id && isTodayDate(c.last_session_ended_at);
         return `
-        <div class="glass-panel p-6 rounded-xl border ${live ? 'border-green-500/40' : 'border-dark-border'} hover:border-primary-500/50 transition-all cursor-pointer group ${selected ? 'ring-2 ring-primary-500/60 border-primary-500/60 bg-primary-500/5' : ''}" onclick="window.selectClass('${c.id}')">
+        <div class="glass-panel p-6 rounded-xl border ${live ? 'border-green-500/40' : modified ? 'border-amber-500/40' : 'border-dark-border'} hover:border-primary-500/50 transition-all cursor-pointer group ${selected ? 'ring-2 ring-primary-500/60 border-primary-500/60 bg-primary-500/5' : ''}" onclick="window.handleClassCardClick('${c.id}')">
             <div class="flex justify-between items-start mb-4">
                 <div class="p-3 bg-primary-500/10 rounded-lg">
                     <i data-feather="book-open" class="w-6 h-6 text-primary-500"></i>
                 </div>
                 <span class="flex items-center gap-2">
                     ${live ? `<span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 italic"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> LIVE</span>` : ''}
+                    ${modified ? `<span class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-500/15 text-amber-400 border border-amber-500/30 italic"><i data-feather="edit-3" class="w-3 h-3"></i> Modified</span>` : ''}
                     ${selected ? `<span class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-primary-500/15 text-primary-400 border border-primary-500/30 italic">Selected</span>` : ''}
                     <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic">${c.class_code}</span>
                 </span>
@@ -163,20 +165,33 @@ function renderClassGrid(classes) {
             <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-tighter italic">${c.class_name}</h3>
             <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-4 opacity-60">${c.subject} &bull; ${c.section_name}</p>
             <div class="flex items-center gap-2 text-[10px] font-black text-primary-400 uppercase tracking-widest italic">
-                <span>${selected ? 'Tap Start to begin session' : (live ? 'Resume Live Session' : 'Select to Start')}</span>
+                <span>${selected ? 'Tap Start to begin session' : (live ? 'Resume Live Session' : (modified ? 'Tap to view session record' : 'Select to Start'))}</span>
                 ${!(live || selected) ? `<span class="text-[9px] font-black text-gray-400 uppercase opacity-60">(${nextLabel})</span>` : ''}
                 <i data-feather="arrow-right" class="w-3 h-3 group-hover:translate-x-1 transition-transform"></i>
             </div>
-            ${canReopen ? `
+            ${modified ? `
             <div class="mt-5 pt-4 border-t border-white/5">
-                <button type="button" onclick="event.stopPropagation(); window.loadSessionReportFromServer('${c.id}', '${c.last_session_id}')" class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest italic bg-white/5 border border-white/10 text-primary-400 hover:bg-primary-500/10 hover:border-primary-500/40 transition-all">
-                    <i data-feather="rotate-ccw" class="w-3.5 h-3.5"></i> Reopen Last Session Report
+                <button type="button" onclick="event.stopPropagation(); window.selectClass('${c.id}')" class="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest italic bg-white/5 border border-white/10 text-primary-400 hover:bg-primary-500/10 hover:border-primary-500/40 transition-all">
+                    <i data-feather="play" class="w-3.5 h-3.5"></i> Start New Session
                 </button>
             </div>` : ''}
         </div>`;
     }).join('');
     feather.replace();
 }
+
+// Card click routing: a Modified card (ended session today) opens its session
+// record; any other card selects it for a new live session.
+window.handleClassCardClick = (classId) => {
+    const c = classesCache.find(x => x.id === classId);
+    if (!c) return;
+    const modified = !isClassLive(c) && !!c.last_session_id && isTodayDate(c.last_session_ended_at);
+    if (modified) {
+        window.loadSessionReportFromServer(classId, c.last_session_id);
+    } else {
+        window.selectClass(classId);
+    }
+};
 
 // 1b. Select a class — reveals the Start Attendance bar
 window.selectClass = (classId) => {
@@ -270,6 +285,7 @@ window.startAttendanceSession = async (classId) => {
     flagMap.clear();
     initialSyncDone = false;
     sessionGradingPending = false;
+    recordViewMode = false;
     attendanceCompId = null;
     reportEntries = [];
     reportReadyPromise = null;
@@ -760,7 +776,9 @@ window.confirmEndSession = async () => {
     resetLiveSpotlight();
     
     sessionGradingPending = true;
+    recordViewMode = false;
     reportReadyPromise = generateSummaryReport();
+    updateRecordViewActions();
     switchView('sessionSummaryView');
 };
 
@@ -1207,35 +1225,52 @@ window.discardAllRecords = async () => {
     const hasCleanup = currentClassData && (sessionGradingPending || reportEntries.length > 0 || verifiedStudentsList.length > 0 || attendanceCompId);
     if (!hasCleanup) {
         sessionGradingPending = false;
-        goToClassSelection();
+        goToClassSelection({ finalize: false });
         return;
     }
     if (!await window.csConfirm({
         title: 'Discard All Records?',
-        message: `Discard ALL ${reportEntries.length || verifiedStudentsList.length} attendance records for this session? This cannot be undone.`,
+        message: recordViewMode
+            ? `Discard ${reportEntries.length || verifiedStudentsList.length} attendance records for this session? The session records, today's grading column, and the Modified status will be removed. This cannot be undone.`
+            : `Discard ALL ${reportEntries.length || verifiedStudentsList.length} attendance records for this session? This cannot be undone.`,
         okText: 'Discard All',
         danger: true
     })) return;
     try {
-        // Per-day model: remove ALL of today's attendance rows and today's
-        // auto-created grading column (named M/D/YY), so discarding reverts the
-        // whole day's attendance.
         if (currentClassData) {
-            await api('/attendance.php?class_id=' + currentClassData.id + '&date=' + TODAY_STR, { method: 'DELETE' });
-        }
-        const todayName = `${new Date().getMonth() + 1}/${new Date().getDate()}/${String(new Date().getFullYear()).slice(-2)}`;
-        let dayCompId = attendanceCompId || null;
-        if (!dayCompId && currentClassData) {
-            for (let quarter = 1; quarter <= 3 && !dayCompId; quarter++) {
-                try {
-                    const res = await api('/grades.php?class_id=' + currentClassData.id + '&quarter=' + quarter);
-                    const match = (res.components || []).find(c => c.category === 'attendance' && c.name === todayName);
-                    if (match) dayCompId = match.id;
-                } catch (e) {}
+            const base = '/attendance.php?class_id=' + currentClassData.id;
+            if (recordViewMode && endedSessionId) {
+                // Reopened record: delete only THIS session's rows.
+                await api(base + '&session_id=' + endedSessionId, { method: 'DELETE' });
+            } else {
+                // Fresh session-end: remove ALL of today's attendance rows.
+                await api(base + '&date=' + TODAY_STR, { method: 'DELETE' });
             }
-        }
-        if (dayCompId) {
-            try { await api('/grades.php?component_id=' + dayCompId, { method: 'DELETE' }); } catch (e) {}
+            // Delete today's auto-created grading column (named M/D/YY) in
+            // both modes, so discarding reverts the day's grades too.
+            const todayName = `${new Date().getMonth() + 1}/${new Date().getDate()}/${String(new Date().getFullYear()).slice(-2)}`;
+            let dayCompId = attendanceCompId || null;
+            if (!dayCompId) {
+                for (let quarter = 1; quarter <= 3 && !dayCompId; quarter++) {
+                    try {
+                        const res = await api('/grades.php?class_id=' + currentClassData.id + '&quarter=' + quarter);
+                        const match = (res.components || []).find(c => c.category === 'attendance' && c.name === todayName);
+                        if (match) dayCompId = match.id;
+                    } catch (e) {}
+                }
+            }
+            if (dayCompId) {
+                try { await api('/grades.php?component_id=' + dayCompId, { method: 'DELETE' }); } catch (e) {}
+            }
+            // Clear the Modified marker so the card returns to normal.
+            try {
+                await api('/classes.php?id=' + currentClassData.id, {
+                    method: 'PUT',
+                    body: JSON.stringify({ last_session_id: null, last_session_ended_at: null })
+                });
+            } catch (e) {
+                // Ignore: a no-op PUT (marker already null) returns 404.
+            }
         }
         attendanceCompId = null;
         attendanceCompName = null;
@@ -1243,7 +1278,7 @@ window.discardAllRecords = async () => {
         processedUids.clear();
         flagMap.clear();
         sessionGradingPending = false;
-        goToClassSelection();
+        goToClassSelection({ finalize: false });
     } catch (err) {
         console.error("Bulk Discard Failure:", err);
         alert('Failed to discard records: ' + (err.message || 'Unknown error'));
@@ -1252,7 +1287,7 @@ window.discardAllRecords = async () => {
 
 window.backToClassSelection = async () => {
     if (!currentClassData) {
-        goToClassSelection();
+        goToClassSelection({ finalize: false });
         return;
     }
     const ok = await csConfirm({
@@ -1426,26 +1461,18 @@ async function syncAttendanceToGrading() {
     if (window.showToast) window.showToast(`Attendance component ${attendanceCompName} added to grading sheet (${({1: '1st Term', 2: '2nd Term', 3: '3rd Term'}[term] || '1st Term')})`, 'success');
 }
 
-window.goToClassSelection = async () => {
-    await syncAttendanceToGrading();
+window.goToClassSelection = async (opts = {}) => {
+    // finalize=true (Done/Update button): persist statuses + sync the ATT
+    // grading component. finalize=false (breadcrumb/back/discard navigation):
+    // leave the view WITHOUT touching the grading sheet.
+    const finalize = opts.finalize !== false;
+    if (finalize) {
+        await syncAttendanceToGrading();
+    }
+    recordViewMode = false;
     // Session is fully ended here: reset the live feed so nothing stale
     // (spotlight, list, timers) survives into the next session.
     resetLiveFeed();
-    // Clear last_session_id so the "Reopen" button disappears and the class
-    // is ready for a fresh session after Done.
-    if (currentClassData && currentClassData.id) {
-        try {
-            await api('/classes.php?id=' + currentClassData.id, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    last_session_id: null,
-                    last_session_ended_at: null
-                })
-            });
-        } catch (err) {
-            console.error('Failed to clear last session:', err);
-        }
-    }
     clearSelection();
     switchView('classSelectionView');
     try {
@@ -1456,6 +1483,27 @@ window.goToClassSelection = async () => {
         console.error("Class Cache Refresh Failure:", err);
     }
 };
+
+// "Live Session" breadcrumb: open the live view for the current class. If the
+// session is still active it resumes; otherwise a fresh session is started.
+window.goToLiveView = async () => {
+    if (!currentClassData || !currentClassData.id) {
+        goToClassSelection({ finalize: false });
+        return;
+    }
+    await window.startAttendanceSession(currentClassData.id);
+};
+
+// Swap the report header button label: "Done" on a fresh session-end report,
+// "Update" when viewing a reopened session record.
+function updateRecordViewActions() {
+    const btn = document.getElementById('recordDoneBtn');
+    if (!btn) return;
+    btn.innerHTML = recordViewMode
+        ? '<i data-feather="save" class="w-4 h-4"></i> Update'
+        : '<i data-feather="check" class="w-4 h-4"></i> Done';
+    feather.replace();
+}
 
 // --- Reopen the most recent ended session (today) from the DB ---
 function isTodayDate(dtStr) {
@@ -1514,12 +1562,12 @@ window.loadSessionReportFromServer = async (classId, sessionId) => {
         const titleEl = document.getElementById('reportClassTitle');
         if (titleEl) titleEl.innerText = cls.class_name;
 
-        const rows = await api('/attendance.php?class_id=' + classId + '&date=' + TODAY_STR);
+        const rows = await api('/attendance.php?class_id=' + classId + '&date=' + TODAY_STR + (sessionId ? '&session_id=' + sessionId : ''));
         const list = Array.isArray(rows) ? rows : [];
 
-        // Full-day report: show every non-Absent record for today regardless of
-        // which session produced it (one session per day). Never-scanned Absent
-        // rows are excluded here and re-derived from the roster below.
+        // Session-scoped record: only rows belonging to this session_id are
+        // loaded (Absent rows persisted at Done included); students in the
+        // roster without a row are re-derived as Absent below.
         const scannedMap = new Map();
         for (const r of list) {
             if (r.status === 'Absent') continue;
@@ -1570,8 +1618,10 @@ window.loadSessionReportFromServer = async (classId, sessionId) => {
         sessionGradingPending = true;
 
         await linkAttendanceComponent(cls, sessionId);
+        recordViewMode = true;
+        updateRecordViewActions();
         switchView('sessionSummaryView');
-        if (window.showToast) window.showToast('Session report reopened', 'success');
+        if (window.showToast) window.showToast('Session record opened', 'success');
     } catch (err) {
         console.error('Session report reopen failed:', err);
         if (window.showToast) window.showToast('Failed to load session report: ' + (err.message || 'Unknown error'), 'error');

@@ -8,14 +8,25 @@
     <script>
         (function () {
             try {
-                var saved = localStorage.getItem('cs_theme');
-                var theme = saved ||
+                var theme = '';
+                var localVal = localStorage.getItem('cs_theme');
+                if (localVal) {
+                    try {
+                        var parsed = JSON.parse(localVal);
+                        if (parsed && (parsed.theme === 'light' || parsed.theme === 'dark')) theme = parsed.theme;
+                    } catch (e) {
+                        if (localVal === 'light' || localVal === 'dark') theme = localVal;
+                    }
+                }
+                theme = theme ||
                     (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
                 document.documentElement.classList.toggle('dark', theme !== 'light');
                 window.csThemeIsLight = theme === 'light';
+                window.csThemeUid = null;
             } catch (e) {
                 document.documentElement.classList.add('dark');
                 window.csThemeIsLight = false;
+                window.csThemeUid = null;
             }
         })();
     </script>

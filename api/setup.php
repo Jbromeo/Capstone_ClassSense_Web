@@ -130,6 +130,10 @@ $queries = [
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'guardian_phone')
     ALTER TABLE users ADD guardian_phone NVARCHAR(20) NULL",
 
+    "-- Per-account theme preference ('light' / 'dark' / NULL = system-aware)",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'theme')
+    ALTER TABLE users ADD theme NVARCHAR(10) NULL",
+
     "-- Audit columns for attendance (fraud detection trail)",
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'ip_address')
     ALTER TABLE attendance ADD ip_address VARCHAR(45) NULL",

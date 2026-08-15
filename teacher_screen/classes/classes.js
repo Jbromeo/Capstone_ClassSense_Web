@@ -262,40 +262,31 @@ const renderClassesGridView = (classes) => {
     const cardAnim = hasRendered ? '' : 'animate-fade-in-up ';
     hasRendered = true;
     grid.innerHTML = classes.map(c => `
-        <article class="class-card relative glass-panel rounded-2xl overflow-hidden ${cardAnim}flex flex-col h-full group border border-white/5 hover:border-primary-500/30 transition-all duration-300">
-            <div class="absolute top-4 right-4 flex items-center gap-2 z-20">
-                <span class="flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest italic backdrop-blur-md ${c.status === 'Completed' ? 'bg-green-500/15 text-green-400' : 'bg-amber-500/15 text-amber-400'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'Completed' ? 'bg-green-500' : 'bg-amber-500'}"></span>${c.status === 'Completed' ? 'Completed' : 'In Progress'}</span>
-                <button onclick="event.stopPropagation(); window.handleEditClassClick('${c.id}')" class="p-1.5 text-white/40 hover:text-blue-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md"><i data-feather="edit-2" class="w-3.5 h-3.5"></i></button>
-                <button onclick="event.stopPropagation(); window.handleDeleteClassClick('${c.id}', '${(c.class_name || '').replace(/'/g, "\\'")}')" class="p-1.5 text-white/40 hover:text-primary-500 bg-black/20 hover:bg-black/40 rounded-md transition-all backdrop-blur-md"><i data-feather="trash-2" class="w-3.5 h-3.5"></i></button>
-            </div>
-            <a href="class_view.php?id=${c.id}" class="absolute inset-0 z-10" aria-label="Enter Hub"></a>
-            <div class="relative h-32 overflow-hidden">
-                <div class="absolute inset-0 bg-gradient-to-br from-primary-600/20 to-dark-surface/80"></div>
-                <div class="absolute top-6 left-6 z-10">
-                    <div class="bg-white/5 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
-                        <span class="text-[10px] font-black text-white italic uppercase tracking-tighter italic">${c.class_code}</span>
-                    </div>
+        <article class="class-card glass-panel p-6 rounded-xl border border-dark-border hover:border-primary-500/50 transition-all cursor-pointer group flex flex-col ${cardAnim}" onclick="window.enterHub('${c.id}')">
+            <div class="flex justify-between items-start mb-4">
+                <div class="p-3 bg-primary-500/10 rounded-lg">
+                    <i data-feather="book-open" class="w-6 h-6 text-primary-500"></i>
                 </div>
+                <span class="flex items-center gap-2">
+                    <span class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic ${c.status === 'Completed' ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}"><span class="w-1.5 h-1.5 rounded-full ${c.status === 'Completed' ? 'bg-green-500' : 'bg-amber-500'}"></span>${c.status === 'Completed' ? 'Completed' : 'In Progress'}</span>
+                    <span class="text-[10px] font-black font-mono text-gray-500 uppercase tracking-widest italic">${c.class_code}</span>
+                    <button onclick="event.stopPropagation(); window.handleEditClassClick('${c.id}')" class="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-white/5 rounded-md transition-all" title="Edit class"><i data-feather="edit-2" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="event.stopPropagation(); window.handleDeleteClassClick('${c.id}', '${(c.class_name || '').replace(/'/g, "\\'")}')" class="p-1.5 text-gray-500 hover:text-primary-500 hover:bg-white/5 rounded-md transition-all" title="Delete class"><i data-feather="trash-2" class="w-3.5 h-3.5"></i></button>
+                </span>
             </div>
-            <div class="p-5 flex flex-col flex-1 relative z-0">
-                <div class="mb-4">
-                    <span class="text-[10px] font-black text-primary-400 uppercase tracking-widest italic tracking-tighter italic">${c.section_name}</span>
-                    <h3 class="text-lg font-bold text-white group-hover:text-primary-400 transition-colors uppercase tracking-widest italic tracking-tighter italic leading-none mt-1">${c.class_name}</h3>
-                    <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mt-2 italic tracking-tighter italic">${c.subject} &bull; ${c.level}</p>
-                    <div class="mt-3 flex items-center gap-2 opacity-70">
-                        <i data-feather="clock" class="w-3 h-3 text-primary-400"></i>
-                        <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest italic tracking-tighter">
-                            ${c.schedule || 'Schedule TBA'} &bull; ${c.time_slot || 'TBA'}
-                        </span>
-                    </div>
-                </div>
-                <div class="mt-auto pt-4 border-t border-white/5 flex items-center justify-between">
-                    <div class="flex items-center text-[9px] font-black text-gray-400 uppercase tracking-widest italic tracking-tighter italic opacity-60">
-                        <i data-feather="users" class="w-3.5 h-3.5 mr-2 text-primary-500"></i> ${(c.students || []).length} Registered
-                    </div>
-                    <div class="p-2 bg-primary-500/10 rounded-lg text-primary-500 group-hover:bg-primary-500 group-hover:text-white transition-all">
-                        <i data-feather="arrow-right" class="w-4 h-4"></i>
-                    </div>
+            <h3 class="text-lg font-bold text-white group-hover:text-primary-400 transition-colors uppercase tracking-tighter italic leading-none mb-1">${c.class_name}</h3>
+            <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest opacity-60 mb-4">${c.subject} &bull; ${c.section_name} &bull; ${c.level}</p>
+            <div class="flex items-center gap-2 text-[10px] font-black text-primary-400 uppercase tracking-widest italic">
+                <i data-feather="clock" class="w-3 h-3"></i>
+                <span>${c.schedule || 'Schedule TBA'} &bull; ${c.time_slot || 'TBA'}</span>
+                <i data-feather="arrow-right" class="w-3 h-3 ml-auto group-hover:translate-x-1 transition-transform"></i>
+            </div>
+            <div class="mt-5 pt-4 border-t border-dark-border flex items-center justify-between">
+                <span class="flex items-center text-[10px] font-black text-gray-400 uppercase tracking-widest italic opacity-60">
+                    <i data-feather="users" class="w-3.5 h-3.5 mr-2 text-primary-500"></i> ${(c.students || []).length} Registered
+                </span>
+                <div class="p-2 bg-primary-500/10 rounded-lg text-primary-500 group-hover:bg-primary-500 group-hover:text-white transition-all">
+                    <i data-feather="arrow-right" class="w-4 h-4"></i>
                 </div>
             </div>
         </article>

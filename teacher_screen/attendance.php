@@ -153,6 +153,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
     </script>
 
-    <script type="module" src="attendance/attendance.js?v=11"></script>
+    <script type="module" src="attendance/attendance.js?v=12"></script>
 </body>
 </html>
