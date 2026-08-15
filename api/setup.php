@@ -1,7 +1,43 @@
 <?php
-require_once __DIR__ . '/config.php';
+// =====================================================================
+// ClassSense database setup
+// ---------------------------------------------------------------------
+// One-click bootstrap for the whole database schema.
+//   - Creates the database itself if it does not exist yet.
+//   - Auto-detects the SQL Server instance (config.json first, then
+//     common local fallbacks) so it works on any device with zero
+//     editing.
+//   - Safe to re-run: every statement is idempotent (IF NOT EXISTS).
+//
+// Transfer to another device:
+//   1. Copy this project folder into the new machine's htdocs.
+//   2. Open http://localhost/ClassSense/api/setup.php in a browser.
+//   3. It creates the database, all tables, indexes and constraints.
+//   4. Done — delete or keep this file (keeping it is harmless).
+//
+// Optional manual overrides (instead of config.json):
+//   ?host=YOURSERVER&user=sa&pass=secret
+// =====================================================================
 
-$pdo = getPDO();
+if (!extension_loaded('pdo_sqlsrv')) {
+    die('<h2>PDO SQLSRV extension is missing</h2><p>Enable <code>extension=php_pdo_sqlsrv.dll</code> and <code>extension=php_sqlsrv.dll</code> in your php.ini, then retry.</p>');
+}
+
+$configPath = __DIR__ . '/config.json';
+$config = (file_exists($configPath)) ? json_decode(file_get_contents($configPath), true) : [];
+
+$dbName = trim((string)($config['db_name'] ?? 'ClassSense'));
+$dbUser = trim((string)($_GET['user'] ?? $config['db_user'] ?? 'sa'));
+$dbPass = (string)($_GET['pass'] ?? $config['db_pass'] ?? '');
+$requestedHost = trim((string)($_GET['host'] ?? $config['db_host'] ?? ''));
+
+function connectTo($host, $dbName, $dbUser, $dbPass) {
+    $dsn = 'sqlsrv:Server=' . $host . ($dbName !== '' ? ';Database=' . $dbName : '');
+    $pdo = new PDO($dsn, $dbUser, $dbPass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    return $pdo;
+}
 
 $queries = [
     "-- Create ClassSense database tables (SQL-only schema)",
@@ -311,21 +347,137 @@ $queries = [
     ALTER TABLE notifications ADD CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_uid) REFERENCES users(uid) ON DELETE CASCADE",
 ];
 
-echo "<pre>\n";
+// ---------------------------------------------------------------------
+// Candidate server list: requested host first, then common local names.
+// ---------------------------------------------------------------------
+$candidates = [];
+foreach ([$requestedHost, '(local)', 'localhost', '.', '.\SQLEXPRESS', '127.0.0.1', $config['db_host'] ?? ''] as $h) {
+    $h = trim((string)$h);
+    if ($h !== '' && !in_array($h, $candidates, true)) {
+        $candidates[] = $h;
+    }
+}
+
+$serverPdo = null;
+$usedHost = null;
+$connectionErrors = [];
+
+foreach ($candidates as $h) {
+    try {
+        $serverPdo = connectTo($h, '', $dbUser, $dbPass);
+        $usedHost = $h;
+        break;
+    } catch (PDOException $e) {
+        $connectionErrors[] = $h . ' -> ' . $e->getMessage();
+    }
+}
+
+echo "<!DOCTYPE html><html><head><meta charset='utf-8'><title>ClassSense Setup</title>
+<style>
+body { font-family: Consolas, monospace; background: #0f172a; color: #e2e8f0; padding: 30px; }
+.wrap { max-width: 900px; margin: auto; }
+h1 { color: #38bdf8; } h2 { color: #94a3b8; margin-top: 28px; }
+.ok { color: #4ade80; } .err { color: #f87171; } .info { color: #fbbf24; }
+pre { background: #1e293b; padding: 16px; border-radius: 8px; overflow-x: auto; }
+code { background: #1e293b; padding: 1px 5px; border-radius: 4px; }
+table { border-collapse: collapse; } td, th { border: 1px solid #334155; padding: 4px 10px; }
+</style></head><body><div class='wrap'>";
+
+echo "<h1>ClassSense Database Setup</h1>";
+
+if (!$serverPdo) {
+    echo "<h2 class='err'>Could not connect to SQL Server</h2><p>I tried these servers:</p><pre>";
+    foreach ($connectionErrors as $err) {
+        echo htmlspecialchars($err) . "\n";
+    }
+    echo "</pre><p>Fix <code>api/config.json</code> (db_host / db_user / db_pass) on this machine, or open "
+       . "<code>setup.php?host=YOURSERVER&user=sa&pass=YOURPASS</code>. "
+       . "On a local machine try <code>?host=localhost</code> or <code>?host=.\\SQLEXPRESS</code>.</p></div></body></html>";
+    exit;
+}
+
+echo "<p class='ok'>Connected to SQL Server instance: <code>" . htmlspecialchars($usedHost) . "</code></p>";
+
+// ---------------------------------------------------------------------
+// STEP 1: create the database if it does not exist yet.
+// ---------------------------------------------------------------------
+try {
+    $stmt = $serverPdo->query("SELECT DB_ID('" . $dbName . "') AS db_id");
+    $existing = $stmt->fetchColumn();
+    if ($existing) {
+        echo "<p class='info'>Database <code>$dbName</code> already exists.</p>";
+    } else {
+        $serverPdo->exec("CREATE DATABASE " . $dbName);
+        echo "<p class='ok'>Database <code>$dbName</code> created.</p>";
+    }
+} catch (PDOException $e) {
+    echo "<p class='err'>Database step failed: " . htmlspecialchars($e->getMessage()) . "</p></div></body></html>";
+    exit;
+}
+
+// ---------------------------------------------------------------------
+// STEP 2: reconnect to the database and apply the full schema.
+// ---------------------------------------------------------------------
+try {
+    $pdo = connectTo($usedHost, $dbName, $dbUser, $dbPass);
+} catch (PDOException $e) {
+    echo "<p class='err'>Could not connect to database <code>$dbName</code>: "
+       . htmlspecialchars($e->getMessage()) . "</p></div></body></html>";
+    exit;
+}
+
+echo "<h2>Applying schema (idempotent — safe to re-run)</h2><pre>";
+
+$okCount = 0;
+$errCount = 0;
 
 foreach ($queries as $sql) {
     if (strpos(trim($sql), '--') === 0) {
-        echo "$sql\n";
+        echo "<span class='info'>$sql</span>\n";
         continue;
     }
     try {
         $pdo->exec($sql);
-        echo "OK: " . substr($sql, 0, 80) . "...\n";
+        echo "<span class='ok'>OK:   </span>" . htmlspecialchars(substr($sql, 0, 80)) . "...\n";
+        $okCount++;
     } catch (PDOException $e) {
-        echo "ERROR: " . $e->getMessage() . "\n";
-        echo "SQL: $sql\n\n";
+        echo "<span class='err'>ERROR:</span> " . htmlspecialchars($e->getMessage()) . "\n"
+           . "       SQL: " . htmlspecialchars(str_replace("\n", " ", $sql)) . "\n\n";
+        $errCount++;
     }
 }
 
-echo "\nDone. All tables created.\n";
 echo "</pre>";
+
+// ---------------------------------------------------------------------
+// STEP 3: verification — list every table that exists now.
+// ---------------------------------------------------------------------
+echo "<h2>Verification — tables present in <code>$dbName</code></h2>";
+try {
+    $tables = $pdo->query("SELECT name FROM sysobjects WHERE xtype='U' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);
+    if (count($tables) > 0) {
+        echo "<table><tr><th>Table</th></tr>";
+        foreach ($tables as $t) {
+            echo "<tr><td>" . htmlspecialchars($t) . "</td></tr>";
+        }
+        echo "</table><p>Total: <b>" . count($tables) . "</b> tables.</p>";
+    } else {
+        echo "<p class='err'>No tables found — something went wrong.</p>";
+    }
+} catch (PDOException $e) {
+    echo "<p class='err'>Verification failed: " . htmlspecialchars($e->getMessage()) . "</p>";
+}
+
+echo "<h2>Summary</h2><pre>";
+echo "<span class='ok'>$okCount</span> schema statements succeeded, <span class='err'>$errCount</span> failed.\n";
+echo $errCount === 0 ? "DATABASE READY.\n" : "CHECK THE ERRORS ABOVE.\n";
+echo "</pre>";
+
+echo "<h2>Transfer to another device</h2><pre>";
+echo "1. Copy this whole project folder to the other machine's htdocs.\n";
+echo "2. Open http://localhost/ClassSense/api/setup.php in a browser.\n";
+echo "3. It auto-detects the local SQL Server, creates the database,\n";
+echo "   all tables, indexes and constraints. No manual SQL needed.\n";
+echo "4. If auto-detection misses your instance, use:\n";
+echo "   setup.php?host=.\\SQLEXPRESS   (or your server name)\n";
+echo "</pre></div></body></html>";
