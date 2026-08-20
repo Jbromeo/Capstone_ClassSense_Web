@@ -62,7 +62,10 @@
                             <i data-feather="cpu" class="w-4 h-4"></i>
                         </div>
                         <h3 class="text-sm font-bold text-primary-400 uppercase tracking-wider">AI Academic Insight</h3>
-                        <span id="aiInsightMeta" class="hidden ml-auto text-[9px] font-black text-gray-500 uppercase tracking-widest italic whitespace-nowrap"></span>
+                        <span id="aiInsightMeta" class="hidden text-[9px] font-black text-gray-500 uppercase tracking-widest italic whitespace-nowrap"></span>
+                        <button id="aiTestBtn" onclick="window.testAIInsight()" class="ml-auto px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-widest italic transition-all flex items-center gap-1.5 shadow-lg shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i data-feather="refresh-cw" class="w-3 h-3"></i> Regenerate Insight
+                        </button>
                     </div>
                     <div id="aiInsightBody">
                         <p id="aiInsightLoading" class="text-sm text-gray-400 animate-pulse"><i data-feather="loader" class="w-3.5 h-3.5 inline mr-1"></i> Analyzing your performance...</p>
@@ -76,13 +79,13 @@
             <!-- Tabs -->
             <div class="mb-4 border-b border-dark-border">
                 <nav class="flex gap-4">
-                    <button onclick="switchTab('attendance')" id="tab-attendance" class="px-4 py-2 text-sm font-medium text-white border-b-2 border-primary-500 uppercase tracking-widest italic tracking-tighter italic">Attendance Logs</button>
-                    <button onclick="switchTab('scores')" id="tab-scores" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-white transition-colors border-b-2 border-transparent uppercase tracking-widest italic tracking-tighter italic">Assessments</button>
+                    <button onclick="switchTab('scores')" id="tab-scores" class="px-4 py-2 text-sm font-medium text-white border-b-2 border-primary-500 uppercase tracking-widest italic tracking-tighter italic">Assessments</button>
+                    <button onclick="switchTab('attendance')" id="tab-attendance" class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-white transition-colors border-b-2 border-transparent uppercase tracking-widest italic tracking-tighter italic">Attendance Logs</button>
                 </nav>
             </div>
 
             <!-- Attendance Content -->
-            <div id="content-attendance" class="glass-panel rounded-xl overflow-hidden border border-dark-border">
+            <div id="content-attendance" class="glass-panel rounded-xl overflow-hidden border border-dark-border hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
                         <thead class="text-xs text-gray-500 uppercase bg-dark-bg/50 border-b border-dark-border">
@@ -102,7 +105,7 @@
             </div>
 
             <!-- Assessments Content -->
-            <div id="content-scores" class="hidden">
+            <div id="content-scores" class="">
                 <div class="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="flex items-center gap-2 bg-dark-bg/80 backdrop-blur-xl border border-white/5 p-1 rounded-2xl shadow-xl w-fit">
                         <button onclick="window.studentGrades.setTerm(1)" id="st-1st" class="term-btn active px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all bg-primary-600 text-white shadow-lg shadow-primary-500/20">1st Term</button>
@@ -363,7 +366,7 @@
             };
         })();
 
-        async function loadAIInsight() {
+        async function loadAIInsight(force = false) {
             const loading = document.getElementById('aiInsightLoading');
             const textEl = document.getElementById('aiInsightText');
             const tipsEl = document.getElementById('aiInsightTips');
@@ -378,7 +381,7 @@
             metaEl.classList.add('hidden');
 
             try {
-                const data = await api(`/ai_insight.php?class_id=${classId}`);
+                const data = await api(`/ai_insight.php?class_id=${classId}${force ? '&refresh=1' : ''}`);
                 if (data.available === false) {
                     loading.classList.add('hidden');
                     fallbackEl.classList.remove('hidden');
@@ -411,6 +414,21 @@
                 fallbackEl.textContent = 'AI insights are temporarily unavailable.';
             }
         }
+
+        window.testAIInsight = async () => {
+            const btn = document.getElementById('aiTestBtn');
+            if (!btn || btn.disabled) return;
+            btn.disabled = true;
+            btn.innerHTML = '<div class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Generating...';
+            try {
+                await loadAIInsight(true);
+            } catch (e) {
+                console.error('Regenerate Insight Error:', e);
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<i data-feather="refresh-cw" class="w-3 h-3"></i> Regenerate Insight';
+            try { feather.replace(); } catch (e) {}
+        };
 
         initPage((user) => {
             setTimeout(() => {

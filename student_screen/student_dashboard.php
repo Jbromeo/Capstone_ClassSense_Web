@@ -122,7 +122,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                             <div class="mx-auto mb-4 w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/5 flex items-center justify-center">
                                 <i data-feather="calendar-off" class="w-6 h-6 text-gray-600"></i>
                             </div>
-                            <p class="text-sm text-gray-400 font-bold">No subjects scheduled for today</p>
+                            <p class="text-sm text-gray-400 font-bold">No classes scheduled for today</p>
                             <p class="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-1">You're free — or check My Classes</p>
                         </div>
                         <!-- Time grid (rendered by JS) -->
@@ -359,7 +359,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     + '<div class="flex items-center justify-between gap-2">'
                     + '<span class="tl-title">' + tlEsc(c.class_name) + '</span>'
                     + '<span class="flex items-center gap-1.5">' + att + badge + '</span></div>'
-                    + '<div class="tl-meta">' + tlEsc(c.subject) + '<span class="opacity-50">&nbsp;&bull;&nbsp;</span>' + tlEsc(c.teacher_name) + '&nbsp;&bull;&nbsp;' + tlEsc(c.section_name) + '</div>'
+                    + '<div class="tl-meta">' + tlEsc(c.teacher_name) + '&nbsp;&bull;&nbsp;' + tlEsc(c.section_name) + '</div>'
                     + '</div>'
                     + '<i data-feather="chevron-right" class="w-4 h-4 text-gray-600"></i>'
                     + '</a>';
@@ -379,12 +379,12 @@ require_once dirname(__DIR__) . '/core/init.php';
                     return s !== null && nowMin >= s && nowMin < end;
                 });
                 if (anyLive) {
-                    nextUp.textContent = 'In session right now — tap a subject to enter class';
+                    nextUp.textContent = 'In session right now — tap a class to enter';
                 } else if (upcoming.length) {
                     const n = upcoming[0];
                     nextUp.textContent = 'Next up: ' + n.class_name + ' at ' + tlFmt(n.start_time);
                 } else {
-                    nextUp.textContent = 'All subjects done for today';
+                    nextUp.textContent = 'All classes done for today';
                 }
             }
         }

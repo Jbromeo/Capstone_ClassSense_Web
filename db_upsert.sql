@@ -79,7 +79,6 @@ ELSE PRINT '-- users: SKIPPED (set @u_uid and @u_username) --';
 DECLARE @c_id            VARCHAR(36)   = NULL;   -- set NEWID() or an existing id
 DECLARE @c_class_name    NVARCHAR(255) = NULL;
 DECLARE @c_level         NVARCHAR(100) = NULL;
-DECLARE @c_subject       NVARCHAR(255) = NULL;
 DECLARE @c_section       NVARCHAR(50)  = NULL;
 DECLARE @c_class_code    NVARCHAR(10)  = NULL;
 DECLARE @c_schedule      NVARCHAR(50)  = NULL;
@@ -99,7 +98,6 @@ BEGIN
         UPDATE classes SET
             class_name    = ISNULL(@c_class_name,    class_name),
             level         = ISNULL(@c_level,         level),
-            subject       = ISNULL(@c_subject,       subject),
             section_name  = ISNULL(@c_section,       section_name),
             class_code    = ISNULL(@c_class_code,    class_code),
             schedule      = ISNULL(@c_schedule,      schedule),
@@ -115,10 +113,10 @@ BEGIN
     ELSE
     BEGIN
         PRINT '-- classes: id does not exist -> INSERT';
-        INSERT INTO classes (id, class_name, level, subject, section_name, class_code,
+        INSERT INTO classes (id, class_name, level, section_name, class_code,
                              schedule, start_time, end_time, time_slot, session_limit,
                              teacher_uid, teacher_name, status)
-        VALUES (@c_id, @c_class_name, @c_level, @c_subject, @c_section, @c_class_code,
+        VALUES (@c_id, @c_class_name, @c_level, @c_section, @c_class_code,
                 @c_schedule, @c_start_time, @c_end_time, @c_time_slot, ISNULL(@c_session_limit, 0),
                 @c_teacher_uid, @c_teacher_name, ISNULL(@c_status, 'In Progress'));
     END

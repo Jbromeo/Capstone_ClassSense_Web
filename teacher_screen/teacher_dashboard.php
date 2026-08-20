@@ -246,7 +246,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             const filtered = term
                 ? allClasses.filter(c =>
                     (c.class_name && c.class_name.toLowerCase().includes(term)) ||
-                    (c.subject && c.subject.toLowerCase().includes(term)) ||
                     (c.section_name && c.section_name.toLowerCase().includes(term)))
                 : allClasses;
 
@@ -275,7 +274,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <p class="text-xs font-bold text-white truncate">${c.class_name}</p>
                                 <span class="flex-shrink-0 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] uppercase font-black">${c.section_name || 'N/A'}</span>
                             </div>
-                            <p class="text-[11px] text-gray-400 mt-0.5 truncate">${c.subject || ''} &bull; ${c.schedule || 'TBA'} &bull; ${c.time_slot || 'TBA'}</p>
+                            <p class="text-[11px] text-gray-400 mt-0.5 truncate">${c.schedule || 'TBA'} &bull; ${c.time_slot || 'TBA'}</p>
                         </div>
                     </div>
                 </div>
@@ -302,7 +301,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                 }
                 const filtered = allClasses.filter(c =>
                     (c.class_name && c.class_name.toLowerCase().includes(term)) ||
-                    (c.subject && c.subject.toLowerCase().includes(term)) ||
                     (c.section_name && c.section_name.toLowerCase().includes(term))
                 );
                 renderClassesOverview(filtered);
@@ -323,7 +321,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             try {
                 const classes = await api('/classes.php');
                 const sig = JSON.stringify(classes.map(c => [
-                    c.id, c.class_name, c.level, c.subject, c.section_name, c.class_code,
+                    c.id, c.class_name, c.level, c.section_name, c.class_code,
                     c.schedule, c.start_time, c.end_time, c.time_slot, c.session_limit, c.status,
                     (c.students || []).slice().sort().join(',')
                 ]));

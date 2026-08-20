@@ -105,7 +105,6 @@ function applyFilters() {
         const term = searchTerm.toLowerCase();
         data = data.filter(c =>
             (c.class_name && c.class_name.toLowerCase().includes(term)) ||
-            (c.subject && c.subject.toLowerCase().includes(term)) ||
             (c.section_name && c.section_name.toLowerCase().includes(term)) ||
             (c.class_code && c.class_code.toLowerCase().includes(term))
         );
@@ -176,7 +175,6 @@ window.handleEditClassClick = (id) => {
     document.getElementById('editClassId').value = id;
     document.getElementById('editClassNameInput').value = classData.class_name;
     document.getElementById('editLevelInput').value = ['Junior High School', 'Senior High School'].includes(classData.level) ? classData.level : 'Senior High School';
-    document.getElementById('editSubjectInput').value = classData.subject;
     document.getElementById('editSectionNameInput').value = classData.section_name || '';
     document.getElementById('editScheduleDaysInput').value = classData.schedule || '';
     document.getElementById('editStartTimeInput').value = classData.start_time || '';
@@ -215,7 +213,6 @@ window.handleUpdateClass = async () => {
     const id = document.getElementById('editClassId').value;
     const name = document.getElementById('editClassNameInput').value;
     const level = document.getElementById('editLevelInput').value;
-    const subject = document.getElementById('editSubjectInput').value;
     const section = document.getElementById('editSectionNameInput').value;
     const schedule = document.getElementById('editScheduleDaysInput').value;
     const start = document.getElementById('editStartTimeInput').value;
@@ -231,7 +228,7 @@ window.handleUpdateClass = async () => {
         await api(`/classes.php?id=${id}`, {
             method: 'PUT',
             body: JSON.stringify({
-                class_name: name, level, subject, section_name: section,
+                class_name: name, level, section_name: section,
                 schedule, start_time: start, end_time: end, status
             })
         });
@@ -275,7 +272,7 @@ const renderClassesGridView = (classes) => {
                 </span>
             </div>
             <h3 class="text-lg font-bold text-white group-hover:text-primary-400 transition-colors uppercase tracking-tighter italic leading-none mb-1">${c.class_name}</h3>
-            <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest opacity-60 mb-4">${c.subject} &bull; ${c.section_name} &bull; ${c.level}</p>
+            <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest opacity-60 mb-4">${c.section_name} &bull; ${c.level}</p>
             <div class="flex items-center gap-2 text-[10px] font-black text-primary-400 uppercase tracking-widest italic">
                 <i data-feather="clock" class="w-3 h-3"></i>
                 <span>${c.schedule || 'Schedule TBA'} &bull; ${c.time_slot || 'TBA'}</span>
@@ -322,7 +319,7 @@ const renderClassesListView = (classes) => {
                 <tr class="border-b border-white/5 last:border-0 hover:bg-white/5 transition-all cursor-pointer group" onclick="window.location.href='class_view.php?id=${c.id}'">
                     <td class="p-4 pl-6">
                         <p class="text-sm font-bold text-white group-hover:text-primary-400 transition-colors uppercase tracking-tight italic">${c.class_name}</p>
-                        <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest italic mt-0.5">${c.section_name} &bull; ${c.subject}</p>
+                        <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest italic mt-0.5">${c.section_name}</p>
                     </td>
                     <td class="p-4 hidden md:table-cell">
                         <span class="text-[10px] font-mono font-bold text-gray-400">${c.class_code}</span>
@@ -376,7 +373,6 @@ window.handleCreateClass = async () => {
             body: JSON.stringify({
                 class_name: nameEl.value,
                 level: document.getElementById('levelInput').value,
-                subject: document.getElementById('subjectInput').value,
                 section_name: sectionEl.value,
                 schedule: scheduleDays || 'TBA',
                 start_time: startTime,
@@ -406,7 +402,7 @@ async function loadClasses() {
     try {
         const classes = await api('/classes.php');
         const sig = JSON.stringify(classes.map(c => [
-            c.id, c.class_name, c.level, c.subject, c.section_name, c.class_code,
+            c.id, c.class_name, c.level, c.section_name, c.class_code,
             c.schedule, c.start_time, c.end_time, c.time_slot, c.session_limit, c.status,
             (c.students || []).slice().sort().join(',')
         ]));

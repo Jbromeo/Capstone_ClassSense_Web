@@ -60,7 +60,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i data-feather="search" class="h-4 w-4 text-gray-500 group-focus-within:text-primary-500 transition-colors"></i>
                         </div>
-                        <input id="classSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search subjects...">
+                        <input id="classSearchInput" type="text" class="bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-full focus:ring-primary-500 focus:border-primary-500 block w-64 pl-10 p-2.5 transition-all focus:w-80 placeholder-gray-600" placeholder="Search classes...">
                     </div>
 
                     <div class="relative">
@@ -225,7 +225,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             const filterClasses = (query) => {
                 if (!query) {
                     renderClasses(allClasses);
-                    document.getElementById('enrolledCount').textContent = allClasses.length + ' subject' + (allClasses.length !== 1 ? 's' : '');
+                    document.getElementById('enrolledCount').textContent = allClasses.length + ' class' + (allClasses.length !== 1 ? 'es' : '');
                     return;
                 }
                 const q = query.toLowerCase();
@@ -235,7 +235,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     (c.teacher_name || '').toLowerCase().includes(q)
                 );
                 renderClasses(filtered);
-                document.getElementById('enrolledCount').textContent = filtered.length + ' subject' + (filtered.length !== 1 ? 's' : '') + ' found';
+                document.getElementById('enrolledCount').textContent = filtered.length + ' class' + (filtered.length !== 1 ? 'es' : '') + ' found';
             };
 
             // --- Search ---
@@ -320,7 +320,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                         const q = searchInput ? searchInput.value : '';
                         if (q) filterClasses(q);
                         else renderClasses(classes);
-                        document.getElementById('enrolledCount').textContent = classes.length + ' subject' + (classes.length !== 1 ? 's' : '');
+                        document.getElementById('enrolledCount').textContent = classes.length + ' class' + (classes.length !== 1 ? 'es' : '');
                     } catch (err) {
                         console.error('Failed to load classes:', err);
                     }

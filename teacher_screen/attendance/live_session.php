@@ -9,7 +9,6 @@
                         <div>
                             <div class="flex items-center gap-2">
                                 <h2 id="liveClassName" class="text-xl font-bold text-white">CS101: Intro to Programming</h2>
-                                <span id="liveClassSubject" class="hidden px-2 py-0.5 rounded-full bg-primary-500/10 border border-primary-500/30 text-primary-400 text-[9px] font-black uppercase tracking-widest italic"></span>
                             </div>
                             <div class="flex items-center gap-4">
                                 <p class="text-xs text-green-400 flex items-center gap-1">

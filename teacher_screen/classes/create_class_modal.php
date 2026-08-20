@@ -28,15 +28,9 @@
                                 </select>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Subject</label>
-                                    <select id="subjectInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none italic font-medium"><option>Computer Science</option><option>Mathematics</option><option>Physics</option></select>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Section Name</label>
-                                    <input id="sectionNameInput" type="text" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none italic font-medium" placeholder="e.g. STEM 11-A">
-                                </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Section Name</label>
+                                <input id="sectionNameInput" type="text" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none italic font-medium" placeholder="e.g. STEM 11-A">
                             </div>
 
                             <div class="grid grid-cols-2 gap-4">

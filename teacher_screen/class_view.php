@@ -298,7 +298,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         function applyStatusUI(classData) {
             document.getElementById('viewClassName').innerText = classData.class_name;
-            document.getElementById('breadcrumbClassName').innerText = classData.subject || classData.class_name;
+            document.getElementById('breadcrumbClassName').innerText = classData.class_name;
             document.querySelectorAll('.status-btn').forEach(btn => {
                 const status = btn.dataset.status;
                 const isActive = (status === classData.status) || (classData.status !== 'Completed' && classData.status !== 'In Progress' && status === 'In Progress');

@@ -138,30 +138,48 @@ function generateToken() {
 function sendNotification($recipientUid, $type, $title, $message = '', $link = '') {
     try {
         $pdo = getPDO();
-        $stmt = $pdo->prepare("INSERT INTO notifications (recipient_uid, type, title, message, link) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$recipientUid, $type, $title, $message, $link]);
+        $userStmt = $pdo->prepare("SELECT push_enabled FROM users WHERE uid = ?");
+        $userStmt->execute([$recipientUid]);
+        $user = $userStmt->fetch();
+        $pushEnabled = !empty($user['push_enabled']);
 
-        // Best-effort device push if the recipient has push enabled.
-        // Failures here never break the in-app notification flow.
-        try {
-            $userStmt = $pdo->prepare("SELECT push_enabled FROM users WHERE uid = ?");
-            $userStmt->execute([$recipientUid]);
-            $user = $userStmt->fetch();
-            if (!empty($user['push_enabled'])) {
+        // The row is born marked as pushed when we intend to push, so a
+        // concurrent poll can never see a pushed row as unpushed (race-free).
+        // If the push fails, the flag is cleared below so the polling banners
+        // can surface the row as a fallback.
+        $stmt = $pdo->prepare("INSERT INTO notifications (recipient_uid, type, title, message, link, push_sent) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$recipientUid, $type, $title, $message, $link, $pushEnabled ? 1 : 0]);
+        $notifId = $pdo->lastInsertId();
+
+        // Best-effort device push. Failures here never break the in-app flow.
+        if ($pushEnabled) {
+            $pushed = false;
+            try {
                 $tokStmt = $pdo->prepare("SELECT token FROM push_subscriptions WHERE uid = ?");
                 $tokStmt->execute([$recipientUid]);
                 $tokens = $tokStmt->fetchAll();
                 foreach ($tokens as $t) {
-                    $result = fcmSend($t['token'], $title, $message, $link, $type);
-                    // 400 invalid token, 404 = token not found, 410 = device unregistered: drop it
-                    if ($result === 400 || $result === 404 || $result === 410) {
+                    $result = fcmSend($t['token'], $title, $message, $link, $type, $notifId);
+                    if ($result === true) {
+                        $pushed = true;
+                        error_log("fcm: push sent to " . $t['token'] . " (type={$type})");
+                    } else if ($result === 400 || $result === 404 || $result === 410) {
+                        // 400 invalid token, 404 = token not found, 410 = device unregistered: drop it
                         $del = $pdo->prepare("DELETE FROM push_subscriptions WHERE token = ?");
                         $del->execute([$t['token']]);
+                        error_log("fcm: dropped invalid token ({$result}) " . $t['token']);
+                    } else {
+                        error_log("fcm: send failed result={$result} for token " . $t['token']);
                     }
                 }
+            } catch (PDOException $e) {
+                error_log('push dispatch failed: ' . $e->getMessage());
             }
-        } catch (PDOException $e) {
-            error_log('push dispatch failed: ' . $e->getMessage());
+            // Nothing actually pushed — let the polling banners show it.
+            if (!$pushed) {
+                $flag = $pdo->prepare("UPDATE notifications SET push_sent = 0 WHERE id = ?");
+                $flag->execute([$notifId]);
+            }
         }
     } catch (PDOException $e) {
         error_log('sendNotification failed: ' . $e->getMessage());
@@ -234,7 +252,7 @@ function fcmAccessToken() {
 
 // Send a single web-push notification to one device token.
 // Returns true on success, the HTTP status code on failure.
-function fcmSend($token, $title, $message, $link = '', $type = '') {
+function fcmSend($token, $title, $message, $link = '', $type = '', $notifId = '') {
     global $config;
     $accessToken = fcmAccessToken();
     if (!$accessToken) return false;
@@ -249,6 +267,7 @@ function fcmSend($token, $title, $message, $link = '', $type = '') {
             'data' => [
                 'link' => $link ?? '',
                 'type' => $type ?? '',
+                'id'   => (string)($notifId ?? ''),
             ],
         ],
     ];

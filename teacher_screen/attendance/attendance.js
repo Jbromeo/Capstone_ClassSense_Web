@@ -163,7 +163,7 @@ function renderClassGrid(classes) {
                 </span>
             </div>
             <h3 class="text-lg font-bold text-white mb-1 uppercase tracking-tighter italic">${c.class_name}</h3>
-            <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-4 opacity-60">${c.subject} &bull; ${c.section_name}</p>
+            <p class="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-4 opacity-60">${c.section_name}</p>
             <div class="flex items-center gap-2 text-[10px] font-black text-primary-400 uppercase tracking-widest italic">
                 <span>${selected ? 'Tap Start to begin session' : (live ? 'Resume Live Session' : (modified ? 'Tap to view session record' : 'Select to Start'))}</span>
                 ${!(live || selected) ? `<span class="text-[9px] font-black text-gray-400 uppercase opacity-60">(${nextLabel})</span>` : ''}
@@ -220,7 +220,7 @@ function updateSelectionBar() {
         return;
     }
     document.getElementById('selectedClassName').innerText = cls.class_name;
-    document.getElementById('selectedClassMeta').innerText = (cls.subject || '') + ' • ' + (cls.section_name || '');
+    document.getElementById('selectedClassMeta').innerText = cls.section_name || '';
     document.getElementById('selectedClassCode').innerText = cls.class_code || '';
     const termBadge = document.getElementById('gradingTermBadge');
     if (termBadge) {
@@ -270,12 +270,6 @@ window.startAttendanceSession = async (classId) => {
         // Switch View
         switchView('liveAttendanceView');
         document.getElementById('liveClassName').innerText = currentClassData.class_name;
-        const subjectBadge = document.getElementById('liveClassSubject');
-        if (subjectBadge) {
-            const subject = (currentClassData.subject || '').trim();
-            subjectBadge.innerText = subject;
-            subjectBadge.classList.toggle('hidden', !subject);
-        }
         document.getElementById('reportClassTitle').innerText = currentClassData.class_name;
         document.getElementById('totalCount').innerText = currentClassData.students ? currentClassData.students.length : 0;
         

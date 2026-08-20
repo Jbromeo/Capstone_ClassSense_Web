@@ -73,35 +73,6 @@ require_once dirname(__DIR__) . '/core/init.php';
                 </div>
             </div>
 
-            <!-- Tunnel Control Panel -->
-            <div class="glass-panel rounded-2xl p-6 border border-white/5 mb-8">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-4">
-                        <div class="p-3 bg-purple-500/10 rounded-xl">
-                            <i data-feather="wind" class="w-6 h-6 text-purple-500"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-bold text-white">Mobile Endpoint</h3>
-                            <p class="text-sm text-gray-400 mt-1">
-                                <span id="tunnelStatus">Checking...</span>
-                                <span id="tunnelUrl" class="text-xs text-gray-500 ml-2 hidden"></span>
-                            </p>
-                            <span id="tunnelIp" class="text-xs text-gray-500 ml-2"></span>
-                        </div>
-                    </div>
-                    <div class="flex gap-3">
-                        <button id="startTunnelBtn" onclick="startTunnel()"
-                                class="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 flex items-center gap-2">
-                            <i data-feather="power" class="w-4 h-4"></i> Start/Refresh
-                        </button>
-                        <button id="stopTunnelBtn" onclick="stopTunnel()"
-                                class="px-5 py-2.5 bg-dark-surface hover:bg-red-500/10 text-red-400 border border-red-500/30 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2">
-                            <i data-feather="square" class="w-4 h-4"></i> Stop
-                        </button>
-                    </div>
-                </div>
-            </div>
-
             <!-- Dashboard Analytics -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div class="glass-panel rounded-2xl p-8 border border-white/5 group hover:border-purple-500/30 transition-all">
@@ -169,81 +140,6 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         }
 
-        async function refreshTunnelStatus() {
-            try {
-                const res = await api('/config/manage_tunnel.php?action=status');
-                const badge = document.getElementById('tunnelStatus');
-                const urlSpan = document.getElementById('tunnelUrl');
-                const ipSpan = document.getElementById('tunnelIp');
-                if (res.online && res.url) {
-                    badge.innerHTML = '<span class="text-green-400">Online</span>';
-                    urlSpan.textContent = res.url;
-                    urlSpan.classList.remove('hidden');
-                } else {
-                    badge.innerHTML = '<span class="text-red-400">Offline — Start Tunnel</span>';
-                    urlSpan.classList.add('hidden');
-                }
-                if (res.server_ip) {
-                    ipSpan.innerHTML = '<span class="text-xs text-gray-500">Local IP: <span class="font-mono text-purple-400">' + res.server_ip + '</span></span>';
-                }
-            } catch (e) {
-                document.getElementById('tunnelStatus').innerHTML = '<span class="text-red-400">Error</span>';
-            }
-        }
-
-        async function startTunnel() {
-            const btn = document.getElementById('startTunnelBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Starting...';
-            try {
-                const res = await api('/config/manage_tunnel.php?action=start');
-                if (res.error) throw new Error(res.error);
-                await refreshTunnelStatus();
-                showAdminToast(res.message || 'ngrok started', 'success');
-            } catch (e) {
-                showAdminToast(e.message || 'Failed to start ngrok', 'error');
-            }
-            btn.disabled = false;
-            btn.innerHTML = '<i data-feather="power" class="w-4 h-4"></i> Start/Refresh';
-            feather.replace();
-        }
-
-        async function stopTunnel() {
-            try {
-                await api('/config/manage_tunnel.php?action=stop');
-                await refreshTunnelStatus();
-                showAdminToast('ngrok stopped', 'success');
-            } catch (e) {
-                showAdminToast('Failed to stop', 'error');
-            }
-        }
-
-        function showAdminToast(msg, type) {
-            if (!window.toastContainer) {
-                window.toastContainer = document.createElement('div');
-                window.toastContainer.id = 'adminToastContainer';
-                window.toastContainer.className = 'fixed top-5 right-5 z-50 flex flex-col gap-3';
-                document.body.appendChild(window.toastContainer);
-            }
-            const toast = document.createElement('div');
-            toast.className = 'toast flex items-center w-full max-w-xs p-3 gap-2 text-sm rounded-lg shadow-lg border ' +
-                (type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-green-500/10 border-green-500/30 text-green-300');
-            toast.innerHTML = '<i data-feather="' + (type === 'error' ? 'alert-circle' : 'check-circle') + '" class="w-4 h-4"></i><span>' + msg + '</span>';
-            window.toastContainer.appendChild(toast);
-            feather.replace();
-            setTimeout(() => toast.remove(), 4000);
-        }
-
-        // Expose to window so inline onclick attributes can call them
-        // (functions in <script type="module"> are scoped, not global)
-        window.startTunnel = startTunnel;
-        window.stopTunnel = stopTunnel;
-
-        // Check tunnel status on load
-        refreshTunnelStatus();
-        setInterval(refreshTunnelStatus, 15000);
-
-        // Existing code below
         initPage(() => {
             updateStats();
             setInterval(updateStats, 30000);

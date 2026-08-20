@@ -23,7 +23,7 @@ if (!$stmt->fetch()) {
     jsonResponse(['error' => 'Class not found'], 404);
 }
 
-$classStmt = $pdo->prepare("SELECT id, class_name, subject, schedule FROM classes WHERE id = ?");
+$classStmt = $pdo->prepare("SELECT id, class_name, schedule FROM classes WHERE id = ?");
 $classStmt->execute([$classId]);
 $classData = $classStmt->fetch();
 $className = $classData['class_name'] ?? 'your class';
@@ -157,7 +157,10 @@ if ($cached) {
     $cachedAge = time() - $created;
 }
 
-if ($cached && $cached['signature'] === $signature && $cachedAge !== null && $cachedAge < $CACHE_TTL_SECONDS) {
+// Optional refresh=1 bypasses the cache and forces a live AI generation (web-only).
+$forceRefresh = isset($_GET['refresh']) && $_GET['refresh'] === '1';
+
+if (!$forceRefresh && $cached && $cached['signature'] === $signature && $cachedAge !== null && $cachedAge < $CACHE_TTL_SECONDS) {
     jsonResponse([
         'insight' => [
             'paragraph' => $cached['insight_paragraph'],
@@ -226,7 +229,7 @@ curl_setopt_array($ch, [
         'Api-Revision: ' . $apiRevision,
     ],
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 40,
+    CURLOPT_TIMEOUT => 120,
     CURLOPT_CONNECTTIMEOUT => 10,
     CURLOPT_SSL_VERIFYPEER => true,
 ]);
@@ -294,11 +297,15 @@ $stmt = $pdo->prepare("MERGE ai_insights AS target USING (SELECT ? AS student_ui
     VALUES (source.student_uid, source.class_id, ?, ?, ?);");
 $stmt->execute([$uid, $classId, $insight['paragraph'], json_encode($insight['tips']), $signature, $insight['paragraph'], json_encode($insight['tips']), $signature]);
 
-$isNew = !$cached || $cached['signature'] !== $signature;
+$isNew = $forceRefresh || !$cached || $cached['signature'] !== $signature;
 if ($isNew) {
-    $cooldownStmt = $pdo->prepare("SELECT COUNT(*) as cnt FROM notifications WHERE recipient_uid = ? AND type = 'ai_insight' AND created_at > DATEADD(HOUR, -24, GETDATE())");
-    $cooldownStmt->execute([$uid]);
-    if ((int)$cooldownStmt->fetch()['cnt'] === 0) {
+    $notify = $forceRefresh;
+    if (!$forceRefresh) {
+        $cooldownStmt = $pdo->prepare("SELECT COUNT(*) as cnt FROM notifications WHERE recipient_uid = ? AND type = 'ai_insight' AND created_at > DATEADD(HOUR, -24, GETDATE())");
+        $cooldownStmt->execute([$uid]);
+        $notify = (int)$cooldownStmt->fetch()['cnt'] === 0;
+    }
+    if ($notify) {
         sendNotification(
             $uid,
             'ai_insight',

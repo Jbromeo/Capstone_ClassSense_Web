@@ -79,11 +79,13 @@ jsonResponse([
     'role' => $role,
     'user' => [
         'uid' => $uid,
+        'username' => $username,
         'email' => $username,
         'role' => $role,
         'firstName' => $firstName,
         'lastName' => $lastName,
         'studentId' => $studentId,
         'employeeId' => $employeeId,
+        'phone' => $phone,
     ]
 ], 201);

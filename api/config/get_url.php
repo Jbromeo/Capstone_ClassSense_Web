@@ -1,6 +1,6 @@
 <?php
 // Public endpoint — NO authentication required
-// Mobile app calls this to discover the current server URL.
+// Mobile app calls this to discover the current server URL on the same LAN.
 // Allows CORS from any origin (mobile app + web admin both need this)
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
@@ -12,27 +12,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$configFile = __DIR__ . '/app_url.json';
-
-// Build response
-$config = ['url' => null, 'updated' => 0, 'online' => false];
-
-if (file_exists($configFile)) {
-    $saved = json_decode(file_get_contents($configFile), true);
-    if (is_array($saved)) {
-        $config = array_merge($config, $saved);
-    }
-}
-
-// Include the server's local IP for discovery by physical devices.
-// On a LAN, phones can reach this IP directly (no ngrok needed for config fetch).
+// Resolve the machine's real LAN address that phones on the same WiFi can reach.
+// When accessed via localhost, SERVER_ADDR is loopback (::1 / 127.0.0.1), which
+// is useless to a phone, so resolve the LAN interface directly instead.
 function server_ip() {
     $addr = $_SERVER['SERVER_ADDR'] ?? '';
-    // When accessed via localhost/ngrok, SERVER_ADDR is loopback (::1 / 127.0.0.1),
-    // which is useless to a phone. Resolve the machine's real LAN address instead.
     if ($addr === '::1' || $addr === '127.0.0.1' || $addr === '') {
         // The adapter owning the default route is the LAN interface a phone can
-        // reach. This ignores VPN/tunnel adapters (Tailscale, Radmin, ...).
+        // reach. This ignores VPN adapters (Tailscale, Radmin, ...).
         $out = [];
         $code = 0;
         @exec('powershell -NoProfile -Command "if ($i = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 -ErrorAction SilentlyContinue | Sort-Object RouteMetric | Select-Object -First 1).InterfaceIndex) { (Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $i -ErrorAction SilentlyContinue).IPAddress }"', $out, $code);
@@ -49,7 +36,11 @@ function server_ip() {
     return $addr ?: null;
 }
 
-$config['server_ip'] = server_ip();
-$config['server_port'] = $_SERVER['SERVER_PORT'] ?? 80;
+$ip = server_ip();
+$port = $_SERVER['SERVER_PORT'] ?? 80;
 
-echo json_encode($config);
+echo json_encode([
+    'server_ip' => $ip,
+    'server_port' => $port,
+    'url' => ($ip !== null ? 'http://' . $ip . ':' . $port : null),
+]);

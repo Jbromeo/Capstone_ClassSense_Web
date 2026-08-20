@@ -97,12 +97,11 @@ $id = $data['id'] ?? strtolower(bin2hex(random_bytes(16)));
         $timeSlot = formatTime($data['start_time']) . ' — ' . formatTime($data['end_time']);
     }
 
-    $stmt = $pdo->prepare("INSERT INTO classes (id, class_name, level, subject, section_name, class_code, schedule, start_time, end_time, time_slot, session_limit, teacher_uid, teacher_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())");
+    $stmt = $pdo->prepare("INSERT INTO classes (id, class_name, level, section_name, class_code, schedule, start_time, end_time, time_slot, session_limit, teacher_uid, teacher_name, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE())");
     $stmt->execute([
 $id,
         $data['class_name'],
         $level,
-        $data['subject'] ?? 'Computer Science',
         $data['section_name'],
         $classCode,
         $data['schedule'] ?? '',
@@ -135,7 +134,7 @@ if ($method === 'PUT') {
     // Client inputs are filtered through an allowlist; session expiry/limit are
     // SERVER-controlled (not settable by clients) so a scan window can't be
     // forged or extended remotely.
-$allowedFields = ['class_name', 'level', 'subject', 'section_name', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m', 'last_session_id', 'last_session_ended_at'];
+$allowedFields = ['class_name', 'level', 'section_name', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m', 'last_session_id', 'last_session_ended_at'];
    foreach ($allowedFields as $f) {
         if (array_key_exists($f, $data)) {
             if ($f === 'level' && !in_array($data[$f], ['Junior High School', 'Senior High School'], true)) {

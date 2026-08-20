@@ -17,20 +17,12 @@
                         <label class="block text-sm font-medium text-gray-400 mb-1">Class Name</label>
                         <input type="text" id="editClassNameInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none transition-all">
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Level</label>
-                            <select id="editLevelInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none">
-                                <option>Junior High School</option>
-                                <option selected>Senior High School</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Subject</label>
-                            <select id="editSubjectInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none">
-                                <option>Computer Science</option><option>Mathematics</option><option>Physics</option>
-                            </select>
-                        </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Level</label>
+                        <select id="editLevelInput" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                            <option>Junior High School</option>
+                            <option selected>Senior High School</option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest italic opacity-60">Section Name</label>

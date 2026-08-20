@@ -40,10 +40,12 @@ jsonResponse([
     'role' => $user['role'],
     'user' => [
         'uid' => $user['uid'],
+        'username' => $user['username'],
         'email' => $user['username'],
         'role' => $user['role'],
         'firstName' => $user['first_name'] ?? '',
         'lastName' => $user['last_name'] ?? '',
         'studentId' => $user['student_id'] ?? '',
+        'phone' => $user['phone'] ?? '',
     ]
 ]);

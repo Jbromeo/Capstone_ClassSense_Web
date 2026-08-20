@@ -10,7 +10,7 @@ $pdo = getPDO();
 if ($method === 'GET') {
     $unreadOnly = isset($_GET['unread']) && $_GET['unread'] === '1';
 
-    $sql = "SELECT id, type, title, message, link, is_read, created_at
+    $sql = "SELECT id, type, title, message, link, is_read, push_sent, created_at
             FROM notifications
             WHERE recipient_uid = ?";
     if ($unreadOnly) {
@@ -34,6 +34,7 @@ if ($method === 'GET') {
             'message' => $r['message'],
             'link' => $r['link'],
             'isRead' => (bool)$r['is_read'],
+            'pushed' => (bool)$r['push_sent'],
             'createdAt' => $r['created_at'],
         ];
     }

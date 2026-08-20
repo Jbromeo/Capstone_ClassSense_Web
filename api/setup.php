@@ -70,7 +70,6 @@ $queries = [
         id VARCHAR(36) PRIMARY KEY,
         class_name NVARCHAR(255) NOT NULL,
         level NVARCHAR(100),
-        subject NVARCHAR(255),
         section_name NVARCHAR(50),
         class_code NVARCHAR(10),
         schedule NVARCHAR(50),
@@ -90,6 +89,10 @@ $queries = [
     "-- Section name migration: rename classes.section_code -> section_name (keeps existing values)",
     "IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('classes') AND name = 'section_code')
     EXEC sp_rename 'classes.section_code', 'section_name', 'COLUMN'",
+
+    "-- Subject migration: subject removed from the product; drop the column if it exists",
+    "IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('classes') AND name = 'subject')
+    ALTER TABLE classes DROP COLUMN subject",
 
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='class_students' AND xtype='U')
     CREATE TABLE class_students (

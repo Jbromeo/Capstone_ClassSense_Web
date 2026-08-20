@@ -121,9 +121,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                 <div class="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
                     <div class="flex items-center gap-4 flex-wrap">
                         <div class="hidden md:block">
-                            <label class="text-xs font-black text-gray-500 uppercase tracking-widest italic mb-2 block ml-1">Subject</label>
-                            <select id="subjectFilter" class="bg-dark-bg border border-dark-border text-white rounded-xl px-4 py-2.5 focus:ring-primary-500 focus:border-primary-500 uppercase font-black italic tracking-tighter text-sm">
-                                <option value="">All Subjects</option>
+                            <label class="text-xs font-black text-gray-500 uppercase tracking-widest italic mb-2 block ml-1">Class</label>
+                            <select id="classFilter" class="bg-dark-bg border border-dark-border text-white rounded-xl px-4 py-2.5 focus:ring-primary-500 focus:border-primary-500 uppercase font-black italic tracking-tighter text-sm">
+                                <option value="">All Classes</option>
                             </select>
                         </div>
                         <div class="flex items-center gap-3 text-xs text-gray-500 font-black uppercase tracking-widest italic">
@@ -143,7 +143,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <thead class="sticky top-0 z-10">
                             <tr class="bg-dark-surface text-gray-500 uppercase text-xs font-black tracking-widest border-b border-dark-border">
                                 <th class="px-6 py-4">Date</th>
-                                <th class="px-6 py-4">Subject</th>
+                                <th class="px-6 py-4">Class</th>
                                 <th class="px-6 py-4">Teacher</th>
                                 <th class="px-6 py-4">Status</th>
                             </tr>
@@ -175,7 +175,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             const tableBody = document.getElementById('attendanceTableBody');
             const recordSearch = document.getElementById('recordSearch');
-            const subjectFilter = document.getElementById('subjectFilter');
+            const classFilter = document.getElementById('classFilter');
             const recordCountLabel = document.getElementById('recordCountLabel');
             const sentinel = document.getElementById('loadMoreSentinel');
             const scrollArea = document.getElementById('tableScrollArea');
@@ -208,18 +208,17 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             const renderRow = (r) => {
                 const cls = classMap[r.class_id] || {};
-                const subjectLabel = cls.class_name || cls.subject || 'Unknown Class';
+                const classLabel = cls.class_name || 'Unknown Class';
                 const subParts = [];
-                if (cls.subject) subParts.push(cls.subject);
                 if (cls.section_name) subParts.push(`Section ${cls.section_name}`);
-                const subjectSub = subParts.join(' · ');
+                const classSub = subParts.join(' · ');
                 const teacher = cls.teacher_name || '—';
                 const cfg = getStatusConfig(r.status);
                 return `<tr class="hover:bg-white/5 transition-colors group">
                     <td class="px-6 py-4 font-mono text-blue-400 text-xs font-black tracking-tight">${formatDate(r.date)}</td>
                     <td class="px-6 py-4">
-                        <span class="text-white font-medium uppercase italic tracking-tighter">${subjectLabel}</span>
-                        ${subjectSub ? `<div class="text-[10px] text-gray-500 font-black uppercase italic tracking-tighter mt-0.5">${subjectSub}</div>` : ''}
+                        <span class="text-white font-medium uppercase italic tracking-tighter">${classLabel}</span>
+                        ${classSub ? `<div class="text-[10px] text-gray-500 font-black uppercase italic tracking-tighter mt-0.5">${classSub}</div>` : ''}
                     </td>
                     <td class="px-6 py-4 text-gray-300 font-medium italic">${teacher}</td>
                     <td class="px-6 py-4 text-center">
@@ -271,12 +270,12 @@ require_once dirname(__DIR__) . '/core/init.php';
 
             const applyFilters = () => {
                 const term = (recordSearch?.value || '').toLowerCase().trim();
-                const subjectId = subjectFilter?.value || '';
+                const classId = classFilter?.value || '';
                 filteredRecords = allRecords.filter(r => {
-                    if (subjectId && r.class_id !== subjectId) return false;
+                    if (classId && r.class_id !== classId) return false;
                     if (!term) return true;
                     const cls = classMap[r.class_id] || {};
-                    const haystack = [r.date, r.status, cls.class_name || '', cls.class_code || '', cls.subject || '', cls.teacher_name || '', cls.section_name || ''].join(' ').toLowerCase();
+                    const haystack = [r.date, r.status, cls.class_name || '', cls.class_code || '', cls.teacher_name || '', cls.section_name || ''].join(' ').toLowerCase();
                     return haystack.includes(term);
                 });
                 renderInitialBatch();
@@ -288,7 +287,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     const classes = await api('/classes.php?student_uid=' + currentUid);
                     classMap = {};
                     classes.forEach(c => { classMap[c.id] = c; });
-                    subjectFilter.innerHTML = '<option value="">All Subjects</option>' +
+                    classFilter.innerHTML = '<option value="">All Classes</option>' +
                         classes.map(c => `<option value="${c.id}">${c.class_name} (${c.section_name || '—'})</option>`).join('');
 
                     const stats = await api('/student_stats.php');
@@ -331,7 +330,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     searchTimer = setTimeout(applyFilters, 150);
                 });
             }
-            if (subjectFilter) subjectFilter.addEventListener('change', applyFilters);
+            if (classFilter) classFilter.addEventListener('change', applyFilters);
 
             const observer = new IntersectionObserver((entries) => {
                 if (entries[0].isIntersecting && hasMore) loadMore();
