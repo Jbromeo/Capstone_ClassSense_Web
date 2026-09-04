@@ -218,15 +218,26 @@ $allowedFields = ['class_name', 'level', 'section_name', 'schedule', 'start_time
         if (!array_key_exists('session_started_at', $data)) {
             $fields[] = "session_started_at = GETDATE()";
         }
-        $fields[] = "session_expires_at = NULL";
-        $fields[] = "session_limit = 0";
+        // Auto-end timer: the server computes the expiry from the requested
+        // duration (bounded) so a client can't forge a timestamp. No duration
+        // = the session runs until the teacher ends it manually.
+        $duration = isset($data['session_duration_minutes']) ? (int)$data['session_duration_minutes'] : 0;
+        if ($duration > 0) {
+            $duration = min(240, $duration);
+            $fields[] = "session_expires_at = DATEADD(MINUTE, ?, GETDATE())";
+            $params[] = $duration;
+            $fields[] = "session_limit = ?";
+            $params[] = $duration;
+        } else {
+            $fields[] = "session_expires_at = NULL";
+            $fields[] = "session_limit = 0";
+        }
     }
 
     // Late-mode switch: drop the previous nonce so only the late-window QR works.
-    // The session stays open until the teacher stops it — no 3-minute cap.
+    // The session stays open until the teacher stops it or the auto-end timer expires.
     if (array_key_exists('session_mode', $data) && $data['session_mode'] === 'late') {
         $fields[] = "last_nonce = NULL";
-        $fields[] = "session_expires_at = NULL";
     }
 
     if (array_key_exists('start_time', $data) && array_key_exists('end_time', $data) && !array_key_exists('time_slot', $data)) {

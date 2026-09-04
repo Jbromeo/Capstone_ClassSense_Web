@@ -58,8 +58,8 @@ if ($role === 'student' && $studentId) {
     }
 }
 
-$stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, first_name, last_name, student_id, employee_id, phone, guardian_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->execute([$uid, $username, $passwordHash, $role, $firstName, $lastName, $studentId, $employeeId, $phone, $guardianPhone]);
+$stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, role_type, first_name, last_name, student_id, employee_id, phone, guardian_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->execute([$uid, $username, $passwordHash, $role, $role, $firstName, $lastName, $studentId, $employeeId, $phone, $guardianPhone]);
 
 // Mark pre-approved student ID as used
 if ($role === 'student' && $studentId) {

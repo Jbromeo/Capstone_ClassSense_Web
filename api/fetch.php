@@ -147,11 +147,12 @@ $profilePicture = array_key_exists('profilePicture', $data) ? $data['profilePict
             }
         } else {
             $passwordHash = $data['password_hash'] ?? password_hash(bin2hex(random_bytes(4)), PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, first_name, last_name, student_id, employee_id, profile_picture, phone, guardian_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, role_type, first_name, last_name, student_id, employee_id, profile_picture, phone, guardian_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $data['uid'],
                 $username ?? ($data['username'] ?? ''),
                 $passwordHash,
+                $data['role'],
                 $data['role'],
                 $firstName ?? '',
                 $lastName ?? '',

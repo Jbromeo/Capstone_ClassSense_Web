@@ -74,7 +74,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
                 <!-- Session window info (replaces the manual timer buttons) -->
                 <div class="mb-4 flex items-center justify-center gap-6 animate-fade-in-up" style="animation-delay: 100ms">
-                    <span id="sessionWindowLabel" class="text-[11px] font-black text-gray-400 uppercase tracking-widest italic opacity-80">30-Second On-Time Window</span>
+                    <span id="sessionWindowLabel" class="text-[11px] font-black text-gray-400 uppercase tracking-widest italic opacity-80">Sessions run until you end them — set an auto-end timer to close automatically</span>
                 </div>
 
                 <!-- NEW: GPS Geofence Setting -->
@@ -107,6 +107,18 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <div class="flex items-center gap-3">
                             <span id="gradingTermBadge" title="Term is set in the Grading Center" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-500/10 border border-primary-500/20 text-primary-400 text-[9px] font-black uppercase tracking-widest italic whitespace-nowrap">Recording to 1st Term</span>
                             <span id="selectedClassCode" class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic"></span>
+                            <div class="flex items-center gap-1.5" title="Automatically end the session after the chosen time — or keep it running until you press End Session">
+                                <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic whitespace-nowrap">Auto-End</span>
+                                <div class="flex items-center gap-1 p-1 bg-dark-bg border border-dark-border rounded-xl">
+                                    <button type="button" data-duration="0" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">Off</button>
+                                    <button type="button" data-duration="5" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">5m</button>
+                                    <button type="button" data-duration="10" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">10m</button>
+                                    <button type="button" data-duration="15" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">15m</button>
+                                    <button type="button" data-duration="30" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">30m</button>
+                                    <button type="button" data-duration="60" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">60m</button>
+                                    <input type="number" id="sessionTimerCustom" min="1" max="240" placeholder="min" title="Custom minutes (max 240)" class="w-14 bg-dark-bg/60 border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
+                                </div>
+                            </div>
                             <button id="startAttendanceBtn" onclick="window.startSelectedClass()" class="flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 active:scale-95 text-white font-black uppercase tracking-widest italic text-xs rounded-xl shadow-lg shadow-primary-500/25 transition-all">
                                 <i data-feather="play" class="w-4 h-4"></i> Start Attendance
                             </button>
@@ -153,6 +165,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
     </script>
 
-    <script type="module" src="attendance/attendance.js?v=12"></script>
+    <script type="module" src="attendance/attendance.js?v=14"></script>
 </body>
 </html>

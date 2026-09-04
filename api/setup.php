@@ -48,6 +48,7 @@ $queries = [
         username NVARCHAR(255) UNIQUE NOT NULL,
         password_hash NVARCHAR(255) NOT NULL,
         role NVARCHAR(20) NOT NULL,
+        role_type NVARCHAR(20) NULL,
         first_name NVARCHAR(255),
         last_name NVARCHAR(255),
         student_id NVARCHAR(50),
@@ -173,6 +174,14 @@ $queries = [
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'theme')
     ALTER TABLE users ADD theme NVARCHAR(10) NULL",
 
+    "-- Immutable original role (role-tamper detection): set at account creation,
+    -- never updated by the app. A manual SQL edit to 'role' that diverges from
+    -- 'role_type' is treated as tampering and the account is served 404s.",
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'role_type')
+    ALTER TABLE users ADD role_type NVARCHAR(20) NULL",
+
+    "UPDATE users SET role_type = role WHERE role_type IS NULL",
+
     "-- Audit columns for attendance (fraud detection trail)",
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('attendance') AND name = 'ip_address')
     ALTER TABLE attendance ADD ip_address VARCHAR(45) NULL",
@@ -294,10 +303,19 @@ $queries = [
         insight_tips NTEXT NULL,
         signature NVARCHAR(64) NOT NULL,
         created_at DATETIME DEFAULT GETDATE(),
+        pending_refresh BIT NOT NULL DEFAULT 0,
+        changed_at DATETIME NULL,
         CONSTRAINT uq_ai_insights_student_class UNIQUE (student_uid, class_id),
         CONSTRAINT fk_ai_insights_student FOREIGN KEY (student_uid) REFERENCES users(uid) ON DELETE CASCADE,
         CONSTRAINT fk_ai_insights_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
     )",
+
+    "-- ai_insights: queue columns for existing databases (proactive insight regeneration)",
+    "IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ai_insights') AND name = 'pending_refresh')
+    ALTER TABLE ai_insights ADD pending_refresh BIT NOT NULL DEFAULT 0",
+
+    "IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ai_insights') AND name = 'changed_at')
+    ALTER TABLE ai_insights ADD changed_at DATETIME NULL",
 
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_grade_components_class')
     CREATE INDEX idx_grade_components_class ON grade_components(class_id, quarter)",

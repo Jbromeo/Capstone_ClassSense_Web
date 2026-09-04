@@ -399,6 +399,25 @@ END
 ELSE PRINT '-- grade_weights: SKIPPED (set @w_class_id and @w_category) --';
 
 --===============================================================================================
+-- SECTION 12b: ai_insights queue columns  (idempotent upgrade for existing databases)
+-- Adds pending_refresh (stale flag) + changed_at (last-change timestamp) so grade/attendance
+-- changes can schedule proactive insight regeneration.
+--===============================================================================================
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ai_insights') AND name = 'pending_refresh')
+BEGIN
+    PRINT '-- ai_insights: adding pending_refresh';
+    ALTER TABLE ai_insights ADD pending_refresh BIT NOT NULL DEFAULT 0;
+END
+ELSE PRINT '-- ai_insights: pending_refresh already exists';
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('ai_insights') AND name = 'changed_at')
+BEGIN
+    PRINT '-- ai_insights: adding changed_at';
+    ALTER TABLE ai_insights ADD changed_at DATETIME NULL;
+END
+ELSE PRINT '-- ai_insights: changed_at already exists';
+
+--===============================================================================================
 -- SECTION 13: ai_insights  (CREATE-or-UPDATE by student_uid + class_id)
 --===============================================================================================
 DECLARE @ai_student_uid VARCHAR(128) = NULL;

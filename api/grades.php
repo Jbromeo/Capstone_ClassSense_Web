@@ -106,13 +106,28 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Student is not enrolled in this class'], 403);
         }
 
+        // Only an actual value change schedules an insight regeneration —
+        // re-saving the same score is a no-op for the AI pipeline.
+        $oldStmt = $pdo->prepare("SELECT score FROM grades WHERE component_id = ? AND student_uid = ?");
+        $oldStmt->execute([$componentId, $studentUid]);
+        $oldRow = $oldStmt->fetch();
+        $oldScore = $oldRow ? $oldRow['score'] : null;
+
+        $changed = false;
         if ($score === null || $score === '') {
             $stmt = $pdo->prepare("DELETE FROM grades WHERE component_id = ? AND student_uid = ?");
             $stmt->execute([$componentId, $studentUid]);
+            $changed = ($oldScore !== null);
         } else {
             $stmt = $pdo->prepare("MERGE grades AS target USING (SELECT ? AS component_id, ? AS student_uid) AS source ON target.component_id = source.component_id AND target.student_uid = source.student_uid WHEN MATCHED THEN UPDATE SET score = ?, updated_at = GETDATE() WHEN NOT MATCHED THEN INSERT (component_id, student_uid, score) VALUES (?, ?, ?);");
             $stmt->execute([$componentId, $studentUid, $score, $componentId, $studentUid, $score]);
+            $changed = ($oldScore === null || (float)$oldScore != (float)$score);
         }
+
+        if ($changed) {
+            markInsightStale($pdo, $studentUid, $classId);
+        }
+        processInsightQueue($pdo);
 
         jsonResponse(['success' => true]);
     }
@@ -206,18 +221,42 @@ if ($method === 'POST') {
 
         requireClassOwner($pdo, $uid, $classId);
 
+        // Preload current scores for every component involved so each row can be
+        // compared against its previous value (no-op saves never mark stale).
+        $compIds = array_unique(array_filter(array_column($rows, 'component_id')));
+        $oldGrades = [];
+        if (!empty($compIds)) {
+            $placeholders = implode(',', array_fill(0, count($compIds), '?'));
+            $oldStmt = $pdo->prepare("SELECT component_id, student_uid, score FROM grades WHERE component_id IN ($placeholders)");
+            $oldStmt->execute($compIds);
+            foreach ($oldStmt->fetchAll() as $g) {
+                $oldGrades[$g['component_id']][$g['student_uid']] = $g['score'];
+            }
+        }
+
         $stmt = $pdo->prepare("MERGE grades AS target USING (SELECT ? AS component_id, ? AS student_uid, ? AS score) AS source ON target.component_id = source.component_id AND target.student_uid = source.student_uid WHEN MATCHED THEN UPDATE SET score = source.score, updated_at = GETDATE() WHEN NOT MATCHED THEN INSERT (component_id, student_uid, score) VALUES (source.component_id, source.student_uid, source.score);");
+        $changedStudents = [];
         foreach ($rows as $r) {
             if (!empty($r['component_id']) && !empty($r['student_uid']) && isset($r['score'])) {
                 $score = $r['score'] === '' || $r['score'] === null ? null : (float)$r['score'];
+                $oldScore = $oldGrades[$r['component_id']][$r['student_uid']] ?? null;
+                $changed = false;
                 if ($score === null) {
                     $del = $pdo->prepare("DELETE FROM grades WHERE component_id = ? AND student_uid = ?");
                     $del->execute([$r['component_id'], $r['student_uid']]);
+                    $changed = ($oldScore !== null);
                 } else {
                     $stmt->execute([$r['component_id'], $r['student_uid'], $score]);
+                    $changed = ($oldScore === null || (float)$oldScore != $score);
                 }
+                if ($changed) $changedStudents[$r['student_uid']] = true;
             }
         }
+
+        foreach (array_keys($changedStudents) as $suid) {
+            markInsightStale($pdo, $suid, $classId);
+        }
+        processInsightQueue($pdo);
 
         jsonResponse(['success' => true]);
     }

@@ -181,6 +181,7 @@ if ($method === 'POST') {
         $inserted = 0;
         $lastId = null;
         $lastStatus = null;
+        $changedStudents = [];
         $existing = $pdo->prepare("SELECT id, session_id, status FROM attendance WHERE class_id = ? AND student_uid = ? AND CAST(date AS DATE) = ?");
         $upd = $pdo->prepare("UPDATE attendance SET status = ? WHERE id = ?");
         $ip = clientIp();
@@ -189,6 +190,7 @@ if ($method === 'POST') {
         foreach ($entries as $entry) {
             $existing->execute([$classId, $entry['student_uid'], $manualDate]);
             $row = $existing->fetch();
+            $changed = false;
             if ($row) {
                 // Never let a bulk sync flip an existing scan to Absent.
                 if ($isBulk && $entry['status'] === 'Absent' && in_array($row['status'], ['Present', 'Late'], true)) {
@@ -196,6 +198,7 @@ if ($method === 'POST') {
                 }
                 // Preserve the existing session_id if already set (QR scan row);
                 // for new manual rows (Absent) attach the resolved session_id.
+                $changed = ($row['status'] !== $entry['status']);
                 $upd->execute([$entry['status'], $row['id']]);
                 $updated++;
                 $lastId = (int)$row['id'];
@@ -203,9 +206,16 @@ if ($method === 'POST') {
                 $ins->execute([$entry['student_uid'], $classId, $manualDate, date('Y-m-d H:i:s'), $entry['status'], $ip, $resolvedSessionId, null, null, null, null, null, 0]);
                 $inserted++;
                 $lastId = (int)$pdo->lastInsertId();
+                $changed = true;
             }
+            if ($changed) $changedStudents[$entry['student_uid']] = true;
             $lastStatus = $entry['status'];
         }
+
+        foreach (array_keys($changedStudents) as $suid) {
+            markInsightStale($pdo, $suid, $classId);
+        }
+        processInsightQueue($pdo);
 
         jsonResponse(['success' => true, 'id' => $lastId, 'status' => $lastStatus, 'updated' => $updated, 'inserted' => $inserted], 201);
     }
@@ -312,6 +322,9 @@ if ($method === 'POST') {
     $stmt = $pdo->prepare("INSERT INTO attendance (student_uid, class_id, date, timestamp, status, ip_address, session_id, lat, lng, device_uuid, is_mock, distance_m, is_suspicious) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->execute([$studentUid, $classId, $date, $timestamp, $status, $ip, $class['session_id'], $clientLat, $clientLng, $deviceUuid, $isMock, $distanceM, $isSuspicious]);
 
+    markInsightStale($pdo, $studentUid, $classId);
+    processInsightQueue($pdo);
+
     jsonResponse(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'status' => $status, 'distance_m' => $distanceM, 'is_suspicious' => $isSuspicious], 201);
 }
 
@@ -340,23 +353,31 @@ if ($method === 'DELETE') {
     }
 
     $date = $_GET['date'] ?? date('Y-m-d');
-    if ($sessionId) {
-        if ($studentUid) {
-            $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND session_id = ?");
-            $stmt->execute([$classId, $studentUid, $sessionId]);
-        } else {
-            $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND session_id = ?");
-            $stmt->execute([$classId, $sessionId]);
-        }
-    } elseif ($studentUid) {
-        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND student_uid = ? AND CAST(date AS DATE) = ?");
-        $stmt->execute([$classId, $studentUid, $date]);
-    } else {
-        $stmt = $pdo->prepare("DELETE FROM attendance WHERE class_id = ? AND CAST(date AS DATE) = ?");
-        $stmt->execute([$classId, $date]);
-    }
+    $conditions = ["class_id = ?"];
+    $params = [$classId];
+    if ($studentUid) { $conditions[] = "student_uid = ?"; $params[] = $studentUid; }
+    if ($sessionId) { $conditions[] = "session_id = ?"; $params[] = $sessionId; }
+    if (!$sessionId) { $conditions[] = "CAST(date AS DATE) = ?"; $params[] = $date; }
+    $where = implode(' AND ', $conditions);
 
-    jsonResponse(['success' => true, 'deleted' => $stmt->rowCount()]);
+    // Capture who is affected BEFORE deleting so their insights can be
+    // regenerated (an insight on a removed record would otherwise be stale).
+    $affectedStmt = $pdo->prepare("SELECT DISTINCT student_uid FROM attendance WHERE $where");
+    $affectedStmt->execute($params);
+    $affected = $affectedStmt->fetchAll();
+
+    $stmt = $pdo->prepare("DELETE FROM attendance WHERE $where");
+    $stmt->execute($params);
+    $deleted = $stmt->rowCount();
+
+    if ($deleted > 0) {
+        foreach ($affected as $a) {
+            markInsightStale($pdo, $a['student_uid'], $classId);
+        }
+    }
+    processInsightQueue($pdo);
+
+    jsonResponse(['success' => true, 'deleted' => $deleted]);
 }
 
 jsonResponse(['error' => 'Method not allowed'], 405);

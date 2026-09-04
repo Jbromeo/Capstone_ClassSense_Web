@@ -24,6 +24,7 @@
                         <th class="p-5 text-gray-400 font-bold uppercase tracking-[0.2em] text-[9px] italic opacity-60 w-16 text-center">Pos</th>
                         <th class="p-5 text-gray-400 font-bold uppercase tracking-[0.2em] text-[9px] italic opacity-60">Identity & Credentials</th>
                         <th class="p-5 text-gray-400 font-bold uppercase tracking-[0.2em] text-[9px] italic opacity-60">Official ID</th>
+                        <th class="p-5 text-gray-400 font-bold uppercase tracking-[0.2em] text-[9px] italic opacity-60 text-center">Insights</th>
                         <th class="p-5 text-gray-400 font-bold uppercase tracking-[0.2em] text-[9px] italic opacity-60 text-center">Remove</th>
                     </tr>
                 </thead>

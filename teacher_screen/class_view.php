@@ -19,6 +19,9 @@ require_once dirname(__DIR__) . '/core/init.php';
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(234, 38, 40, 0.2); border-radius: 10px; }
         .spreadsheet-table td:focus-within { background: rgba(234, 38, 40, 0.05); }
+        .insight-btn { color: #6b7280; }
+        .insight-btn.insight-available { color: #f87171; background: rgba(234, 38, 40, 0.1); border-color: rgba(234, 38, 40, 0.25); }
+        .insight-btn.insight-available:hover { color: #fca5a5; background: rgba(234, 38, 40, 0.18); }
         
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
@@ -102,6 +105,8 @@ require_once dirname(__DIR__) . '/core/init.php';
 
     <script type="module">
         import { api, initPage } from '../assets/js/custom-auth.js';
+        import { startInsightPoller } from '../assets/js/insight-poller.js';
+        startInsightPoller();
         window.api = api;
 
         const API_BASE = '../api';
@@ -110,6 +115,123 @@ require_once dirname(__DIR__) . '/core/init.php';
         let cachedStudents = [];
         let lastClassSig = '';
         let classPollInterval = null;
+
+        // Student insights (cached AI analysis + mini stats), keyed by uid
+        let insightsByUid = {};
+        let insightsFetchedAt = 0;
+
+        const CAT_NAMES = { written: 'Written Works', performance: 'Performance Tasks', exam: 'Quarterly Exam', attendance: 'Attendance' };
+
+        async function loadInsights(id) {
+            if (!id) return;
+            try {
+                const data = await window.api(`/teacher_insights.php?class_id=${id}`);
+                insightsByUid = {};
+                (data.students || []).forEach(s => { insightsByUid[s.student_uid] = s; });
+                insightsFetchedAt = Date.now();
+                updateInsightButtons();
+            } catch (err) {
+                console.error('Insights fetch failed:', err);
+            }
+        }
+
+        function updateInsightButtons() {
+            document.querySelectorAll('[data-insight-btn]').forEach(btn => {
+                const rec = insightsByUid[btn.dataset.insightBtn];
+                const has = !!(rec && rec.insight && rec.insight.paragraph);
+                btn.classList.toggle('insight-available', has);
+                btn.title = has ? 'View AI insight' : 'No AI insight yet';
+                renderInsightCountdown(btn.dataset.insightBtn, rec);
+            });
+        }
+
+        // Live AI-generation countdown: a queued regeneration shows the time left
+        // in the 5-minute debounce window, then "Generating…" while the worker
+        // runs. Ticks every second; the 30s re-pull clears it once generated.
+        function renderInsightCountdown(uid, rec) {
+            const el = document.querySelector(`[data-insight-countdown="${uid}"]`);
+            if (!el) return;
+            const pending = !!(rec && rec.pendingRefresh === 1 && rec.changedAt);
+            if (!pending) {
+                el.classList.add('hidden');
+                el.innerHTML = '';
+                return;
+            }
+            const elapsed = Math.floor((Date.now() - new Date(String(rec.changedAt).replace(' ', 'T')).getTime()) / 1000);
+            const remaining = Math.max(0, 300 - elapsed);
+            if (remaining > 0) {
+                const m = Math.floor(remaining / 60);
+                const s = String(remaining % 60).padStart(2, '0');
+                el.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic text-amber-300 bg-amber-500/10 border border-amber-500/25 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> AI in ${m}:${s}</span>`;
+            } else {
+                el.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic text-primary-300 bg-primary-500/10 border border-primary-500/25 whitespace-nowrap"><i data-feather="loader" class="w-3 h-3 animate-spin"></i> Generating...</span>`;
+                try { feather.replace(); } catch (e) {}
+            }
+            el.classList.remove('hidden');
+        }
+
+        function formatAnalyzed(dt) {
+            if (!dt) return '';
+            const d = new Date(String(dt).replace(' ', 'T'));
+            return isNaN(d) ? dt : d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        }
+
+        window.openInsightModal = (uid) => {
+            const student = rosterData.find(s => s.uid === uid);
+            if (!student) return;
+
+            const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Unknown Student';
+            document.getElementById('insightStudentName').innerText = fullName;
+            const avatarBox = document.getElementById('insightStudentAvatar');
+            avatarBox.innerHTML = rosterAvatar(student);
+
+            const rec = insightsByUid[uid] || null;
+            const att = rec ? rec.attendance || {} : {};
+            const lt = rec ? rec.latestTerm : null;
+            const term = rec && lt && rec.terms && rec.terms[lt] ? rec.terms[lt] : null;
+
+            const rateEl = document.getElementById('insightAttRate');
+            const rate = att.rate !== null && att.rate !== undefined ? att.rate : null;
+            rateEl.innerText = rate !== null ? rate + '%' : '—';
+            rateEl.className = 'text-xl font-black ' + (rate !== null ? (rate >= 80 ? 'text-green-400' : (rate >= 60 ? 'text-amber-400' : 'text-red-400')) : 'text-gray-500');
+
+            const gradeEl = document.getElementById('insightFinalGrade');
+            const grade = term && term.finalGrade !== null ? term.finalGrade : null;
+            gradeEl.innerText = grade !== null ? grade.toFixed(1) : '—';
+            gradeEl.className = 'text-xl font-black ' + (grade !== null ? (grade >= 75 ? 'text-green-400' : 'text-red-400') : 'text-gray-500');
+
+            const weakEl = document.getElementById('insightWeakest');
+            const weak = term && term.weakestCategory ? CAT_NAMES[term.weakestCategory] || term.weakestCategory : null;
+            weakEl.innerText = weak || '—';
+            weakEl.className = 'text-sm font-black ' + (weak ? 'text-amber-400' : 'text-gray-500');
+
+            const insight = rec && rec.insight && rec.insight.paragraph ? rec.insight : null;
+            const content = document.getElementById('insightContent');
+            const empty = document.getElementById('insightEmpty');
+            if (insight) {
+                document.getElementById('insightParagraph').innerText = insight.paragraph;
+                document.getElementById('insightAnalyzedAt').innerText = insight.analyzed_at ? 'Analyzed ' + formatAnalyzed(insight.analyzed_at) : '';
+                const tipsWrap = document.getElementById('insightTipsWrap');
+                const tips = Array.isArray(insight.tips) ? insight.tips.filter(Boolean) : [];
+                document.getElementById('insightTipsList').innerHTML = tips.map(tip => `
+                    <li class="flex items-start gap-2.5 bg-dark-bg/50 border border-white/5 rounded-lg px-4 py-3">
+                        <i data-feather="check-circle" class="w-4 h-4 text-green-400 shrink-0 mt-0.5"></i>
+                        <span class="text-xs text-gray-300 leading-relaxed">${tip}</span>
+                    </li>`).join('');
+                tipsWrap.classList.toggle('hidden', tips.length === 0);
+                content.classList.remove('hidden');
+                empty.classList.add('hidden');
+            } else {
+                content.classList.add('hidden');
+                empty.classList.remove('hidden');
+            }
+            feather.replace();
+
+            // Freshness: re-pull insights if the snapshot is over a minute old
+            if (Date.now() - insightsFetchedAt > 60000) loadInsights(classId);
+
+            window.openModal('insightModal');
+        };
 
         window.showToast = (message, type = 'success') => {
             const container = document.getElementById('toastContainer');
@@ -229,6 +351,12 @@ require_once dirname(__DIR__) . '/core/init.php';
                     </td>
                     <td class="p-5 text-gray-400 font-mono text-xs font-black uppercase tracking-widest italic">${s.studentId || 'PENDING'}</td>
                     <td class="p-5">
+                        <div class="flex flex-col items-center gap-2">
+                            <button data-insight-btn="${s.uid}" onclick="window.openInsightModal('${s.uid}')" title="No AI insight yet" class="insight-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest italic bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-all"><i data-feather="zap" class="w-3.5 h-3.5"></i> Insights</button>
+                            <div data-insight-countdown="${s.uid}" class="hidden"></div>
+                        </div>
+                    </td>
+                    <td class="p-5">
                         <div class="flex justify-center">
                             <button onclick="window.removeStudentFromClass('${s.uid}')" title="Remove from class" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest italic text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300 transition-all"><i data-feather="user-x" class="w-3.5 h-3.5"></i> Remove</button>
                         </div>
@@ -242,13 +370,14 @@ require_once dirname(__DIR__) . '/core/init.php';
             rosterData = students || [];
             rosterVisibleCount = Math.min(ROSTER_BATCH, rosterData.length);
             if (rosterData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-32 text-center opacity-40"><div class="flex flex-col items-center gap-6"><i data-feather="user-x" class="w-12 h-12 text-gray-500"></i><p class="text-[10px] font-black uppercase tracking-widest italic tracking-tighter text-white">Hub Connection Empty</p></div></td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="p-32 text-center opacity-40"><div class="flex flex-col items-center gap-6"><i data-feather="user-x" class="w-12 h-12 text-gray-500"></i><p class="text-[10px] font-black uppercase tracking-widest italic tracking-tighter text-white">Hub Connection Empty</p></div></td></tr>`;
                 if (countTop) countTop.innerText = "0 STUDENTS ENROLLED";
                 feather.replace(); return;
             }
             tbody.innerHTML = rosterData.slice(0, rosterVisibleCount).map((s, i) => rosterRowHTML(s, i)).join('');
             if (countTop) countTop.innerText = `${rosterData.length} STUDENT${rosterData.length === 1 ? '' : 'S'} ENROLLED`;
             feather.replace();
+            updateInsightButtons();
         }
 
         function loadMoreRoster() {
@@ -258,6 +387,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             tbody.insertAdjacentHTML('beforeend', next.map((s, i) => rosterRowHTML(s, rosterVisibleCount + i)).join(''));
             rosterVisibleCount += next.length;
             feather.replace();
+            updateInsightButtons();
         }
 
         window.removeStudentFromClass = async (uid) => {
@@ -352,6 +482,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         initPage(() => {
             setTimeout(() => loadClassData(), 500);
+            setTimeout(() => loadInsights(classId), 700);
             classPollInterval = setInterval(loadClassData, 5000);
             // Realtime grading sync: while the Grading tab is visible, re-pull
             // the current term straight from SQL every 20s so attendance/scores/
@@ -362,6 +493,32 @@ require_once dirname(__DIR__) . '/core/init.php';
                     window.gradingSystem.refresh();
                 }
             }, 20000);
+            // AI insight countdown: tick every second; when one hits 0, re-pull
+            // once so the "Generating..." chip flips to available when done.
+            let countdownRefreshQueued = false;
+            setInterval(() => {
+                const chips = document.querySelectorAll('[data-insight-countdown]');
+                if (!chips.length) return;
+                let anyDue = false;
+                chips.forEach(el => {
+                    if (el.classList.contains('hidden')) return;
+                    const rec = insightsByUid[el.dataset.insightCountdown];
+                    renderInsightCountdown(el.dataset.insightCountdown, rec);
+                    if (rec && rec.pendingRefresh === 1 && rec.changedAt) {
+                        const remaining = 300 - Math.floor((Date.now() - new Date(String(rec.changedAt).replace(' ', 'T')).getTime()) / 1000);
+                        if (remaining <= 0) anyDue = true;
+                    }
+                });
+                if (anyDue && !countdownRefreshQueued) {
+                    countdownRefreshQueued = true;
+                    setTimeout(() => {
+                        countdownRefreshQueued = false;
+                        loadInsights(classId);
+                    }, 8000);
+                }
+            }, 1000);
+            // Keep countdown state fresh: re-pull insight metadata every 30s
+            setInterval(() => loadInsights(classId), 30000);
         });
 
         document.addEventListener('DOMContentLoaded', () => {

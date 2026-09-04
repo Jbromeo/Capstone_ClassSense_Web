@@ -62,6 +62,7 @@
                             <i data-feather="cpu" class="w-4 h-4"></i>
                         </div>
                         <h3 class="text-sm font-bold text-primary-400 uppercase tracking-wider">AI Academic Insight</h3>
+                        <span id="aiInsightCountdown" class="hidden text-[9px] font-black text-amber-300 uppercase tracking-widest italic whitespace-nowrap"></span>
                         <span id="aiInsightMeta" class="hidden text-[9px] font-black text-gray-500 uppercase tracking-widest italic whitespace-nowrap"></span>
                         <button id="aiTestBtn" onclick="window.testAIInsight()" class="ml-auto px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-[10px] font-black uppercase tracking-widest italic transition-all flex items-center gap-1.5 shadow-lg shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
                             <i data-feather="refresh-cw" class="w-3 h-3"></i> Regenerate Insight
@@ -132,6 +133,8 @@
 
     <script type="module">
         import { api, initPage } from '../assets/js/custom-auth.js';
+        import { startInsightPoller } from '../assets/js/insight-poller.js';
+        startInsightPoller();
 
         const urlParams = new URLSearchParams(window.location.search);
         const classId = urlParams.get('id');
@@ -366,6 +369,40 @@
             };
         })();
 
+        // Live countdown for a queued AI regeneration: ticks the remaining
+        // debounce window in the card header, then re-fetches at 0 to load the
+        // freshly generated insight (the worker/poller produces it there).
+        let insightPendingUntil = 0;
+        let insightCountdownTimer = null;
+
+        function stopInsightCountdown() {
+            if (insightCountdownTimer) {
+                clearInterval(insightCountdownTimer);
+                insightCountdownTimer = null;
+            }
+            const el = document.getElementById('aiInsightCountdown');
+            if (el) el.classList.add('hidden');
+        }
+
+        function startInsightCountdown(pendingSeconds) {
+            insightPendingUntil = Date.now() + (Math.max(0, Math.floor(pendingSeconds || 0)) * 1000);
+            const el = document.getElementById('aiInsightCountdown');
+            if (!el) return;
+            if (insightCountdownTimer) clearInterval(insightCountdownTimer);
+            insightCountdownTimer = setInterval(() => {
+                const rem = Math.max(0, Math.floor((insightPendingUntil - Date.now()) / 1000));
+                if (rem <= 0) {
+                    stopInsightCountdown();
+                    loadAIInsight();
+                    return;
+                }
+                const m = Math.floor(rem / 60);
+                const s = String(rem % 60).padStart(2, '0');
+                el.textContent = `AI in ${m}:${s}`;
+                el.classList.remove('hidden');
+            }, 1000);
+        }
+
         async function loadAIInsight(force = false) {
             const loading = document.getElementById('aiInsightLoading');
             const textEl = document.getElementById('aiInsightText');
@@ -382,6 +419,35 @@
 
             try {
                 const data = await api(`/ai_insight.php?class_id=${classId}${force ? '&refresh=1' : ''}`);
+                if (data.pending) {
+                    // A grade/attendance change queued regeneration — show the
+                    // existing insight (if any) plus a live countdown instead
+                    // of forcing an instant generation.
+                    loading.classList.add('hidden');
+                    if (data.insight && data.insight.paragraph) {
+                        textEl.textContent = data.insight.paragraph;
+                        tipsEl.innerHTML = (data.insight.tips || []).map(tip =>
+                            `<li class="flex items-start gap-2 text-xs text-gray-400">
+                                <i data-feather="check-circle" class="w-3.5 h-3.5 text-primary-400 mt-0.5 shrink-0"></i>
+                                <span class="font-medium">${tip}</span>
+                            </li>`
+                        ).join('');
+                        textEl.classList.remove('hidden');
+                        if (data.insight.tips && data.insight.tips.length) tipsEl.classList.remove('hidden');
+                        if (data.analyzedAt) {
+                            const mins = Math.max(1, Math.floor((Date.now() - new Date(data.analyzedAt.replace(' ', 'T'))) / 60000));
+                            metaEl.textContent = `Auto-analyzed • ${mins < 60 ? mins + 'm ago' : Math.floor(mins / 60) + 'h ago'}`;
+                            metaEl.classList.remove('hidden');
+                        }
+                        try { feather.replace(); } catch (e) {}
+                    } else {
+                        fallbackEl.textContent = 'AI is analyzing your latest grades...';
+                        fallbackEl.classList.remove('hidden');
+                    }
+                    startInsightCountdown(data.pendingSeconds);
+                    return;
+                }
+                stopInsightCountdown();
                 if (data.available === false) {
                     loading.classList.add('hidden');
                     fallbackEl.classList.remove('hidden');

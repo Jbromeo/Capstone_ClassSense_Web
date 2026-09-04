@@ -116,6 +116,63 @@
     </div>
 </div>
 
+<!-- MODAL: Student AI Insight (Roster) -->
+<div id="insightModal" class="fixed inset-0 z-50 hidden group-modal">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-xl transition-all duration-500" onclick="closeModal('insightModal')"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+        <div class="glass-panel w-full max-w-2xl rounded-2xl shadow-2xl transform scale-95 opacity-0 transition-all duration-300 border border-gray-700 pointer-events-auto" id="insightModalContent">
+            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-white/5 rounded-t-2xl">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div id="insightStudentAvatar" class="shrink-0"></div>
+                    <div class="min-w-0">
+                        <h3 class="text-xl font-bold text-white uppercase italic tracking-tighter truncate" id="insightStudentName">Student</h3>
+                        <p class="text-[9px] font-black text-primary-400 uppercase tracking-widest italic">AI Academic Insight</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('insightModal')" class="text-gray-400 hover:text-white transition-colors p-2"><i data-feather="x"></i></button>
+            </div>
+            <div class="p-6 space-y-6 overflow-y-auto custom-scroll max-h-[70vh]">
+                <!-- Mini Stats -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-dark-bg p-4 rounded-xl border border-dark-border text-center">
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic mb-1">Attendance Rate</p>
+                        <p id="insightAttRate" class="text-xl font-black text-white">—</p>
+                    </div>
+                    <div class="bg-dark-bg p-4 rounded-xl border border-dark-border text-center">
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic mb-1">Final Grade</p>
+                        <p id="insightFinalGrade" class="text-xl font-black text-white">—</p>
+                    </div>
+                    <div class="bg-dark-bg p-4 rounded-xl border border-dark-border text-center">
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest italic mb-1">Weakest Area</p>
+                        <p id="insightWeakest" class="text-sm font-black text-white leading-relaxed">—</p>
+                    </div>
+                </div>
+                <!-- AI Insight -->
+                <div id="insightContent" class="hidden">
+                    <div class="bg-dark-bg/60 border border-primary-500/20 rounded-xl p-5">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i data-feather="zap" class="w-4 h-4 text-primary-500"></i>
+                            <span class="text-[9px] font-black text-primary-400 uppercase tracking-widest italic">AI Analysis</span>
+                            <span id="insightAnalyzedAt" class="ml-auto text-[9px] text-gray-600 font-bold uppercase italic tracking-widest"></span>
+                        </div>
+                        <p id="insightParagraph" class="text-sm text-gray-300 leading-relaxed"></p>
+                    </div>
+                    <div id="insightTipsWrap" class="hidden">
+                        <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest italic mb-3">Suggested Focus</h4>
+                        <ul id="insightTipsList" class="space-y-2"></ul>
+                    </div>
+                </div>
+                <!-- Empty State -->
+                <div id="insightEmpty" class="text-center py-10">
+                    <div class="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4"><i data-feather="zap" class="w-5 h-5 text-gray-600"></i></div>
+                    <p class="text-sm text-gray-400 font-bold mb-1">No AI insight yet</p>
+                    <p class="text-xs text-gray-600 max-w-sm mx-auto leading-relaxed">This student hasn't generated an AI insight yet. It appears automatically once they open their class page from their account.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 window.updateWeightTotal = function() {
     const w = parseInt(document.getElementById('weight-written')?.value || 0);

@@ -18,6 +18,8 @@ const nowSql = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 };
 let sessionTimerInterval = null;
+let lateFlipTimeout = null;
+let sessionDurationMinutes = 0;
 let qrRefreshInterval = null;
 let currentNonce = null;
 let currentMode = 'open'; // 'open' | 'late'
@@ -32,8 +34,6 @@ let attendanceCompName = null; // display name (e.g. "8/14/26 #2") of that compo
 let pickerUid = null;          // uid whose status popover is currently open
 let recordViewMode = false;    // true when viewing a reopened session record (button reads "Update")
 const ON_TIME_WINDOW_SECONDS = 30;  // on-time window; after it, scans are Late
-const LATE_WINDOW_SECONDS = 30;      // late window; when it expires, the session auto-ends
-const SESSION_TOTAL_SECONDS = ON_TIME_WINDOW_SECONDS + LATE_WINDOW_SECONDS;
 const NONCE_GRACE_SECONDS = 25;  // previous nonce accepted within this window
 const POLL_INTERVAL_MS = 3000;   // live attendance poll: scan appears within ~3s
 
@@ -77,7 +77,6 @@ function setModeUI(mode) {
     countdown.classList.toggle('border-amber-500/20', late);
     countdown.classList.toggle('bg-primary-500/10', !late);
     countdown.classList.toggle('border-primary-500/20', !late);
-    if (late) document.getElementById('timerValue').innerText = 'LATE';
 }
 
 function applyGeofenceUI(cls) {
@@ -300,22 +299,9 @@ window.startAttendanceSession = async (classId) => {
             startQRRefreshCycle(classId);
             initAttendanceListener(classId, { loadExisting: true });
             labelEl.innerText = (currentClassData.session_expires_at ? 'Until ' + formatSqlTime(currentClassData.session_expires_at) : 'Live session');
-            const started = parseSql(currentClassData.session_started_at);
-            const elapsed = started && !isNaN(started.getTime())
-                ? Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000))
-                : 0;
-            if (elapsed < ON_TIME_WINDOW_SECONDS) {
-                setModeUI('open');
-                startCountdown(remainingOnTimeWindow(currentClassData.session_started_at), flipToLate);
-            } else {
-                setModeUI('late');
-                const lateRemaining = remainingLateWindow(currentClassData.session_started_at);
-                if (lateRemaining > 0) {
-                    startCountdown(lateRemaining, () => window.confirmEndSession());
-                } else {
-                    window.confirmEndSession();
-                }
-            }
+            setModeUI(currentClassData.session_mode === 'late' || remainingOnTimeWindow(currentClassData.session_started_at) <= 0 ? 'late' : 'open');
+            scheduleLateFlip(currentClassData.session_started_at);
+            syncSessionTimer();
             return;
         }
 
@@ -333,8 +319,8 @@ window.startAttendanceSession = async (classId) => {
         }
 
         // Generate nonce + start session via API. The session has NO client-side
-        // TTL — it runs until the 30-second late window expires (auto-end). The
-        // on-time window is tracked via session_started_at on the server.
+        // TTL — it runs until the teacher ends it or the auto-end timer expires.
+        // The on-time window is tracked via session_started_at on the server.
         const nonce = randNonce();
         currentNonce = nonce;
         const started = nowSql();
@@ -347,6 +333,9 @@ window.startAttendanceSession = async (classId) => {
             session_mode: 'open',
             require_location: requireLocation ? 1 : 0
         };
+        if (sessionDurationMinutes > 0) {
+            body.session_duration_minutes = sessionDurationMinutes;
+        }
         if (anchor) {
             body.session_lat = anchor.lat;
             body.session_lng = anchor.lng;
@@ -364,14 +353,15 @@ window.startAttendanceSession = async (classId) => {
         generateAttendanceQR(classId);
 
         // Refresh to read the server-authoritative session state and start the
-        // 30-second on-time countdown. When it hits 0 the session flips to a
-        // 30-second late window and then auto-ends.
+        // auto-end countdown (when a duration was set) plus the cosmetic
+        // on-time -> late flip at the 30-second mark.
         const refreshed = await api('/classes.php?id=' + classId);
         upsertClassCache(refreshed);
         currentClassData = refreshed;
         applyGeofenceUI(refreshed);
-        labelEl.innerText = win.windowLabel || 'Live session';
-        startCountdown(remainingOnTimeWindow(refreshed.session_started_at), flipToLate);
+        labelEl.innerText = refreshed.session_expires_at ? 'Auto-ends at ' + formatSqlTime(refreshed.session_expires_at) : (win.windowLabel || 'Live session');
+        syncSessionTimer();
+        scheduleLateFlip(refreshed.session_started_at);
 
         // Start QR Refresh Cycle
         startQRRefreshCycle(classId);
@@ -494,8 +484,8 @@ function startQRRefreshCycle(classId) {
 
 // 2b. Auto-late flip: when the 30-second on-time window elapses, switch the
 // projected QR to a late-only code. Every scan from here on is recorded with
-// status 'Late' by the server. A 30-second late window then runs and the
-// session auto-ends when it expires.
+// status 'Late' by the server. The session stays open until the teacher ends
+// it or the auto-end timer expires.
 async function flipToLate() {
     if (!currentClassData || currentMode === 'late') return;
     const nonce = randNonce();
@@ -514,7 +504,7 @@ async function flipToLate() {
         setModeUI('late');
         generateAttendanceQR(currentClassData.id);
         if (window.showToast) window.showToast('On-time window closed — scans now record as LATE', 'info');
-        startCountdown(remainingLateWindow(currentClassData.session_started_at), () => window.confirmEndSession());
+        syncSessionTimer();
     } catch (err) {
         console.error("Late Mode Flip Failure:", err);
     }
@@ -673,6 +663,7 @@ function resetLiveSpotlight() {
 
 function resetLiveFeed() {
     resetLiveSpotlight();
+    if (lateFlipTimeout) { clearTimeout(lateFlipTimeout); lateFlipTimeout = null; }
     verifiedStudentsList = [];
     processedUids.clear();
     flagMap.clear();
@@ -762,6 +753,7 @@ window.confirmEndSession = async () => {
     if (attendanceListener) clearInterval(attendanceListener);
     if (sessionTimerInterval) clearInterval(sessionTimerInterval);
     if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+    if (lateFlipTimeout) { clearTimeout(lateFlipTimeout); lateFlipTimeout = null; }
     
     // Reset mode UI for next session
     setModeUI('open');
@@ -786,17 +778,67 @@ function remainingOnTimeWindow(startedAt) {
     return Math.max(0, ON_TIME_WINDOW_SECONDS - elapsed);
 }
 
-// Seconds remaining in the 30-second late window (which runs right after the
-// on-time window). Falls back to the full late window if unparseable.
-function remainingLateWindow(startedAt) {
-    const started = parseSql(startedAt);
-    if (!started || isNaN(started.getTime())) return LATE_WINDOW_SECONDS;
-    const elapsed = Math.max(0, Math.floor((new Date() - started) / 1000));
-    return Math.max(0, SESSION_TOTAL_SECONDS - elapsed);
+// One-shot on-time -> late flip (cosmetic + QR change). Runs separately from
+// the session auto-end countdown so the displayed timer is never overwritten.
+function scheduleLateFlip(startedAt) {
+    if (currentMode === 'late') return;
+    if (lateFlipTimeout) { clearTimeout(lateFlipTimeout); lateFlipTimeout = null; }
+    const secs = remainingOnTimeWindow(startedAt);
+    if (secs <= 0) {
+        flipToLate();
+        return;
+    }
+    lateFlipTimeout = setTimeout(flipToLate, secs * 1000);
 }
 
-// Generic countdown; calls onComplete() when it reaches 0. The on-time window
-// flips to late mode; the late window auto-ends the session.
+// Session auto-end countdown: counts down to the server-set session expiry
+// (when the teacher picked an auto-end duration) and ends the session at 0.
+// With no expiry the session runs until the teacher ends it manually.
+function syncSessionTimer() {
+    const expiresAt = currentClassData ? parseSql(currentClassData.session_expires_at) : null;
+    if (expiresAt && expiresAt > new Date()) {
+        startCountdown(Math.max(1, Math.floor((expiresAt - new Date()) / 1000)), () => window.confirmEndSession());
+    } else {
+        hideSessionTimer();
+    }
+}
+
+function hideSessionTimer() {
+    if (sessionTimerInterval) {
+        clearInterval(sessionTimerInterval);
+        sessionTimerInterval = null;
+    }
+    const chip = document.getElementById('sessionCountdown');
+    if (chip) chip.classList.add('hidden');
+}
+
+function setSessionDuration(minutes) {
+    sessionDurationMinutes = minutes;
+    document.querySelectorAll('.timer-chip').forEach(chip => {
+        const val = parseInt(chip.dataset.duration || '0', 10);
+        const active = val === minutes;
+        chip.classList.toggle('bg-primary-500', active);
+        chip.classList.toggle('text-white', active);
+        chip.classList.toggle('shadow-lg', active);
+        chip.classList.toggle('shadow-primary-500/25', active);
+        chip.classList.toggle('bg-white/5', !active);
+        chip.classList.toggle('text-gray-400', !active);
+    });
+    const custom = document.getElementById('sessionTimerCustom');
+    if (custom) {
+        const chipMatch = minutes > 0 && [...document.querySelectorAll('.timer-chip')].some(c => parseInt(c.dataset.duration || '0', 10) === minutes);
+        const customActive = minutes > 0 && !chipMatch;
+        custom.value = customActive ? String(minutes) : '';
+        custom.classList.toggle('border-primary-500', customActive);
+        custom.classList.toggle('text-primary-400', customActive);
+        custom.classList.toggle('bg-primary-500/10', customActive);
+        custom.classList.toggle('border-dark-border', !customActive);
+        custom.classList.toggle('text-gray-300', !customActive);
+        custom.classList.toggle('bg-dark-bg/60', !customActive);
+    }
+}
+
+// Generic countdown; calls onComplete() when it reaches 0.
 function startCountdown(totalSeconds, onComplete) {
     totalSeconds = Math.max(0, Math.floor(totalSeconds));
     const timerDisplay = document.getElementById('sessionCountdown');
@@ -1295,6 +1337,7 @@ window.backToClassSelection = async () => {
     if (attendanceListener) clearInterval(attendanceListener);
     if (sessionTimerInterval) clearInterval(sessionTimerInterval);
     if (qrRefreshInterval) clearInterval(qrRefreshInterval);
+    if (lateFlipTimeout) { clearTimeout(lateFlipTimeout); lateFlipTimeout = null; }
     if (spotlightTimeout) clearTimeout(spotlightTimeout);
 
     switchView('classSelectionView');
@@ -1622,7 +1665,26 @@ window.loadSessionReportFromServer = async (classId, sessionId) => {
     }
 };
 
-document.addEventListener('DOMContentLoaded', () => { feather.replace(); });
+document.addEventListener('DOMContentLoaded', () => {
+    feather.replace();
+    document.querySelectorAll('.timer-chip').forEach(chip => {
+        chip.addEventListener('click', () => setSessionDuration(parseInt(chip.dataset.duration || '0', 10)));
+    });
+    const custom = document.getElementById('sessionTimerCustom');
+    if (custom) {
+        custom.addEventListener('change', () => {
+            const v = parseInt(custom.value, 10);
+            if (!isNaN(v) && v > 0) {
+                setSessionDuration(Math.min(240, Math.max(1, v)));
+            } else if (custom.value.trim() === '') {
+                setSessionDuration(0);
+            } else {
+                custom.value = sessionDurationMinutes > 0 ? String(sessionDurationMinutes) : '';
+            }
+        });
+    }
+    setSessionDuration(0);
+});
 
 // Custom confirmation modal (Promise-based)
 window.csConfirm = (opts = {}) => new Promise((resolve) => {
