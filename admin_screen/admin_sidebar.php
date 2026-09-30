@@ -1,5 +1,7 @@
 <?php
  $current_page = basename($_SERVER['PHP_SELF']);
+ $sidebar_role = $_SESSION['role'] ?? 'admin';
+ $is_super = ($sidebar_role === 'super_admin');
 ?>
 
 <!-- Mobile Overlay -->
@@ -43,6 +45,23 @@
             <i data-feather="settings" class="w-5 h-5 mr-3 <?php echo $current_page == 'admin_settings.php' ? 'text-purple-500' : 'text-gray-500'; ?> group-hover:text-purple-500 transition-colors"></i>
             Settings
         </a>
+
+        <?php if ($is_super): ?>
+        <div class="pt-4 mt-4 border-t border-dark-border">
+            <p class="px-4 text-[10px] font-black text-amber-500/80 uppercase tracking-widest mb-3 italic">Super Admin</p>
+
+            <a href="manage_admins.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'manage_admins.php' ? 'active shadow-lg shadow-amber-500/10 text-amber-400' : 'text-gray-400'; ?> rounded-lg">
+                <i data-feather="shield" class="w-5 h-5 mr-3 <?php echo $current_page == 'manage_admins.php' ? 'text-amber-400' : 'text-gray-500'; ?> group-hover:text-amber-400 transition-colors"></i>
+                Admin Accounts
+            </a>
+
+            <a href="deletion_requests.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'deletion_requests.php' ? 'active shadow-lg shadow-primary-500/10 text-primary-400' : 'text-gray-400'; ?> rounded-lg">
+                <i data-feather="inbox" class="w-5 h-5 mr-3 <?php echo $current_page == 'deletion_requests.php' ? 'text-primary-400' : 'text-gray-500'; ?> group-hover:text-primary-400 transition-colors"></i>
+                Deletion Requests
+                <span id="deletionPendingBadge" class="ml-auto hidden px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[9px] font-black text-amber-400 italic uppercase tracking-widest leading-none">0</span>
+            </a>
+        </div>
+        <?php endif; ?>
 
         <div class="pt-4 mt-4 border-t border-dark-border">
             <button id="adminProfileTrigger" class="nav-item w-full group flex items-center px-4 py-3 text-sm font-medium text-gray-400 hover:text-white rounded-lg transition-all">
@@ -116,6 +135,30 @@
                 if(window.openLogoutModal) window.openLogoutModal();
             };
         }
+
+        <?php if ($is_super): ?>
+        // Pending deletion request badge (super admin only) — poll every 60s.
+        const deletionBadge = document.getElementById('deletionPendingBadge');
+        async function refreshDeletionBadge() {
+            if (!deletionBadge) return;
+            const token = sessionStorage.getItem('cs_token');
+            if (!token) return;
+            try {
+                const res = await fetch('/ClassSense/api/admin/deletion_requests.php?status=pending', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) return;
+                const rows = await res.json();
+                const n = Array.isArray(rows) ? rows.length : 0;
+                deletionBadge.textContent = n > 99 ? '99+' : n;
+                deletionBadge.classList.toggle('hidden', n === 0);
+            } catch (e) {
+                // Badge is cosmetic — never break the page on a poll failure.
+            }
+        }
+        refreshDeletionBadge();
+        setInterval(refreshDeletionBadge, 60000);
+        <?php endif; ?>
 
         // Mobile Menu Global Logic
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');

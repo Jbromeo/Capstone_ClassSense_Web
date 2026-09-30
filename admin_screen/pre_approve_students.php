@@ -105,8 +105,11 @@ require_once dirname(__DIR__) . '/core/init.php';
         </main>
     </div>
 
+    <script>window.CURRENT_ROLE = <?php echo json_encode($_SESSION['role'] ?? 'admin'); ?>;</script>
     <script type="module">
         import { api } from '../assets/js/custom-auth.js';
+
+        const isSuperAdmin = window.CURRENT_ROLE === 'super_admin';
 
         const tableBody = document.getElementById('entriesBody');
         const countLabel = document.getElementById('entryCount');
@@ -137,25 +140,30 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         const renderRow = (data) => {
             const isUsed = data.is_used;
+            const isPending = !!data.deletion_pending;
+            const statusBadge = isPending
+                ? '<span class="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-widest">Pending Deletion</span>'
+                : isUsed
+                    ? '<span class="px-3 py-1 rounded-full bg-gray-500/10 border border-gray-500/20 text-gray-400 text-[10px] font-black uppercase tracking-widest">Used</span>'
+                    : '<span class="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-black uppercase tracking-widest">Available</span>';
+            const actions = isPending
+                ? '<span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">Awaiting approval</span>'
+                : isUsed
+                    ? `${isSuperAdmin ? `<button onclick="window.resetEntry(${data.id})" class="p-2 text-blue-500 hover:text-blue-400 transition-all hover:scale-150" title="Reset to Available"><i data-feather="refresh-ccw" class="w-4 h-4"></i></button>` : ''}
+                       <button onclick="window.deleteEntry(${data.id})" class="p-2 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Remove"><i data-feather="trash-2" class="w-4 h-4"></i></button>`
+                    : `<button onclick="window.deleteEntry(${data.id})" class="p-3 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Remove"><i data-feather="trash-2" class="w-4 h-4"></i></button>`;
             return `
                 <tr id="row-${data.id}" class="hover:bg-white/5 transition-colors group">
                     <td class="px-6 py-5 font-mono text-blue-400 text-sm font-black tracking-tight">${data.student_id}</td>
                     <td class="px-6 py-5">
-                        ${isUsed
-                            ? '<span class="px-3 py-1 rounded-full bg-gray-500/10 border border-gray-500/20 text-gray-400 text-[10px] font-black uppercase tracking-widest">Used</span>'
-                            : '<span class="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-black uppercase tracking-widest">Available</span>'
-                        }
+                        ${statusBadge}
                     </td>
                     <td class="px-6 py-5 font-bold text-white tracking-tight">${isUsed ? (data.first_name + ' ' + data.last_name).trim() || '—' : '—'}</td>
                     <td class="px-6 py-5 text-gray-400 text-xs">${isUsed ? data.email || '—' : '—'}</td>
                     <td class="px-6 py-5 text-gray-500 text-xs">${data.created_at || '—'}</td>
                     <td class="px-6 py-5 text-gray-500 text-xs">${data.used_at || '—'}</td>
                     <td class="px-6 py-5 text-center">
-                        ${isUsed
-                            ? `<button onclick="window.resetEntry(${data.id})" class="p-2 text-blue-500 hover:text-blue-400 transition-all hover:scale-150" title="Reset to Available"><i data-feather="refresh-ccw" class="w-4 h-4"></i></button>
-                               <button onclick="window.deleteEntry(${data.id})" class="p-2 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Remove"><i data-feather="trash-2" class="w-4 h-4"></i></button>`
-                            : `<button onclick="window.deleteEntry(${data.id})" class="p-3 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Remove"><i data-feather="trash-2" class="w-4 h-4"></i></button>`
-                        }
+                        ${actions}
                     </td>
                 </tr>
             `;
@@ -242,21 +250,30 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
 
         window.deleteEntry = async (id) => {
+            const entry = registryCache.find(e => e.id === id);
+            const isUsedRequest = !!(entry && entry.is_used && !isSuperAdmin);
             showConfirmModal({
                 icon: 'trash-2',
                 iconBg: 'bg-primary-500/10',
                 iconColor: 'text-primary-500',
-                title: 'Remove Entry?',
-                message: 'This will permanently remove this Student ID from the pre-approved list.',
-                confirmText: 'Yes, Remove',
+                title: isUsedRequest ? 'Request Removal?' : 'Remove Entry?',
+                message: isUsedRequest
+                    ? 'This will send a deletion request to the super admin. The student account and this entry will be removed only after approval.'
+                    : 'This will permanently remove this Student ID from the pre-approved list.',
+                confirmText: isUsedRequest ? 'Yes, Request' : 'Yes, Remove',
                 confirmBg: 'bg-primary-600 hover:bg-primary-700',
                 onConfirm: async () => {
                     try {
-                        await api('/admin/pre_approve.php?id=' + id, { method: 'DELETE' });
-                        registryCache = registryCache.filter(e => e.id !== id);
-                        filteredCache = filteredCache.filter(e => e.id !== id);
-                        document.getElementById('row-' + id)?.remove();
-                        window.showStatus('Entry removed.', 'success');
+                        const result = await api('/admin/pre_approve.php?id=' + id, { method: 'DELETE' });
+                        if (result.action === 'requested') {
+                            window.showStatus('Deletion request sent to super admin.', 'success');
+                            syncRegistry();
+                        } else {
+                            registryCache = registryCache.filter(e => e.id !== id);
+                            filteredCache = filteredCache.filter(e => e.id !== id);
+                            document.getElementById('row-' + id)?.remove();
+                            window.showStatus('Entry removed.', 'success');
+                        }
                     } catch (error) {
                         window.showStatus(error.message || 'Delete failed');
                     }

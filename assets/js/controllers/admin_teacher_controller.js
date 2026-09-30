@@ -45,7 +45,43 @@ let hasMore = false;
 let searchQuery = "";
 const BATCH_SIZE = 12;
 
+const requestModal = document.getElementById('requestModal');
+const requestTargetName = document.getElementById('requestTeacherName');
+const requestReasonInput = document.getElementById('requestReason');
+const confirmRequestBtn = document.getElementById('confirmRequestBtn');
+const cancelRequestBtn = document.getElementById('cancelRequestBtn');
+let pendingRequestTarget = null;
+
+const isSuperAdmin = window.CURRENT_ROLE === 'super_admin';
+const pendingRequests = {};
+let pendingRequestsLoaded = false;
+
+const esc = (value) => String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;');
+
 const renderTeacherRow = (id, data, isNew = false) => {
+    const pending = pendingRequests[id];
+    let settingsCell;
+
+    if (pending) {
+        settingsCell = `
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest italic" title="Deletion request awaiting super admin approval">
+                <i data-feather="clock" class="w-3 h-3"></i> Pending
+            </span>`;
+    } else if (isSuperAdmin) {
+        settingsCell = `
+            <button onclick="window.purgeTeacher('${esc(id)}', '${esc(data.username || data.email || '')}', '${esc(data.email || '')}')" class="p-4 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Purge Record">
+                <i data-feather="trash-2" class="w-6 h-6"></i>
+            </button>`;
+    } else {
+        settingsCell = `
+            <button onclick="window.requestTeacherDeletion('${esc(id)}', '${esc((data.firstName || '') + ' ' + (data.lastName || ''))}')" class="p-4 text-gray-500 hover:text-primary-400 transition-all hover:scale-150" title="Request Deletion">
+                <i data-feather="trash-2" class="w-6 h-6"></i>
+            </button>`;
+    }
+
     return `
         <tr id="row-${id}" class="hover:bg-white/5 transition-colors group ${isNew ? 'new-entry-highlight' : ''}">
             <td class="px-8 py-6">
@@ -69,17 +105,27 @@ const renderTeacherRow = (id, data, isNew = false) => {
                 ${data.username || data.email || ''}
             </td>
             <td class="px-8 py-6 text-center">
-                <button onclick="window.purgeTeacher('${id}', '${data.username || data.email || ''}', '${data.email || ''}')" class="p-4 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Purge Record">
-                    <i data-feather="trash-2" class="w-6 h-6"></i>
-                </button>
+                ${settingsCell}
             </td>
         </tr>
     `;
 };
 
+const loadPendingRequests = async () => {
+    if (isSuperAdmin) return; // super admin approves; no need to badge rows
+    try {
+        const requests = await api('/admin/deletion_requests.php?status=pending');
+        requests.forEach(r => { pendingRequests[r.target_uid] = r; });
+    } catch (err) {
+        console.warn('Pending request load failed:', err);
+    }
+    pendingRequestsLoaded = true;
+};
+
 const syncRegistry = async () => {
     countLabel.innerHTML = '<span class="animate-pulse">Syncing...</span>';
     try {
+        if (!pendingRequestsLoaded) await loadPendingRequests();
         const teachers = await api('/fetch.php?collection=teachers');
         registryCache = teachers;
         filteredCache = [...registryCache];
@@ -228,5 +274,41 @@ addForm.addEventListener('submit', async (e) => {
         feather.replace();
     }
 });
+
+window.requestTeacherDeletion = (uid, name) => {
+    pendingRequestTarget = { uid, name };
+    requestTargetName.textContent = name || 'this teacher';
+    requestReasonInput.value = '';
+    requestModal.classList.remove('hidden');
+    setTimeout(() => requestModal.classList.add('show'), 10);
+};
+
+const closeRequestModal = () => {
+    requestModal.classList.remove('show');
+    setTimeout(() => requestModal.classList.add('hidden'), 300);
+    pendingRequestTarget = null;
+};
+
+if (cancelRequestBtn) cancelRequestBtn.onclick = closeRequestModal;
+
+if (confirmRequestBtn) confirmRequestBtn.onclick = async () => {
+    if (!pendingRequestTarget) return;
+    const { uid, name } = pendingRequestTarget;
+    confirmRequestBtn.disabled = true;
+    try {
+        const result = await api('/admin/deletion_requests.php', {
+            method: 'POST',
+            body: JSON.stringify({ target_uid: uid, reason: requestReasonInput.value.trim() })
+        });
+        pendingRequests[uid] = { id: result.id, target_uid: uid, status: 'pending' };
+        closeRequestModal();
+        renderInitialBatch();
+        window.showStatus(`Deletion request for ${name} submitted for approval.`, 'success');
+    } catch (error) {
+        window.showStatus(error.message || 'Request failed.');
+    } finally {
+        confirmRequestBtn.disabled = false;
+    }
+};
 
 syncRegistry();

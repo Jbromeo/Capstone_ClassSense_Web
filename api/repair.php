@@ -13,13 +13,8 @@ $uid = verifyToken();
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = getPDO();
 
-// --- Authorize: must be an actual admin user ---
-$stmt = $pdo->prepare("SELECT role FROM users WHERE uid = ?");
-$stmt->execute([$uid]);
-$caller = $stmt->fetch();
-if (!$caller || ($caller['role'] ?? null) !== 'admin') {
-    jsonResponse(['error' => 'Forbidden: admin access required'], 403);
-}
+// --- Authorize: admin or super admin ---
+requireAdmin($pdo, $uid);
 
 // --- Collect orphan / stale counts (the same checks as db_repair.sql) ---
 function collectReport($pdo) {

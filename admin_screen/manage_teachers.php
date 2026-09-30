@@ -12,6 +12,9 @@ require_once dirname(__DIR__) . '/core/init.php';
         #confirmModal { pointer-events: none; }
         #confirmModal.show { opacity: 1; pointer-events: auto; }
         #confirmModal.show > div:last-child { transform: scale(1); }
+        #requestModal { pointer-events: none; }
+        #requestModal.show { opacity: 1; pointer-events: auto; }
+        #requestModal.show > div:last-child { transform: scale(1); }
         .animate-scale-up { transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .toast { transform: translateX(120%); transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55); opacity: 0; }
         .toast.show { transform: translateX(0); opacity: 1; }
@@ -138,6 +141,24 @@ require_once dirname(__DIR__) . '/core/init.php';
         </div>
     </div>
 
+    <!-- Deletion Request Modal (regular admins) -->
+    <div id="requestModal" class="fixed inset-0 z-[100] flex items-center justify-center hidden opacity-0 transition-all duration-300">
+        <div class="absolute inset-0 bg-dark-bg/60 backdrop-blur-md"></div>
+        <div class="glass-panel w-full max-w-md rounded-[2.5rem] p-8 border border-white/10 shadow-[0_20px_50px_rgba(234,38,40,0.2)] animate-scale-up relative z-10 text-center">
+            <div class="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary-500/20">
+                <i data-feather="inbox" class="w-10 h-10 text-primary-500"></i>
+            </div>
+            <h3 class="text-2xl font-black text-white italic mb-2 tracking-tight uppercase tracking-tighter">Request Deletion</h3>
+            <p class="text-gray-400 text-sm mb-6 leading-relaxed font-bold">Submit a request to delete <span id="requestTeacherName" class="text-white italic underline underline-offset-4 decoration-primary-500/50 font-black">Teacher</span>. A super admin must approve it before the account is removed.</p>
+            <textarea id="requestReason" rows="3" maxlength="500" class="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder-gray-600 mb-4" placeholder="Reason (optional)"></textarea>
+            <div class="space-y-3">
+                <button id="confirmRequestBtn" class="w-full py-4 bg-primary-500 hover:bg-primary-600 rounded-2xl font-black text-white transition-all shadow-lg shadow-primary-500/20 uppercase tracking-[0.2em] italic text-xs leading-none">Submit Request</button>
+                <button id="cancelRequestBtn" class="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold text-gray-500 hover:text-white transition-all text-xs uppercase tracking-widest leading-none">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>window.CURRENT_ROLE = <?php echo json_encode($_SESSION['role'] ?? 'admin'); ?>;</script>
     <script type="module" src="../assets/js/controllers/admin_teacher_controller.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { 

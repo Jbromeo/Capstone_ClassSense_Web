@@ -8,45 +8,31 @@ $pdo = getPDO();
 
 // --- DELETE: remove user and all dependent data ---
 if ($method === 'DELETE') {
-    // Only an admin may delete users. (Any authenticated user could delete any
-    // account otherwise, including admin's own.)
-    requireRole($pdo, $uid, 'admin');
+    // Only the super admin may delete accounts directly. Regular admins file a
+    // deletion request instead (api/admin/deletion_requests.php).
+    requireSuperAdmin($pdo, $uid);
 
     $targetUid = $_GET['uid'] ?? null;
     if (!$targetUid) jsonResponse(['error' => 'Missing uid'], 400);
 
-    // Fetch student_id/role before deleting so we can clear pre-approval
-    $stmt = $pdo->prepare("SELECT role, student_id FROM users WHERE uid = ?");
+    $stmt = $pdo->prepare("SELECT role FROM users WHERE uid = ?");
     $stmt->execute([$targetUid]);
-    $user = $stmt->fetch();
-    if (!$user) jsonResponse(['error' => 'User not found'], 404);
+    $targetRole = $stmt->fetchColumn();
+    if ($targetRole === false) jsonResponse(['error' => 'User not found'], 404);
+    if ($targetRole === 'super_admin') {
+        jsonResponse(['error' => 'Super admin accounts cannot be deleted'], 403);
+    }
 
-    $pdo->beginTransaction();
     try {
-        // Teachers: classes.teacher_uid has a NO-ACTION FK, so the teacher's
-        // classes (which then cascade-delete class_students + attendance) must be
-        // removed first. The sessions/notifications cascades fire on user delete.
-        if ($user['role'] === 'teacher') {
-            $pdo->prepare("DELETE FROM classes WHERE teacher_uid = ?")->execute([$targetUid]);
-            $pdo->prepare("DELETE FROM events WHERE teacher_uid = ?")->execute([$targetUid]);
-        }
-
-        // student_enrollment + attendance are cleaned by the ON DELETE CASCADE
-        // FKs on class_students(student_uid) and attendance(student_uid).
-        $stmt = $pdo->prepare("DELETE FROM users WHERE uid = ?");
-        $stmt->execute([$targetUid]);
-
-        // If a pre-approved student was deleted, free up their ID
-        if ($user['role'] === 'student' && !empty($user['student_id'])) {
-            $pdo->prepare("UPDATE pre_approved_students SET used_at = NULL WHERE student_id = ?")
-                ->execute([$user['student_id']]);
-        }
-
-        $pdo->commit();
+        $deleted = deleteUserCascade($pdo, $targetUid);
     } catch (Throwable $e) {
-        $pdo->rollBack();
         jsonResponse(['error' => 'Delete failed: ' . $e->getMessage()], 500);
     }
+    if (!$deleted) jsonResponse(['error' => 'User not found'], 404);
+
+    // A direct delete settles any pending request for the same account.
+    $pdo->prepare("UPDATE deletion_requests SET status = 'approved', resolved_by = ?, resolved_at = GETDATE() WHERE target_uid = ? AND status = 'pending'")
+        ->execute([$uid, $targetUid]);
 
     jsonResponse(['success' => true]);
 }
@@ -109,6 +95,20 @@ if ($method === 'POST') {
 
     // Single profile upsert (create or update)
     if (!empty($data['uid']) && !empty($data['role'])) {
+        // Only admins/super admins may create or edit accounts here.
+        $callerRole = requireAdmin($pdo, $uid);
+        $targetUid = $data['uid'];
+        $role = $data['role'];
+
+        // Role escalation guard: only the super admin may create admin accounts,
+        // and super_admin accounts are never creatable through this endpoint.
+        if (!in_array($role, ['teacher', 'student', 'admin'], true)) {
+            jsonResponse(['error' => 'Invalid role'], 400);
+        }
+        if ($role === 'admin' && $callerRole !== 'super_admin') {
+            jsonResponse(['error' => 'Forbidden: only a super admin can create admin accounts'], 403);
+        }
+
         $firstName = capitalizeName($data['firstName'] ?? $data['first_name'] ?? null);
         $lastName = capitalizeName($data['lastName'] ?? $data['last_name'] ?? null);
         $username = array_key_exists('username', $data) ? trim($data['username']) : null;
@@ -122,11 +122,22 @@ $profilePicture = array_key_exists('profilePicture', $data) ? $data['profilePict
         $guardianPhone = array_key_exists('guardianPhone', $data) ? trim($data['guardianPhone']) :
                          (array_key_exists('guardian_phone', $data) ? trim($data['guardian_phone']) : null);
 
-        $stmt = $pdo->prepare("SELECT 1 FROM users WHERE uid = ?");
-        $stmt->execute([$data['uid']]);
-        $exists = $stmt->fetch();
+        $stmt = $pdo->prepare("SELECT role FROM users WHERE uid = ?");
+        $stmt->execute([$targetUid]);
+        $existingRole = $stmt->fetchColumn();
+        $exists = $existingRole !== false;
 
         if ($exists) {
+            // Never allow a role change through this endpoint (role_type is the
+            // immutable stamp and core/init.php treats divergence as tampering).
+            if ($existingRole !== $role) {
+                jsonResponse(['error' => 'Role cannot be changed'], 400);
+            }
+            // Regular admins cannot edit admin or super admin accounts.
+            if (in_array($existingRole, ['admin', 'super_admin'], true) && $callerRole !== 'super_admin') {
+                jsonResponse(['error' => 'Forbidden: only a super admin can edit admin accounts'], 403);
+            }
+
             // Partial update: only persist fields that were actually sent, so a
             // form that omits username/student_id cannot blank out the login name.
             $set = [];
@@ -141,7 +152,7 @@ $profilePicture = array_key_exists('profilePicture', $data) ? $data['profilePict
             if ($guardianPhone !== null)  { $set[] = 'guardian_phone = ?'; $params[] = $guardianPhone; }
 
             if (!empty($set)) {
-                $params[] = $data['uid'];
+                $params[] = $targetUid;
                 $stmt = $pdo->prepare("UPDATE users SET " . implode(', ', $set) . " WHERE uid = ?");
                 $stmt->execute($params);
             }
@@ -149,11 +160,11 @@ $profilePicture = array_key_exists('profilePicture', $data) ? $data['profilePict
             $passwordHash = $data['password_hash'] ?? password_hash(bin2hex(random_bytes(4)), PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, role_type, first_name, last_name, student_id, employee_id, profile_picture, phone, guardian_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
-                $data['uid'],
+                $targetUid,
                 $username ?? ($data['username'] ?? ''),
                 $passwordHash,
-                $data['role'],
-                $data['role'],
+                $role,
+                $role,
                 $firstName ?? '',
                 $lastName ?? '',
                 $studentId ?? '',
@@ -192,6 +203,7 @@ if ($method === 'GET') {
     }
 
     if ($collection === 'teachers') {
+        requireAdmin($pdo, $uid);
         $stmt = $pdo->query("SELECT uid, username, first_name, last_name, employee_id FROM users WHERE role = 'teacher' ORDER BY first_name, last_name");
         $users = $stmt->fetchAll();
         $results = [];

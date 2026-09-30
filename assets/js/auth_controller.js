@@ -34,20 +34,8 @@ async function performHandshake(user) {
         let role = 'guest';
         let profileData = null;
 
-        if (user.email === "admin@gmail.com") {
-            role = 'admin';
-            console.log('[auth_controller] admin detected, upserting profile');
-            try {
-                await api('/fetch.php', {
-                    method: 'POST',
-                    body: JSON.stringify({ uid: user.uid, role: 'admin', username: user.email, firstName: 'Admin', lastName: 'Account' })
-                });
-                console.log('[auth_controller] admin profile upserted');
-            } catch (e) { console.error("[auth_controller] Admin profile create failed:", e); }
-        }
-
         if (role === 'guest') {
-            console.log('[auth_controller] non-admin, fetching profile');
+            console.log('[auth_controller] fetching profile');
             try {
                 const profile = await api('/fetch.php?uid=' + user.uid);
                 console.log('[auth_controller] profile fetched:', profile);

@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyA9rXCyXcOrKrIj4tssFh2weSJTlhiDjUU",
@@ -90,24 +90,10 @@ async function initPage(loadFn) {
             return null;
         }
     }
-    console.log('[initPage] no token, waiting for onAuthStateChanged');
-    onAuthStateChanged(auth, (user) => {
-        console.log('[initPage] onAuthStateChanged fired, user:', !!user, user?.email);
-        if (user) {
-            if (user.email === 'admin@gmail.com') {
-                console.log('[initPage] admin detected, calling loadFn');
-                if (loadFn) setTimeout(() => loadFn(user), 500);
-            } else {
-                console.log('[initPage] non-admin Firebase user, redirecting');
-                window.location.href = '../login.php?status=not_authorized';
-            }
-        } else {
-            console.log('[initPage] no Firebase user, destroying PHP session then redirecting');
-            fetch(API_BASE + '/logout.php').catch(() => {}).finally(() => {
-                window.location.href = '../login.php?status=session_cleared';
-            });
-        }
+    console.log('[initPage] no token, destroying PHP session then redirecting');
+    fetch(API_BASE + '/logout.php').catch(() => {}).finally(() => {
+        window.location.href = '../login.php?status=session_cleared';
     });
 }
 
-export { auth, signInWithEmailAndPassword, signOut, onAuthStateChanged, api, customSignIn, customSignOut, requireAuth, initPage, API_BASE };
+export { auth, signOut, onAuthStateChanged, api, customSignIn, customSignOut, requireAuth, initPage, API_BASE };

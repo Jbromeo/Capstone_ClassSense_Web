@@ -52,7 +52,7 @@ function verifyToken() {
     if (!empty($matches[1])) {
         $idToken = $matches[1];
 
-        // Try custom session token first (teachers + students) — fast, local lookup
+        // Try custom session token first (teachers, students, admin) — fast, local lookup
         try {
             $pdo = getPDO();
             $stmt = $pdo->prepare("SELECT uid FROM sessions WHERE token = ? AND expires_at > GETDATE()");
@@ -62,30 +62,12 @@ function verifyToken() {
         } catch (PDOException $e) {
             // sessions table might not exist yet
         }
-
-        // Fallback: try Firebase token verification (admin accounts)
-        $url = "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={$config['firebase_api_key']}";
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode(['idToken' => $idToken]),
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_SSL_VERIFYPEER => true,
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200) {
-            $data = json_decode($response, true);
-            $uid = $data['users'][0]['localId'] ?? null;
-            if ($uid) return $uid;
-        }
     }
 
-    // Last resort: check PHP session (works when page loaded via init.php)
+    // No Bearer token (or it wasn't a session token): fall back to the PHP
+    // session, which is set when the page is loaded via init.php. This lets
+    // cookie-authenticated requests (e.g. the theme toggle, which sends no
+    // Authorization header) resolve the current user.
     if (session_status() === PHP_SESSION_NONE) {
         @session_start();
     }
@@ -93,9 +75,12 @@ function verifyToken() {
         return $_SESSION['uid'];
     }
 
-    http_response_code(401);
-    echo json_encode(['error' => 'Invalid or expired token']);
-    exit;
+    // A Bearer token was provided but didn't match anything — reject it.
+    if (!empty($matches[1])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid or expired token']);
+        exit;
+    }
 }
 
 function jsonResponse($data, $code = 200) {
@@ -121,6 +106,63 @@ function requireRole($pdo, $uid, $roles) {
         jsonResponse(['error' => 'Forbidden: insufficient role'], 403);
     }
     return $role;
+}
+
+// Admin or super admin (all existing admin features).
+function requireAdmin($pdo, $uid) {
+    return requireRole($pdo, $uid, ['admin', 'super_admin']);
+}
+
+// Super admin only (account deletion, admin management, audit log).
+function requireSuperAdmin($pdo, $uid) {
+    return requireRole($pdo, $uid, 'super_admin');
+}
+
+// Hard-delete a user and every dependent row (classes/events for teachers,
+// enrollment/attendance/grades via FK cascades, sessions, notifications).
+// Caller must already be authorized. Returns the deleted user row, or null.
+// Throws on DB failure (transaction rolled back).
+function deleteUserCascade($pdo, $targetUid) {
+    $stmt = $pdo->prepare("SELECT uid, role, student_id, username, first_name, last_name FROM users WHERE uid = ?");
+    $stmt->execute([$targetUid]);
+    $user = $stmt->fetch();
+    if (!$user) return null;
+
+    $pdo->beginTransaction();
+    try {
+        // Teachers: classes.teacher_uid has a NO-ACTION FK, so the teacher's
+        // classes (which then cascade-delete class_students + attendance) must
+        // be removed first. The sessions/notifications cascades fire on delete.
+        if ($user['role'] === 'teacher') {
+            $pdo->prepare("DELETE FROM classes WHERE teacher_uid = ?")->execute([$targetUid]);
+            $pdo->prepare("DELETE FROM events WHERE teacher_uid = ?")->execute([$targetUid]);
+        }
+
+        $pdo->prepare("DELETE FROM users WHERE uid = ?")->execute([$targetUid]);
+
+        // If a pre-approved student was deleted, free up their ID
+        if ($user['role'] === 'student' && !empty($user['student_id'])) {
+            $pdo->prepare("UPDATE pre_approved_students SET used_at = NULL WHERE student_id = ?")
+                ->execute([$user['student_id']]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    return $user;
+}
+
+// Number of super_admin accounts, optionally excluding one uid.
+function countSuperAdmins($pdo, $excludeUid = null) {
+    if ($excludeUid !== null) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND uid != ?");
+        $stmt->execute([$excludeUid]);
+    } else {
+        $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'super_admin'");
+    }
+    return (int)$stmt->fetchColumn();
 }
 
 // Capitalize the first letter of each word of a name, e.g.

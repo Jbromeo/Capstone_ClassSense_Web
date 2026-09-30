@@ -32,6 +32,14 @@ if (!in_array($role, ['teacher', 'student'])) {
 
 $pdo = getPDO();
 
+// Student self-registration stays public (gated by pre-approval below).
+// Teacher accounts may only be provisioned by an authenticated admin/super admin.
+$actorUid = null;
+if ($role === 'teacher') {
+    $actorUid = verifyToken();
+    requireAdmin($pdo, $actorUid);
+}
+
 // Check by username OR student_id for uniqueness
 $stmt = $pdo->prepare("SELECT 1 FROM users WHERE username = ? OR (student_id IS NOT NULL AND student_id = ?)");
 $stmt->execute([$username, $username]);

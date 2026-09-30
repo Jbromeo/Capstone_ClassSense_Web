@@ -5,12 +5,17 @@ require_once __DIR__ . '/../config.php';
 $uid = verifyToken();
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = getPDO();
+$callerRole = requireAdmin($pdo, $uid);
 
 // --- GET: list all pre-approved student IDs ---
 if ($method === 'GET') {
     $stmt = $pdo->query("
         SELECT p.id, p.student_id, p.created_at, p.used_at,
-               u.first_name, u.last_name, u.username, u.uid
+               u.first_name, u.last_name, u.username, u.uid,
+               CASE WHEN EXISTS (
+                   SELECT 1 FROM deletion_requests dr
+                   WHERE dr.target_uid = u.uid AND dr.status = 'pending'
+               ) THEN 1 ELSE 0 END AS deletion_pending
         FROM pre_approved_students p
         LEFT JOIN users u ON u.student_id = p.student_id AND u.role = 'student'
         ORDER BY p.created_at DESC
@@ -28,6 +33,7 @@ if ($method === 'GET') {
             'last_name' => $r['last_name'] ?? '',
             'email' => $r['username'] ?? '',
             'uid' => $r['uid'] ?? '',
+            'deletion_pending' => (bool)$r['deletion_pending'],
         ];
     }
     jsonResponse($results);
@@ -69,7 +75,6 @@ if ($method === 'POST') {
         'total' => count($ids),
     ], 201);
 }
-
 // --- DELETE: remove or reset a pre-approved ID ---
 if ($method === 'DELETE') {
     $targetId = $_GET['id'] ?? null;
@@ -78,16 +83,21 @@ if ($method === 'DELETE') {
     $reset = isset($_GET['reset']) && $_GET['reset'] === '1';
 
     if ($reset) {
+        // Resetting deletes the linked student account, so it is super-admin only.
+        requireSuperAdmin($pdo, $uid);
+
         // Get the student_id before clearing
         $stmt = $pdo->prepare("SELECT student_id FROM pre_approved_students WHERE id = ?");
         $stmt->execute([(int)$targetId]);
         $entry = $stmt->fetch();
         if (!$entry) jsonResponse(['error' => 'Not found'], 404);
 
+        $deletedStudent = null;
+
         // Delete the linked student account (if one exists)
         if (!empty($entry['student_id'])) {
             // Get the student UID before deleting
-            $stmt = $pdo->prepare("SELECT uid FROM users WHERE student_id = ? AND role = 'student'");
+            $stmt = $pdo->prepare("SELECT uid, username FROM users WHERE student_id = ? AND role = 'student'");
             $stmt->execute([$entry['student_id']]);
             $student = $stmt->fetch();
 
@@ -96,6 +106,7 @@ if ($method === 'DELETE') {
 
             // Clean up orphaned enrollments
             if ($student && !empty($student['uid'])) {
+                $deletedStudent = $student;
                 $pdo->prepare("DELETE FROM class_students WHERE student_uid = ?")
                     ->execute([$student['uid']]);
             }
@@ -107,9 +118,58 @@ if ($method === 'DELETE') {
 
         jsonResponse(['success' => true, 'action' => 'reset']);
     } else {
+        // Fetch the entry and its linked student (if any) before deleting.
+        $stmt = $pdo->prepare("SELECT student_id FROM pre_approved_students WHERE id = ?");
+        $stmt->execute([(int)$targetId]);
+        $entry = $stmt->fetch();
+        if (!$entry) jsonResponse(['error' => 'Not found'], 404);
+
+        $linkedStudent = null;
+        if (!empty($entry['student_id'])) {
+            $stmt = $pdo->prepare("SELECT uid, username, first_name, last_name FROM users WHERE student_id = ? AND role = 'student'");
+            $stmt->execute([$entry['student_id']]);
+            $linkedStudent = $stmt->fetch();
+        }
+
+        // Used entry + regular admin: do not silently remove. File a deletion
+        // request instead; the super admin's approval deletes the account and
+        // this entry.
+        if ($linkedStudent && $callerRole !== 'super_admin') {
+            $stmt = $pdo->prepare("SELECT 1 FROM deletion_requests WHERE target_uid = ? AND status = 'pending'");
+            $stmt->execute([$linkedStudent['uid']]);
+            if ($stmt->fetch()) {
+                jsonResponse(['error' => 'A deletion request for this student is already pending'], 409);
+            }
+
+            $stmt = $pdo->prepare("SELECT username FROM users WHERE uid = ?");
+            $stmt->execute([$uid]);
+            $requesterName = $stmt->fetchColumn() ?: '';
+
+            $targetName = trim(($linkedStudent['first_name'] ?? '') . ' ' . ($linkedStudent['last_name'] ?? ''));
+            $reason = 'Removed from pre-approved list by admin (Student ID ' . $entry['student_id'] . ')';
+
+            $stmt = $pdo->prepare("INSERT INTO deletion_requests (target_uid, target_username, target_role, target_name, requested_by, requested_username, reason) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$linkedStudent['uid'], $linkedStudent['username'], 'student', $targetName, $uid, $requesterName, $reason]);
+            $requestId = (int)$pdo->lastInsertId();
+
+            $saStmt = $pdo->query("SELECT uid FROM users WHERE role = 'super_admin'");
+            foreach ($saStmt->fetchAll() as $row) {
+                sendNotification(
+                    $row['uid'],
+                    'deletion_request',
+                    'Deletion Request',
+                    "{$requesterName} requested deletion of {$targetName} (student).",
+                    '../admin_screen/deletion_requests.php'
+                );
+            }
+
+            jsonResponse(['success' => true, 'action' => 'requested', 'request_id' => $requestId], 201);
+        }
+
         $stmt = $pdo->prepare("DELETE FROM pre_approved_students WHERE id = ?");
         $stmt->execute([(int)$targetId]);
         if ($stmt->rowCount() === 0) jsonResponse(['error' => 'Not found'], 404);
+
         jsonResponse(['success' => true, 'action' => 'deleted']);
     }
 }

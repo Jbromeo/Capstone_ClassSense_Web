@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config.php';
 $uid = verifyToken();
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = getPDO();
+requireAdmin($pdo, $uid);
 
 // --- GET: list students ---
 if ($method === 'GET') {

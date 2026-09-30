@@ -4,6 +4,7 @@ require_once __DIR__ . '/config.php';
 
 $uid = verifyToken();
 $pdo = getPDO();
+requireAdmin($pdo, $uid);
 
 $teacherCount = (int)$pdo->query("SELECT COUNT(*) as cnt FROM users WHERE role = 'teacher'")->fetch()['cnt'];
 $studentCount = (int)$pdo->query("SELECT COUNT(*) as cnt FROM users WHERE role = 'student'")->fetch()['cnt'];

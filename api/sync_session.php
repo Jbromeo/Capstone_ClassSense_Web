@@ -23,7 +23,7 @@ if ($data && isset($data['uid']) && isset($data['role'])) {
     $_SESSION['last_activity'] = time();
 
     $dashboard = 'login.php?error=unauthorized_role';
-    if ($data['role'] === 'admin')
+    if ($data['role'] === 'admin' || $data['role'] === 'super_admin')
         $dashboard = 'admin_screen/admin_dashboard.php';
     if ($data['role'] === 'teacher')
         $dashboard = 'teacher_screen/teacher_dashboard.php';

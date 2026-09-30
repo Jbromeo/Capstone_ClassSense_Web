@@ -15,7 +15,7 @@ if ($method === 'GET') {
     //  - a student may only read their OWN attendance,
     //  - a teacher may only read attendance for classes they own,
     //  - any enrolled student may read their own records within a class.
-    $isAdmin = ($uid && (fetchUserRole($pdo, $uid) === 'admin'));
+    $isAdmin = ($uid && in_array(fetchUserRole($pdo, $uid), ['admin', 'super_admin'], true));
 
     if ($classId && $date && $studentUid) {
         if (!$isAdmin && $studentUid !== $uid) {
@@ -146,7 +146,7 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'manual requires student_uid and a valid status (Present/Late/Absent)'], 400);
         }
 
-        $isAdmin = ($uid && fetchUserRole($pdo, $uid) === 'admin');
+        $isAdmin = ($uid && in_array(fetchUserRole($pdo, $uid), ['admin', 'super_admin'], true));
         $stmt = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
         $stmt->execute([$classId]);
         $class = $stmt->fetch();
@@ -342,7 +342,7 @@ if ($method === 'DELETE') {
         jsonResponse(['error' => 'Missing class_id'], 400);
     }
 
-    $isAdmin = ($uid && (fetchUserRole($pdo, $uid) === 'admin'));
+    $isAdmin = ($uid && in_array(fetchUserRole($pdo, $uid), ['admin', 'super_admin'], true));
     if (!$isAdmin) {
         $t = $pdo->prepare("SELECT teacher_uid FROM classes WHERE id = ?");
         $t->execute([$classId]);

@@ -366,6 +366,39 @@ $queries = [
 
     "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'fk_notifications_recipient' AND parent_object_id = OBJECT_ID('notifications'))
     ALTER TABLE notifications ADD CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_uid) REFERENCES users(uid) ON DELETE CASCADE",
+
+    "-- Account deletion requests: admins file them, the super admin approves/rejects.
+    -- Snapshot columns (no FK) so a direct super-admin delete cannot orphan the row.",
+    "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='deletion_requests' AND xtype='U')
+    CREATE TABLE deletion_requests (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        target_uid VARCHAR(128) NOT NULL,
+        target_username NVARCHAR(255) NULL,
+        target_role NVARCHAR(20) NULL,
+        target_name NVARCHAR(255) NULL,
+        requested_by VARCHAR(128) NOT NULL,
+        requested_username NVARCHAR(255) NULL,
+        reason NVARCHAR(500) NULL,
+        status NVARCHAR(20) NOT NULL DEFAULT 'pending',
+        requested_at DATETIME DEFAULT GETDATE(),
+        resolved_by VARCHAR(128) NULL,
+        resolved_at DATETIME NULL
+    )",
+
+    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_deletion_requests_status')
+    CREATE INDEX idx_deletion_requests_status ON deletion_requests(status, requested_at)",
+
+    "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_deletion_requests_target')
+    CREATE INDEX idx_deletion_requests_target ON deletion_requests(target_uid)",
+
+    "-- Audit trail feature removed. Drop the legacy table (idempotent).",
+    "IF OBJECT_ID('audit_logs', 'U') IS NOT NULL DROP TABLE audit_logs",
+
+    "-- Seed the super admin account (idempotent). Default password: 123456
+    -- (bcrypt). role_type MUST be 'super_admin' or the role-tamper guard 404s it.",
+    "IF NOT EXISTS (SELECT 1 FROM users WHERE username = 'super_admin')
+    INSERT INTO users (uid, username, password_hash, role, role_type, first_name, last_name)
+    VALUES ('superadmin', 'super_admin', '\$2y\$10\$hYjLhAbqvtxt/C7mprA8yOOdw9a2eRMkAvOGs2byje34eMbfeldBK', 'super_admin', 'super_admin', 'Super', 'Admin')",
 ];
 
 // ---------------------------------------------------------------------

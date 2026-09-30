@@ -452,6 +452,19 @@ html.dark .border-blue-500\/20, html:not(.dark) .border-blue-500\/20,
 html.dark .border-blue-500\/30, html:not(.dark) .border-blue-500\/30 { border-color: var(--ut-info-line); }
 html.dark .border-purple-500\/20, html:not(.dark) .border-purple-500\/20 { border-color: var(--ut-royal-line); }
 
+/* Super Admin accents (sidebar + super-admin-only pages) */
+html.dark .text-amber-500\/80, html:not(.dark) .text-amber-500\/80 { color: var(--ut-warning); }
+html.dark .text-primary-400, html:not(.dark) .text-primary-400 { color: var(--ut-danger); }
+html.dark .bg-amber-500\/5, html:not(.dark) .bg-amber-500\/5,
+html.dark .bg-amber-500\/20, html:not(.dark) .bg-amber-500\/20 { background-color: var(--ut-warning-bg); }
+html.dark .border-amber-500\/20, html:not(.dark) .border-amber-500\/20 { border-color: var(--ut-warning-line); }
+html.dark .bg-primary-500\/5, html:not(.dark) .bg-primary-500\/5,
+html.dark .bg-primary-500\/10, html:not(.dark) .bg-primary-500\/10 { background-color: var(--ut-danger-bg); }
+html.dark .border-primary-500\/20, html:not(.dark) .border-primary-500\/20 { border-color: var(--ut-danger-line); }
+html.dark .bg-purple-600\/20, html:not(.dark) .bg-purple-600\/20 { background-color: var(--ut-royal-bg); }
+html.dark .group:hover .group-hover\:text-amber-400, html:not(.dark) .group:hover .group-hover\:text-amber-400 { color: var(--ut-warning); }
+html.dark .group:hover .group-hover\:text-primary-400, html:not(.dark) .group:hover .group-hover\:text-primary-400 { color: var(--ut-danger); }
+
 /* Modal dimmers: keep dark in light mode so overlays stay legible */
 html:not(.dark) .backdrop-blur-md.bg-dark-bg\/40 { background-color: var(--ut-scrim-40); }
 html:not(.dark) .backdrop-blur-md.bg-dark-bg\/60 { background-color: var(--ut-scrim-60); }

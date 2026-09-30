@@ -110,7 +110,7 @@ else {
 
     if ($db_role !== null) {
         $session_role = $_SESSION['role'] ?? null;
-        $valid_roles = ['admin', 'teacher', 'student'];
+        $valid_roles = ['super_admin', 'admin', 'teacher', 'student'];
         $mismatch = !in_array($db_role, $valid_roles, true) || $db_role !== $session_role;
         // Tamper layer: only compare when role_type holds a valid reference
         // (NULL/invalid = no evidence of tampering, don't false-positive).
@@ -125,11 +125,31 @@ else {
         }
     }
 
+    // 4b. Session revocation: the super admin can reset an admin's password,
+    // which deletes every API token in the sessions table. If no valid token
+    // remains for this uid, the PHP page session is dead too (fail-open on DB
+    // errors so an unavailable DB never locks everyone out).
+    if ($cfg) {
+        try {
+            $stmt = $connect()->prepare("SELECT 1 FROM sessions WHERE uid = ? AND expires_at > GETDATE()");
+            $stmt->execute([$_SESSION['uid']]);
+            if (!$stmt->fetchColumn()) {
+                error_log('[init] session revoked (no valid token) for uid=' . $_SESSION['uid']);
+                session_unset();
+                session_destroy();
+                header("Location: " . ROOT_URL . "login.php?status=session_expired");
+                exit();
+            }
+        } catch (Throwable $e) {
+            error_log('[init] session revocation check skipped: ' . $e->getMessage());
+        }
+    }
+
     // Role-Based Router Filter: Ensures you can only access your own folder
     $path = $_SERVER['REQUEST_URI'];
     $role = $_SESSION['role'] ?? 'guest'; // Default to guest if not synced yet
 
-    if (strpos($path, 'admin_screen') !== false && $role !== 'admin') {
+    if (strpos($path, 'admin_screen') !== false && $role !== 'admin' && $role !== 'super_admin') {
         error_log('[init] PROTECTED GATE: forbidden_admin');
         header("Location: " . ROOT_URL . "login.php?error=forbidden_admin");
         exit();

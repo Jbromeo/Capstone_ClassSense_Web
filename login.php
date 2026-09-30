@@ -1,3 +1,4 @@
+<?php header('ngrok-skip-browser-warning: 1'); ?>
 <!-- login.php -->
 <!DOCTYPE html>
 <html lang="en" class="dark">
@@ -140,7 +141,7 @@
     </script>
 
     <script type="module">
-        import { auth, signInWithEmailAndPassword, onAuthStateChanged, customSignIn } from './assets/js/custom-auth.js';
+        import { customSignIn } from './assets/js/custom-auth.js';
 
         const loginForm = document.getElementById('loginForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -175,51 +176,25 @@
                 }, 7000);
 
                 try {
-                    if (username === 'admin@gmail.com') {
-                        console.log('[login] admin path');
-                        const fullEmail = username.includes('@') ? username : `${username}@classsense.com`;
-                        console.log('[login] calling signInWithEmailAndPassword');
-                        const userCredential = await signInWithEmailAndPassword(auth, fullEmail, password);
-                        const user = userCredential.user;
-                        console.log('[login] Firebase login success, uid:', user.uid);
-                        clearTimeout(timeoutGuard);
-                        btnText.textContent = 'Syncing session...';
-                        console.log('[login] getting idToken');
-                        const idToken = await user.getIdToken();
-                        console.log('[login] got idToken:', idToken.substring(0, 20) + '...');
-                        const syncRes = await fetch('/ClassSense/api/sync_session.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ uid: user.uid, role: 'admin' })
-                        });
-                        const syncData = await syncRes.json();
-                        console.log('[login] sync_session result:', syncData);
-                        if (!syncRes.ok) throw new Error('Session sync failed');
-                        if (syncData.token) {
-                            sessionStorage.setItem('cs_token', syncData.token);
-                            console.log('[login] cs_token stored for admin');
-                        }
-                        console.log('[login] sync_session ok, redirecting');
+                    console.log('[login] custom sign-in path');
+                    const result = await customSignIn(username, password);
+                    const role = result.role;
+                    console.log('[login] customSignIn success, role:', role);
+                    clearTimeout(timeoutGuard);
+                    btnText.textContent = 'Syncing session...';
+                    await fetch('/ClassSense/api/sync_session.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ uid: result.uid, role: result.role })
+                    });
+                    if (role === 'admin' || role === 'super_admin') {
                         window.location.replace('/ClassSense/admin_screen/admin_dashboard.php');
+                    } else if (role === 'teacher') {
+                        window.location.replace('/ClassSense/teacher_screen/teacher_dashboard.php');
+                    } else if (role === 'student') {
+                        window.location.replace('/ClassSense/student_screen/student_dashboard.php');
                     } else {
-                        console.log('[login] non-admin path');
-                        const result = await customSignIn(username, password);
-                        const role = result.role;
-                        console.log('[login] customSignIn success, role:', role);
-                        clearTimeout(timeoutGuard);
-                        btnText.textContent = 'Syncing session...';
-                        await fetch('/ClassSense/api/sync_session.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ uid: result.uid, role: result.role })
-                        });
-                        if (role === 'teacher') {
-                            window.location.replace('/ClassSense/teacher_screen/teacher_dashboard.php');
-                        } else if (role === 'student') {
-                            window.location.replace('/ClassSense/student_screen/student_dashboard.php');
-                        } else {
-                            showStatus('Unknown role', 'error');
-                        }
+                        showStatus('Unknown role', 'error');
                     }
                 } catch (error) {
                     clearTimeout(timeoutGuard);
