@@ -1,0 +1,10 @@
+{
+    "db_host": "localhost",
+    "db_user": "sa",
+    "db_pass": "Administrator01",
+    "db_name": "ClassSense",
+    "firebase_api_key": "AIzaSyA9rXCyXcOrKrIj4tssFh2weSJTlhiDjUU",
+    "firebase_project_id": "class-sense-9def0",
+    "fcm_vapid_key": "BMZfdzG6J9wY1fLwoAtKJYUlCIvDCTA5vS0H8XweJTIIeRbihrWPeASrPAoqbFIjJ6vaH2zrDRc6UNBMED5qMP0",
+    "fcm_service_account_path": "C:/ClassSense-secrets/firebase-service-account.json"
+}
