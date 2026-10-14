@@ -352,7 +352,9 @@
                             role: data.role,
                             firstName: data.fname,
                             lastName: data.lname,
-                            studentId: data.role === 'student' ? data.user_id : null
+                            studentId: data.role === 'student' ? data.user_id : null,
+                            phone: data.phone,
+                            guardianPhone: data.guardian_phone
                         })
                     });
 

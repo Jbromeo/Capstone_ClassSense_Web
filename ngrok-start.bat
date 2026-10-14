@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM ngrok-start.bat - Start a public ngrok tunnel for ClassSense
 cd /d "C:\xampp\htdocs\ClassSense"
 
@@ -11,7 +12,25 @@ if errorlevel 1 (
 )
 echo [OK] Apache is running.
 
-REM If ngrok is already running (local API on port 4040), reuse it
+REM --- Locate ngrok.exe (full path first, then PATH, skipping the Store alias) ---
+set "NGROK_EXE="
+if exist "C:\Users\Public\ngrok\ngrok.exe" set "NGROK_EXE=C:\Users\Public\ngrok\ngrok.exe"
+if not defined NGROK_EXE (
+  for /f "delims=" %%P in ('where ngrok 2^>nul') do (
+    echo %%P | findstr /i "WindowsApps" >nul
+    if errorlevel 1 if not defined NGROK_EXE set "NGROK_EXE=%%P"
+  )
+)
+if not defined NGROK_EXE (
+  echo [ERROR] A usable ngrok.exe was not found.
+  echo   Expected at C:\Users\Public\ngrok\ngrok.exe
+  echo   Install the standalone ngrok from ngrok.com/download ^(the
+  echo   Microsoft Store version cannot be launched by this script^).
+  pause
+  exit /b 1
+)
+
+REM --- If ngrok is already running (local API on port 4040), reuse it ---
 curl -s -o NUL --max-time 2 http://127.0.0.1:4040/api/tunnels
 if not errorlevel 1 (
   echo [INFO] ngrok is already running - grabbing its URL.
@@ -19,22 +38,29 @@ if not errorlevel 1 (
 )
 
 echo Starting ngrok in a minimized window...
-start "ClassSense ngrok" /min cmd /c "ngrok http 80"
+start "ClassSense ngrok" /min cmd /c ""%NGROK_EXE%" http 80 --url https://wriggle-traps-hankie.ngrok-free.dev"
 
 :grab_url
-REM Wait for the tunnel, then read the public URL from ngrok's local API
 set "TUNNEL_URL="
-for /l %%i in (1,1,10) do (
-  for /f "usebackq delims=" %%U in (`powershell -NoProfile -Command "$t = Invoke-RestMethod -Uri 'http://127.0.0.1:4040/api/tunnels' -TimeoutSec 2; if ($t.tunnels.Count -gt 0) { $t.tunnels[0].public_url } else { '' }"`) do set "TUNNEL_URL=%%U"
+for /l %%i in (1,1,15) do (
+  for /f "usebackq delims=" %%U in (`powershell -NoProfile -Command "try { $t = Invoke-RestMethod -Uri 'http://127.0.0.1:4040/api/tunnels' -TimeoutSec 2; if ($t.tunnels.Count -gt 0 -and $t.tunnels[0].public_url) { $t.tunnels[0].public_url } } catch { }"`) do set "TUNNEL_URL=%%U"
   if defined TUNNEL_URL goto :got_url
   timeout /t 2 /nobreak >nul
 )
-echo [ERROR] Could not read the ngrok URL. Check the minimized ngrok window.
+
+:no_url
+echo.
+echo [ERROR] ngrok did not produce a public URL.
+echo   The minimized ngrok window shows the reason. Common causes:
+echo     - the ngrok authtoken is not configured
+echo     - this free account already has another ngrok running
+echo       ^(only one ngrok agent at a time on a free account^)
+echo     - no internet connection
 pause
 exit /b 1
 
 :got_url
-REM Copy the URL to the clipboard and open the site in the browser
+if not defined TUNNEL_URL goto :no_url
 echo %TUNNEL_URL% | clip
 echo.
 echo ============================================================

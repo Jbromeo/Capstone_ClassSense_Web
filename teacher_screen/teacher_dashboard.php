@@ -365,47 +365,45 @@ require_once dirname(__DIR__) . '/core/init.php';
                 );
                 const allRecords = recordsPerClass.flat();
 
+                // Active (non-deactivated) enrolled students, so deactivated accounts
+                // don't count toward the rate (numerator or denominator).
+                const allUids = [...new Set(classes.flatMap(c => c.students || []))];
+                let activeUids = new Set(allUids);
+                try {
+                    const students = await api('/fetch.php', {
+                        method: 'POST',
+                        body: JSON.stringify({ collection: 'students', uids: allUids })
+                    });
+                    activeUids = new Set(students.filter(s => (s.active == null || s.active !== 0)).map(s => s.uid));
+                } catch (e) { /* fall back to treating everyone as active */ }
+
+                // Last-7-days window via date-string comparison (avoids timezone drift).
                 const now = new Date();
-                const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                const prevWeek = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+                const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
 
-                const lastWeekRecords = allRecords.filter(r => {
-                    const d = r.date ? new Date(r.date) : null;
-                    return d && d >= lastWeek;
+                const lastWeekRecords = allRecords.filter(r => (r.date || '') >= cutoffStr);
+
+                const ATTENDED = ['Present', 'Late'];
+                const attended = lastWeekRecords.filter(r =>
+                    ATTENDED.includes(r.status) && activeUids.has(r.student_uid)
+                );
+
+                // Sessions = distinct (class_id, date) with at least one record.
+                const sessions = new Set(lastWeekRecords.map(r => `${r.class_id}_${r.date}`));
+
+                let totalPossible = 0;
+                sessions.forEach(key => {
+                    const classId = key.split('_')[0];
+                    const classData = classes.find(c => c.id === classId);
+                    if (classData && classData.students) {
+                        totalPossible += classData.students.filter(uid => activeUids.has(uid)).length;
+                    }
                 });
-                const prevWeekRecords = allRecords.filter(r => {
-                    const d = r.date ? new Date(r.date) : null;
-                    return d && d >= prevWeek && d < lastWeek;
-                });
 
-                const calcAvg = (records) => {
-                    if (records.length === 0) return 0;
+                const rate = totalPossible > 0 ? (attended.length / totalPossible) * 100 : 0;
 
-                    const sessions = {};
-                    records.forEach(r => {
-                        const key = `${r.class_id}_${r.date}`;
-                        if (!sessions[key]) sessions[key] = 0;
-                        sessions[key]++;
-                    });
-
-                    let totalPossible = 0;
-                    Object.keys(sessions).forEach(key => {
-                        const classId = key.split('_')[0];
-                        const classData = classes.find(c => c.id === classId);
-                        if (classData && classData.students) {
-                            totalPossible += classData.students.length;
-                        }
-                    });
-
-                    return totalPossible > 0 ? (records.length / totalPossible) * 100 : 0;
-                };
-
-                const lastWeekAvg = calcAvg(lastWeekRecords);
-                const prevWeekAvg = calcAvg(prevWeekRecords);
-
-                const avgDisplay = document.getElementById('statAvgAttendance');
-
-                avgDisplay.textContent = `${Math.round(lastWeekAvg)}%`;
+                document.getElementById('statAvgAttendance').textContent = `${Math.round(rate)}%`;
                 feather.replace();
 
             } catch (err) {

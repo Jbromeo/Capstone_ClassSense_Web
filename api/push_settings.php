@@ -28,6 +28,19 @@ if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     if (!$data) jsonResponse(['error' => 'Invalid body'], 400);
 
+    // Rebind: reassign a device token to the current user. FCM tokens are
+    // per-browser, so on login the token must follow whoever is logged in now —
+    // never a previously-logged-in account on the same shared device.
+    if (($data['action'] ?? '') === 'rebind') {
+        $token = trim((string)($data['token'] ?? ''));
+        if ($token === '') jsonResponse(['error' => 'Missing token'], 400);
+        $del = $pdo->prepare("DELETE FROM push_subscriptions WHERE token = ?");
+        $del->execute([$token]);
+        $ins = $pdo->prepare("INSERT INTO push_subscriptions (uid, token) VALUES (?, ?)");
+        $ins->execute([$uid, $token]);
+        jsonResponse(['success' => true]);
+    }
+
     $enabled = !empty($data['enabled']);
     $token = trim((string)($data['token'] ?? ''));
 
@@ -36,12 +49,12 @@ if ($method === 'POST') {
 
     if ($enabled) {
         if ($token === '') jsonResponse(['error' => 'Missing token'], 400);
-        $check = $pdo->prepare("SELECT 1 FROM push_subscriptions WHERE token = ?");
-        $check->execute([$token]);
-        if (!$check->fetch()) {
-            $stmt = $pdo->prepare("INSERT INTO push_subscriptions (uid, token) VALUES (?, ?)");
-            $stmt->execute([$uid, $token]);
-        }
+        // Whoever enables last on this device owns the token — remove any other
+        // account's ownership of it, then bind it to this user.
+        $del = $pdo->prepare("DELETE FROM push_subscriptions WHERE token = ?");
+        $del->execute([$token]);
+        $ins = $pdo->prepare("INSERT INTO push_subscriptions (uid, token) VALUES (?, ?)");
+        $ins->execute([$uid, $token]);
     } else {
         // Master switch OFF: no device receives pushes. Clear all registered tokens.
         $stmt = $pdo->prepare("DELETE FROM push_subscriptions WHERE uid = ?");

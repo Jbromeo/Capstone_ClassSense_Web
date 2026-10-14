@@ -19,6 +19,9 @@ if (($_SESSION['role'] ?? '') !== 'super_admin') {
         #passwordModal { pointer-events: none; }
         #passwordModal.show { opacity: 1; pointer-events: auto; }
         #passwordModal.show > div:last-child { transform: scale(1); }
+        #createModal { pointer-events: none; }
+        #createModal.show { opacity: 1; pointer-events: auto; }
+        #createModal.show > div:last-child { transform: scale(1); }
         .animate-scale-up { transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
     </style>
 </head>
@@ -49,6 +52,9 @@ if (($_SESSION['role'] ?? '') !== 'super_admin') {
                             <h3 class="text-lg font-bold text-white">Administrators</h3>
                             <p class="text-[10px] text-gray-500 uppercase tracking-widest italic font-bold">Reset a password to immediately sign that admin out of every device</p>
                         </div>
+                        <button id="newAdminBtn" class="ml-auto px-4 py-2.5 bg-amber-500 hover:bg-amber-600 rounded-xl text-[10px] font-black text-dark-bg uppercase tracking-widest italic transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2">
+                            <i data-feather="plus" class="w-3.5 h-3.5"></i> New Admin
+                        </button>
                     </div>
 
                     <div id="adminList" class="divide-y divide-dark-border">
@@ -77,6 +83,24 @@ if (($_SESSION['role'] ?? '') !== 'super_admin') {
         </div>
     </div>
 
+    <!-- Create Admin Modal -->
+    <div id="createModal" class="fixed inset-0 z-[100] flex items-center justify-center hidden opacity-0 transition-all duration-300">
+        <div class="absolute inset-0 bg-dark-bg/60 backdrop-blur-md"></div>
+        <div class="glass-panel w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-[0_20px_50px_rgba(245,158,11,0.2)] animate-scale-up relative z-10 text-center">
+            <div class="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-amber-500/20">
+                <i data-feather="user-plus" class="w-10 h-10 text-amber-400"></i>
+            </div>
+            <h3 class="text-2xl font-black text-white italic mb-2 tracking-tight uppercase tracking-tighter">Create Admin</h3>
+            <p class="text-gray-400 text-sm mb-6 leading-relaxed font-bold">A new admin account with login username <span id="createUsername" class="text-white italic font-black">admin</span> will be created.</p>
+            <input type="password" id="createPasswordInput" minlength="6" class="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder-gray-600 mb-2" placeholder="Password (min 6 chars)">
+            <input type="password" id="createConfirmInput" minlength="6" class="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder-gray-600 mb-4" placeholder="Confirm password">
+            <div class="space-y-3">
+                <button id="confirmCreateBtn" class="w-full py-4 bg-amber-500 hover:bg-amber-600 rounded-2xl font-black text-dark-bg transition-all shadow-lg shadow-amber-500/20 uppercase tracking-[0.2em] italic text-xs leading-none">Create Account</button>
+                <button id="cancelCreateBtn" class="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold text-gray-500 hover:text-white transition-all text-xs uppercase tracking-widest leading-none">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>window.CURRENT_UID = <?php echo json_encode($_SESSION['uid'] ?? ''); ?>;</script>
     <script type="module">
         import { api, initPage } from '../assets/js/custom-auth.js';
@@ -90,6 +114,14 @@ if (($_SESSION['role'] ?? '') !== 'super_admin') {
         const cancelBtn = document.getElementById('cancelPasswordBtn');
         const currentUid = window.CURRENT_UID;
         let passwordTarget = null;
+
+        const createModal = document.getElementById('createModal');
+        const createUsername = document.getElementById('createUsername');
+        const createPasswordInput = document.getElementById('createPasswordInput');
+        const createConfirmInput = document.getElementById('createConfirmInput');
+        const confirmCreateBtn = document.getElementById('confirmCreateBtn');
+        const cancelCreateBtn = document.getElementById('cancelCreateBtn');
+        const newAdminBtn = document.getElementById('newAdminBtn');
 
         window.showStatus = (message, type = 'error') => {
             const container = document.getElementById('toastContainer');
@@ -117,7 +149,7 @@ if (($_SESSION['role'] ?? '') !== 'super_admin') {
                                 ${(a.firstName || a.username || 'A')[0].toUpperCase()}
                             </div>
                             <div class="min-w-0">
-                                <p class="text-sm font-black text-white italic uppercase tracking-tight truncate">${a.firstName || ''} ${a.lastName || ''} ${a.isSelf ? '<span class="text-[9px] text-green-400">(you)</span>' : ''}</p>
+                                <p class="text-sm font-black text-white italic uppercase tracking-tight truncate">${a.firstName ? `${a.firstName} ${a.lastName || ''}` : a.username} ${a.isSelf ? '<span class="text-[9px] text-green-400">(you)</span>' : ''}</p>
                                 <p class="text-[10px] text-gray-500 font-bold tracking-widest truncate">${a.username}</p>
                                 <p class="text-[9px] font-black uppercase tracking-widest mt-1 ${a.role === 'super_admin' ? 'text-amber-400' : 'text-purple-400'}">${a.role === 'super_admin' ? 'Super Admin' : 'Admin'}</p>
                             </div>
@@ -188,6 +220,49 @@ if (($_SESSION['role'] ?? '') !== 'super_admin') {
                 load();
             } catch (err) {
                 window.showStatus(err.message || 'Delete failed.');
+            }
+        };
+
+        const openCreateModal = async () => {
+            createUsername.textContent = 'admin';
+            createPasswordInput.value = '';
+            createConfirmInput.value = '';
+            createModal.classList.remove('hidden');
+            setTimeout(() => createModal.classList.add('show'), 10);
+            try {
+                const { username } = await api('/admin/manage_admins.php?suggest=1');
+                createUsername.textContent = username;
+            } catch (err) {
+                window.showStatus(err.message || 'Failed to suggest username.');
+            }
+        };
+
+        const closeCreateModal = () => {
+            createModal.classList.remove('show');
+            setTimeout(() => createModal.classList.add('hidden'), 300);
+        };
+
+        newAdminBtn.onclick = openCreateModal;
+        cancelCreateBtn.onclick = closeCreateModal;
+
+        confirmCreateBtn.onclick = async () => {
+            const password = createPasswordInput.value;
+            if (password.length < 6) return window.showStatus('Password must be at least 6 characters.');
+            if (password !== createConfirmInput.value) return window.showStatus('Passwords do not match.');
+
+            confirmCreateBtn.disabled = true;
+            try {
+                const result = await api('/admin/manage_admins.php', {
+                    method: 'PUT',
+                    body: JSON.stringify({ password })
+                });
+                closeCreateModal();
+                window.showStatus(`Admin ${result.username} created.`, 'success');
+                load();
+            } catch (err) {
+                window.showStatus(err.message || 'Create failed.');
+            } finally {
+                confirmCreateBtn.disabled = false;
             }
         };
 

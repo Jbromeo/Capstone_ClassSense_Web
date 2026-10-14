@@ -146,7 +146,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
 
         // Live AI-generation countdown: a queued regeneration shows the time left
-        // in the 5-minute debounce window, then "Generating…" while the worker
+        // in the 2-minute debounce window, then "Generating…" while the worker
         // runs. Ticks every second; the 30s re-pull clears it once generated.
         function renderInsightCountdown(uid, rec) {
             const el = document.querySelector(`[data-insight-countdown="${uid}"]`);
@@ -158,7 +158,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 return;
             }
             const elapsed = Math.floor((Date.now() - new Date(String(rec.changedAt).replace(' ', 'T')).getTime()) / 1000);
-            const remaining = Math.max(0, 300 - elapsed);
+            const remaining = Math.max(0, 120 - elapsed);
             if (remaining > 0) {
                 const m = Math.floor(remaining / 60);
                 const s = String(remaining % 60).padStart(2, '0');
@@ -270,6 +270,12 @@ require_once dirname(__DIR__) . '/core/init.php';
             // the tab re-fetches the current term's components/grades/weights.
             if (tabName === 'grading' && window.gradingSystem) {
                 window.gradingSystem.refresh();
+            }
+            // Student roster: re-pull insight state immediately so the AI
+            // countdown chip shows up right away after a grade change instead
+            // of waiting for the 30s poll.
+            if (tabName === 'students') {
+                loadInsights(classId);
             }
         };
 
@@ -505,7 +511,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                     const rec = insightsByUid[el.dataset.insightCountdown];
                     renderInsightCountdown(el.dataset.insightCountdown, rec);
                     if (rec && rec.pendingRefresh === 1 && rec.changedAt) {
-                        const remaining = 300 - Math.floor((Date.now() - new Date(String(rec.changedAt).replace(' ', 'T')).getTime()) / 1000);
+                        const remaining = 120 - Math.floor((Date.now() - new Date(String(rec.changedAt).replace(' ', 'T')).getTime()) / 1000);
                         if (remaining <= 0) anyDue = true;
                     }
                 });
@@ -517,8 +523,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                     }, 8000);
                 }
             }, 1000);
-            // Keep countdown state fresh: re-pull insight metadata every 30s
-            setInterval(() => loadInsights(classId), 30000);
+            // Keep countdown state fresh: re-pull insight metadata every 10s
+            setInterval(() => loadInsights(classId), 10000);
         });
 
         document.addEventListener('DOMContentLoaded', () => {

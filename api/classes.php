@@ -134,7 +134,7 @@ if ($method === 'PUT') {
     // Client inputs are filtered through an allowlist; session expiry/limit are
     // SERVER-controlled (not settable by clients) so a scan window can't be
     // forged or extended remotely.
-$allowedFields = ['class_name', 'level', 'section_name', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m', 'last_session_id', 'last_session_ended_at'];
+$allowedFields = ['class_name', 'level', 'section_name', 'schedule', 'start_time', 'end_time', 'time_slot', 'session_limit', 'status', 'session_active', 'session_started_at', 'session_late_minutes', 'current_nonce', 'session_expires_at', 'last_nonce', 'nonce_issued_at', 'session_mode', 'require_location', 'session_lat', 'session_lng', 'session_radius_m', 'last_session_id', 'last_session_ended_at'];
    foreach ($allowedFields as $f) {
         if (array_key_exists($f, $data)) {
             if ($f === 'level' && !in_array($data[$f], ['Junior High School', 'Senior High School'], true)) {
@@ -218,13 +218,17 @@ $allowedFields = ['class_name', 'level', 'section_name', 'schedule', 'start_time
         if (!array_key_exists('session_started_at', $data)) {
             $fields[] = "session_started_at = GETDATE()";
         }
-        // Auto-end timer: the server computes the expiry from the requested
-        // duration (bounded) so a client can't forge a timestamp. No duration
-        // = the session runs until the teacher ends it manually.
-        $duration = isset($data['session_duration_minutes']) ? (int)$data['session_duration_minutes'] : 0;
+    }
+
+    // Auto-end timer: applies on a fresh start OR a resume (teacher picks a new
+    // duration). The server computes the expiry from the requested duration
+    // (bounded) so a client can't forge a timestamp. No duration = the session
+    // runs until the teacher ends it manually. Skipped when ending the session.
+    if (array_key_exists('session_duration_minutes', $data) && $incomingActive !== 0) {
+        $duration = (int)$data['session_duration_minutes'];
         if ($duration > 0) {
             $duration = min(240, $duration);
-            $fields[] = "session_expires_at = DATEADD(MINUTE, ?, GETDATE())";
+            $fields[] = "session_expires_at = DATEADD(MINUTE, CAST(? AS INT), GETDATE())";
             $params[] = $duration;
             $fields[] = "session_limit = ?";
             $params[] = $duration;
@@ -249,8 +253,13 @@ $allowedFields = ['class_name', 'level', 'section_name', 'schedule', 'start_time
     $params[] = $uid;
 
     $sql = "UPDATE classes SET " . implode(', ', $fields) . " WHERE id = ? AND teacher_uid = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+    } catch (PDOException $e) {
+        error_log('classes PUT failed: ' . $e->getMessage());
+        jsonResponse(['error' => 'Failed to update class'], 500);
+    }
 
     if ($stmt->rowCount() === 0) {
         jsonResponse(['error' => 'Class not found or no changes'], 404);

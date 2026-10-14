@@ -143,8 +143,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-400 mb-2 font-black uppercase tracking-widest italic leading-none opacity-60">Email Address</label>
-                                        <input id="inEmail" type="email" placeholder="Email Address" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all italic font-medium">
+                                        <label class="block text-sm font-medium text-gray-400 mb-2 font-black uppercase tracking-widest italic leading-none opacity-60">Username</label>
+                                        <input id="inUsername" type="text" placeholder="Username" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all italic font-medium">
                                     </div>
                                     <div class="flex justify-end">
                                         <button type="submit" class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg transition-all shadow-lg shadow-primary-500/20">
@@ -159,17 +159,21 @@ require_once dirname(__DIR__) . '/core/init.php';
                         <div id="tab-content-security" class="tab-content hidden">
                             <div class="glass-panel rounded-xl p-8 mb-6 animate-fade-in">
                                 <h3 class="text-lg font-bold text-white mb-6">Change Password</h3>
-                                <form class="space-y-6" onsubmit="event.preventDefault(); showToast('Password updated', 'success');">
+                                <form class="space-y-6" onsubmit="event.preventDefault(); window.changePassword();">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-400 mb-2">Current Password</label>
-                                        <input type="password" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="••••••••">
+                                        <input id="inCurrentPassword" type="password" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="••••••••">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-400 mb-2">New Password</label>
-                                        <input type="password" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="••••••••">
+                                        <input id="inNewPassword" type="password" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="••••••••">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-400 mb-2">Confirm New Password</label>
+                                        <input id="inConfirmPassword" type="password" class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 outline-none" placeholder="••••••••">
                                     </div>
                                     <div class="flex justify-end">
-                                        <button type="submit" class="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-all border border-dark-border">
+                                        <button type="submit" class="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg transition-all shadow-lg shadow-primary-500/20">
                                             Update Password
                                         </button>
                                     </div>
@@ -360,11 +364,15 @@ require_once dirname(__DIR__) . '/core/init.php';
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
-            toast.className = `toast flex items-center w-full max-w-xs p-4 space-x-4 text-gray-200 bg-gray-800 rounded-lg shadow-lg border border-gray-700 ${type === 'success' ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-primary-500'}`;
+            const isSuccess = type === 'success';
+            const isError = type === 'error';
+            toast.className = `toast flex items-center w-full max-w-xs p-4 space-x-4 text-gray-200 bg-gray-800 rounded-lg shadow-lg border border-gray-700 ${isSuccess ? 'border-l-4 border-l-green-500' : isError ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-primary-500'}`;
             toast.innerHTML = `
                 <div class="flex-shrink-0">
-                    ${type === 'success' 
+                    ${isSuccess 
                         ? '<svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' 
+                        : isError 
+                        ? '<i data-feather="alert-circle" class="w-5 h-5 text-red-500"></i>'
                         : '<i data-feather="info" class="w-5 h-5 text-primary-500"></i>'}
                 </div>
                 <div class="text-sm font-normal">${message}</div>
@@ -421,6 +429,31 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         };
 
+        window.changePassword = async () => {
+            const current = document.getElementById('inCurrentPassword').value;
+            const next = document.getElementById('inNewPassword').value;
+            const confirm = document.getElementById('inConfirmPassword').value;
+
+            if (!current || !next || !confirm) return showToast('Please fill in all password fields.', 'error');
+            if (next.length < 6) return showToast('New password must be at least 6 characters.', 'error');
+            if (next !== confirm) return showToast('Passwords do not match.', 'error');
+
+            try {
+                showToast('Updating password...', 'info');
+                await api('/change_password.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ current_password: current, new_password: next })
+                });
+                document.getElementById('inCurrentPassword').value = '';
+                document.getElementById('inNewPassword').value = '';
+                document.getElementById('inConfirmPassword').value = '';
+                showToast('Password updated successfully.', 'success');
+            } catch (error) {
+                console.error('Change password error:', error);
+                showToast(error.message || 'Failed to update password.', 'error');
+            }
+        };
+
         // --- Identity Sync Logic ---
         window.handleProfileLoad = (data) => {
             currentUid = data.uid;
@@ -434,7 +467,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                 profileHeader.textContent = data.full_name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Faculty Account';
                 profileHeader.classList.remove('italic');
             }
-            if (profileEmail) profileEmail.textContent = data.email || 'No email provided';
+            if (profileEmail) profileEmail.textContent = data.username || data.email || 'No username';
             
             // Handle Avatar Initials
             if (profileAvatar) {
@@ -446,7 +479,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             const inputs = {
                 'inFirstName': data.firstName,
                 'inLastName': data.lastName,
-                'inEmail': data.email
+                'inUsername': data.username || data.email
             };
 
             for (const [id, value] of Object.entries(inputs)) {

@@ -26,6 +26,20 @@ if (!$stmt->fetch()) {
 // Optional refresh=1 bypasses the cache and forces a live AI generation (web-only).
 $forceRefresh = isset($_GET['refresh']) && $_GET['refresh'] === '1';
 
+// Manual refresh throttle: only allow a forced regeneration once every 10
+// minutes per student, so a student (or a buggy client) can't burn the AI quota.
+if ($forceRefresh) {
+    $lastStmt = $pdo->prepare("SELECT created_at FROM ai_insights WHERE student_uid = ? AND class_id = ?");
+    $lastStmt->execute([$uid, $classId]);
+    $lastRow = $lastStmt->fetch();
+    if ($lastRow && !empty($lastRow['created_at'])) {
+        $lastTs = strtotime(substr($lastRow['created_at'], 0, 19));
+        if ($lastTs !== false && (time() - $lastTs) < 600) {
+            jsonResponse(['error' => 'Please wait a moment before regenerating again.'], 429);
+        }
+    }
+}
+
 $result = generateInsight($uid, $classId, $forceRefresh);
 
 if ($result['ok']) {
@@ -45,5 +59,6 @@ $errorLabels = [
     'ai_not_configured' => 'AI not configured',
     'ai_request_failed' => 'AI request failed',
     'ai_unparseable' => 'AI response unreadable',
+    'ai_quota_exceeded' => 'AI quota exceeded',
 ];
 jsonResponse(['available' => false, 'error' => $errorLabels[$result['error'] ?? ''] ?? 'AI unavailable'], 200);

@@ -19,6 +19,10 @@
                                     <i data-feather="clock" class="w-3 h-3 text-primary-500"></i>
                                     <span id="timerValue" class="text-[10px] font-black text-white italic tracking-widest">--:--</span>
                                 </div>
+                                <div id="lateWindowChip" class="hidden flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
+                                    <i data-feather="clock" class="w-3 h-3 text-amber-500"></i>
+                                    <span id="lateWindowValue" class="text-[10px] font-black text-amber-300 italic tracking-widest">Late after --:--</span>
+                                </div>
                             </div>
                         </div>
                     </div>

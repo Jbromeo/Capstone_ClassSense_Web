@@ -49,6 +49,7 @@ $queries = [
         password_hash NVARCHAR(255) NOT NULL,
         role NVARCHAR(20) NOT NULL,
         role_type NVARCHAR(20) NULL,
+        active BIT NOT NULL DEFAULT 1,
         first_name NVARCHAR(255),
         last_name NVARCHAR(255),
         student_id NVARCHAR(50),
@@ -56,6 +57,9 @@ $queries = [
         profile_picture NVARCHAR(500),
         created_at DATETIME DEFAULT GETDATE()
     )",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('users') AND name = 'active')
+    ALTER TABLE users ADD active BIT NOT NULL DEFAULT 1",
 
     "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='sessions' AND xtype='U')
     CREATE TABLE sessions (
@@ -83,6 +87,7 @@ $queries = [
         status NVARCHAR(50) DEFAULT 'In Progress',
         session_active INT DEFAULT 0,
         session_started_at DATETIME NULL,
+        session_late_minutes INT DEFAULT 5,
         current_nonce NVARCHAR(10) NULL,
         created_at DATETIME DEFAULT GETDATE()
     )",
@@ -142,6 +147,9 @@ $queries = [
 
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_mode')
     ALTER TABLE classes ADD session_mode NVARCHAR(10) DEFAULT 'open'",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'session_late_minutes')
+    ALTER TABLE classes ADD session_late_minutes INT NOT NULL DEFAULT 5",
 
     "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('classes') AND name = 'require_location')
     ALTER TABLE classes ADD require_location INT DEFAULT 0",
@@ -380,10 +388,14 @@ $queries = [
         requested_username NVARCHAR(255) NULL,
         reason NVARCHAR(500) NULL,
         status NVARCHAR(20) NOT NULL DEFAULT 'pending',
+        type NVARCHAR(20) NOT NULL DEFAULT 'delete',
         requested_at DATETIME DEFAULT GETDATE(),
         resolved_by VARCHAR(128) NULL,
         resolved_at DATETIME NULL
     )",
+
+    "IF NOT EXISTS (SELECT * FROM syscolumns WHERE id = OBJECT_ID('deletion_requests') AND name = 'type')
+    ALTER TABLE deletion_requests ADD type NVARCHAR(20) NOT NULL DEFAULT 'delete'",
 
     "IF NOT EXISTS (SELECT * FROM sysindexes WHERE name='idx_deletion_requests_status')
     CREATE INDEX idx_deletion_requests_status ON deletion_requests(status, requested_at)",

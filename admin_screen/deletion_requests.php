@@ -8,7 +8,7 @@ $current_uid = $_SESSION['uid'] ?? '';
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-    <title>ClassSense Admin | Deletion Requests</title>
+    <title>ClassSense Admin | Approval Requests</title>
     <?php include '../includes/head.php'; ?>
     <style>
         .toast { transform: translateX(120%); transition: all 0.4s cubic-bezier(0.68, -0.55, 0.26, 1.55); opacity: 0; }
@@ -28,7 +28,7 @@ $current_uid = $_SESSION['uid'] ?? '';
 
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <header class="h-20 glass-panel border-b border-white/5 flex items-center justify-between px-8 z-20">
-            <h2 class="text-xl font-black text-white tracking-tighter uppercase leading-none">Deletion Requests
+            <h2 class="text-xl font-black text-white tracking-tighter uppercase leading-none">Approval Requests
                 <span class="text-[10px] text-primary-400 font-bold ml-4 uppercase tracking-[0.2em] opacity-60"><?php echo $is_super ? 'Approval Queue' : 'My Requests'; ?></span>
             </h2>
             <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
@@ -53,7 +53,7 @@ $current_uid = $_SESSION['uid'] ?? '';
                             <span id="statCountApproved" class="text-2xl font-black text-white italic tracking-tight">0</span>
                         </div>
                         <p class="text-[10px] font-black text-white uppercase tracking-widest italic mt-3">Approved</p>
-                        <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest italic mt-0.5">Account deleted</p>
+                        <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest italic mt-0.5">Action applied</p>
                     </button>
 
                     <button data-status="rejected" class="stat-tab glass-panel rounded-2xl border border-white/5 p-4 text-left transition-all">
@@ -167,6 +167,13 @@ $current_uid = $_SESSION['uid'] ?? '';
             cancelled:{ label: 'Cancelled', color: 'bg-gray-500/10 text-gray-400 border-gray-500/20' },
         };
 
+        const TYPE_META = {
+            delete:     { label: 'Delete',     color: 'bg-red-500/10 text-red-400 border-red-500/20' },
+            deactivate: { label: 'Deactivate', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+            reactivate: { label: 'Reactivate', color: 'bg-green-500/10 text-green-400 border-green-500/20' },
+            reset:      { label: 'Reset ID',   color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+        };
+
         const STAT_ACTIVE = {
             pending:   ['ring-1', 'ring-amber-500/30', 'bg-amber-500/5'],
             approved:  ['ring-1', 'ring-green-500/30', 'bg-green-500/5'],
@@ -271,6 +278,7 @@ $current_uid = $_SESSION['uid'] ?? '';
         const card = (r) => {
             const role = ROLE_META[r.target_role] || { label: r.target_role || 'Account', color: 'text-gray-400', avatar: 'from-gray-600 to-gray-900' };
             const status = STATUS_META[r.status] || STATUS_META.cancelled;
+            const type = TYPE_META[r.type] || TYPE_META.delete;
             const resolvedLine = (r.status !== 'pending' && r.resolved_by)
                 ? `<p class="text-[10px] text-gray-600 mt-2">${esc(status.label)} by <span class="text-gray-300">${esc(r.resolved_by)}</span> &middot; <span title="${esc(fmtDate(r.resolved_at))}">${timeAgo(r.resolved_at)}</span></p>`
                 : '';
@@ -283,6 +291,7 @@ $current_uid = $_SESSION['uid'] ?? '';
                                 <p class="text-sm font-black text-white italic uppercase tracking-tight">${esc(r.target_name || 'Unknown')}</p>
                                 <span class="text-[9px] font-black uppercase tracking-widest italic ${role.color}">${esc(role.label)}</span>
                                 <span class="px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest italic ${status.color}">${esc(status.label)}</span>
+                                <span class="px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest italic ${type.color}">${esc(type.label)}</span>
                             </div>
                             <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">@${esc(r.target_username || r.target_uid || 'unknown')}</p>
                             <p class="text-xs text-gray-400 mt-2 leading-relaxed">${r.reason ? 'Reason: ' + esc(r.reason) : 'No reason provided'}</p>
@@ -380,14 +389,15 @@ $current_uid = $_SESSION['uid'] ?? '';
             modalIconBox.className = `w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${isApprove ? 'bg-primary-500/10 border-primary-500/20' : 'bg-white/5 border-white/10'}`;
             modalIconBox.innerHTML = `<i data-feather="${isApprove ? 'alert-triangle' : action === 'reject' ? 'x-circle' : 'slash'}" class="w-5 h-5 ${isApprove ? 'text-primary-400' : 'text-gray-400'}"></i>`;
 
+            const typeLabel = (TYPE_META[r.type] || TYPE_META.delete).label;
             modalTitle.textContent = isApprove
-                ? 'Permanently delete this account?'
+                ? 'Approve this request?'
                 : action === 'reject' ? 'Reject this request?' : 'Cancel this request?';
             modalBody.textContent = isApprove
-                ? `You are about to permanently delete ${name}. The account, attendance, grades, enrollments, and all related data will be removed. This cannot be undone.`
+                ? `Approving will ${typeLabel.toLowerCase()} ${name}.`
                 : action === 'reject'
-                    ? `The deletion request for ${name} will be rejected and the account will be kept.`
-                    : `This pending deletion request for ${name} will be cancelled.`;
+                    ? `The approval request for ${name} will be rejected and no change will be made.`
+                    : `This pending approval request for ${name} will be cancelled.`;
 
             modalTarget.innerHTML = `
                 <div class="w-9 h-9 rounded-lg bg-gradient-to-br ${role.avatar || 'from-gray-600 to-gray-900'} flex items-center justify-center text-white font-black text-[10px] border border-white/10 uppercase italic flex-shrink-0">${esc(initials(r.target_name))}</div>
@@ -398,7 +408,7 @@ $current_uid = $_SESSION['uid'] ?? '';
                 <span class="px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-widest italic ${status.color}">${esc(status.label)}</span>`;
             modalTarget.classList.remove('hidden');
 
-            confirmLabel = isApprove ? 'Yes, Delete' : action === 'reject' ? 'Reject Request' : 'Cancel Request';
+            confirmLabel = isApprove ? 'Yes, Approve' : action === 'reject' ? 'Reject Request' : 'Cancel Request';
             modalConfirmBtn.className = `px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest italic transition-all text-white ${isApprove ? 'bg-red-500 hover:bg-red-600' : 'bg-white/10 hover:bg-white/15'}`;
             modalConfirmBtn.innerHTML = confirmLabel;
             modalConfirmBtn.disabled = false;

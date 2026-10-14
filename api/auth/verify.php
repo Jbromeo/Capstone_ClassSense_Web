@@ -20,6 +20,7 @@ try {
 
     jsonResponse([
         'uid' => $user['uid'],
+        'username' => $user['username'],
         'email' => $user['username'],
         'role' => $user['role'],
         'firstName' => $user['first_name'] ?? '',

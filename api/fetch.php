@@ -59,6 +59,7 @@ if ($method === 'POST') {
             $results[] = [
                 'uid' => $u['uid'],
                 'role' => $u['role'],
+                'active' => (int)($u['active'] ?? 1),
                 'firstName' => $u['first_name'] ?? '',
                 'lastName' => $u['last_name'] ?? '',
                 'first_name' => $u['first_name'] ?? '',
@@ -85,7 +86,7 @@ if ($method === 'POST') {
                     'email' => '', 'studentId' => '', 'student_id' => '',
                     'employeeId' => '', 'employee_id' => '',
                     'profilePicture' => '', 'profile_picture' => '',
-                    'phone' => '', 'guardianPhone' => '',
+                    'phone' => '', 'guardianPhone' => '', 'active' => 1,
                     'exists' => false,
                 ];
             }
@@ -204,7 +205,7 @@ if ($method === 'GET') {
 
     if ($collection === 'teachers') {
         requireAdmin($pdo, $uid);
-        $stmt = $pdo->query("SELECT uid, username, first_name, last_name, employee_id FROM users WHERE role = 'teacher' ORDER BY first_name, last_name");
+        $stmt = $pdo->query("SELECT uid, username, first_name, last_name, employee_id, active FROM users WHERE role = 'teacher' ORDER BY first_name, last_name");
         $users = $stmt->fetchAll();
         $results = [];
         foreach ($users as $u) {
@@ -215,6 +216,7 @@ if ($method === 'GET') {
                 'email' => $u['username'] ?? '',
                 'employeeId' => $u['employee_id'] ?? '',
                 'employee_id' => $u['employee_id'] ?? '',
+                'active' => (int)($u['active'] ?? 1),
             ];
         }
         jsonResponse($results);

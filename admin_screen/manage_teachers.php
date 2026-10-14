@@ -63,8 +63,8 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-2">Last Name</label><input type="text" name="lname" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="Lovelace"></div>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Login Username</label>
-                                <input type="text" name="username" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="ada_lovelace">
+                                <label id="usernameLabel" class="block text-xs font-bold text-gray-500 uppercase mb-2">Login Username</label>
+                                <input type="text" name="username" id="usernameInput" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="ada_lovelace">
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div><label id="employeeIdLabel" class="block text-xs font-bold text-gray-500 uppercase mb-2">Employee ID</label><input type="text" name="employee_id" id="employeeIdInput" required class="w-full bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" placeholder="20250001"></div>
@@ -132,24 +132,24 @@ require_once dirname(__DIR__) . '/core/init.php';
             <div class="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary-500/20">
                 <i data-feather="alert-triangle" class="w-10 h-10 text-primary-500"></i>
             </div>
-            <h3 class="text-2xl font-black text-white italic mb-2 tracking-tight uppercase tracking-tighter">Final Warning</h3>
-            <p class="text-gray-400 text-sm mb-8 leading-relaxed font-bold">You are about to permanently erase <span id="targetTeacherName" class="text-white italic underline underline-offset-4 decoration-primary-500/50 underline-bold font-black">Teacher</span> from the entire platform identity registry.</p>
+            <h3 class="text-2xl font-black text-white italic mb-2 tracking-tight uppercase tracking-tighter">Deactivate Teacher</h3>
+            <p class="text-gray-400 text-sm mb-8 leading-relaxed font-bold">You are about to deactivate <span id="targetTeacherName" class="text-white italic underline underline-offset-4 decoration-primary-500/50 underline-bold font-black">Teacher</span>. They will be logged out and unable to sign in until reactivated.</p>
             <div class="space-y-3">
-                <button id="confirmPurgeBtn" class="w-full py-4 bg-primary-500 hover:bg-primary-600 rounded-2xl font-black text-white transition-all shadow-lg shadow-primary-500/20 uppercase tracking-[0.2em] italic text-xs leading-none">Confirm Purge</button>
+                <button id="confirmPurgeBtn" class="w-full py-4 bg-primary-500 hover:bg-primary-600 rounded-2xl font-black text-white transition-all shadow-lg shadow-primary-500/20 uppercase tracking-[0.2em] italic text-xs leading-none">Confirm Deactivate</button>
                 <button id="cancelPurgeBtn" class="w-full py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-bold text-gray-500 hover:text-white transition-all text-xs uppercase tracking-widest leading-none">Cancel Action</button>
             </div>
         </div>
     </div>
 
-    <!-- Deletion Request Modal (regular admins) -->
+    <!-- Approval Request Modal (regular admins) -->
     <div id="requestModal" class="fixed inset-0 z-[100] flex items-center justify-center hidden opacity-0 transition-all duration-300">
         <div class="absolute inset-0 bg-dark-bg/60 backdrop-blur-md"></div>
         <div class="glass-panel w-full max-w-md rounded-[2.5rem] p-8 border border-white/10 shadow-[0_20px_50px_rgba(234,38,40,0.2)] animate-scale-up relative z-10 text-center">
             <div class="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary-500/20">
                 <i data-feather="inbox" class="w-10 h-10 text-primary-500"></i>
             </div>
-            <h3 class="text-2xl font-black text-white italic mb-2 tracking-tight uppercase tracking-tighter">Request Deletion</h3>
-            <p class="text-gray-400 text-sm mb-6 leading-relaxed font-bold">Submit a request to delete <span id="requestTeacherName" class="text-white italic underline underline-offset-4 decoration-primary-500/50 font-black">Teacher</span>. A super admin must approve it before the account is removed.</p>
+            <h3 class="text-2xl font-black text-white italic mb-2 tracking-tight uppercase tracking-tighter">Request Approval</h3>
+            <p class="text-gray-400 text-sm mb-6 leading-relaxed font-bold">Submit an approval request for <span id="requestTeacherName" class="text-white italic underline underline-offset-4 decoration-primary-500/50 font-black">Teacher</span>. A super admin must approve it before the change is applied.</p>
             <textarea id="requestReason" rows="3" maxlength="500" class="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder-gray-600 mb-4" placeholder="Reason (optional)"></textarea>
             <div class="space-y-3">
                 <button id="confirmRequestBtn" class="w-full py-4 bg-primary-500 hover:bg-primary-600 rounded-2xl font-black text-white transition-all shadow-lg shadow-primary-500/20 uppercase tracking-[0.2em] italic text-xs leading-none">Submit Request</button>
@@ -159,7 +159,7 @@ require_once dirname(__DIR__) . '/core/init.php';
     </div>
 
     <script>window.CURRENT_ROLE = <?php echo json_encode($_SESSION['role'] ?? 'admin'); ?>;</script>
-    <script type="module" src="../assets/js/controllers/admin_teacher_controller.js"></script>
+    <script type="module" src="../assets/js/controllers/admin_teacher_controller.js?v=2"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { 
             feather.replace(); 

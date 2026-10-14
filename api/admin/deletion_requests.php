@@ -61,6 +61,7 @@ if ($method === 'GET') {
             'target_username' => $r['target_username'] ?? '',
             'target_role' => $r['target_role'] ?? '',
             'target_name' => $r['target_name'] ?? '',
+            'type' => $r['type'] ?? 'delete',
             'requested_by' => $r['requested_by'],
             'requested_username' => $r['requested_username'] ?? '',
             'reason' => $r['reason'] ?? '',
@@ -73,23 +74,28 @@ if ($method === 'GET') {
     jsonResponse($results);
 }
 
-// --- POST: file a deletion request --------------------------------------
+// --- POST: file an approval request --------------------------------------
 if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     if (!$data || empty($data['target_uid'])) {
         jsonResponse(['error' => 'target_uid required'], 400);
     }
 
+    $type = isset($data['type']) ? (string)$data['type'] : 'delete';
+    if (!in_array($type, ['delete', 'deactivate', 'reactivate', 'reset'], true)) {
+        jsonResponse(['error' => 'Invalid request type'], 400);
+    }
+
     $target = targetSnapshot($pdo, $data['target_uid']);
     if (!$target) jsonResponse(['error' => 'User not found'], 404);
     if ($target['role'] === 'super_admin') {
-        jsonResponse(['error' => 'Super admin accounts cannot be requested for deletion'], 403);
+        jsonResponse(['error' => 'Super admin accounts cannot be requested'], 403);
     }
 
     $stmt = $pdo->prepare("SELECT 1 FROM deletion_requests WHERE target_uid = ? AND status = 'pending'");
     $stmt->execute([$target['uid']]);
     if ($stmt->fetch()) {
-        jsonResponse(['error' => 'A deletion request for this account is already pending'], 409);
+        jsonResponse(['error' => 'A request for this account is already pending'], 409);
     }
 
     $reason = trim((string)($data['reason'] ?? ''));
@@ -99,14 +105,15 @@ if ($method === 'POST') {
     $stmt->execute([$uid]);
     $requesterName = $stmt->fetchColumn() ?: '';
 
-    $stmt = $pdo->prepare("INSERT INTO deletion_requests (target_uid, target_username, target_role, target_name, requested_by, requested_username, reason) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$target['uid'], $target['username'], $target['role'], $target['name'], $uid, $requesterName, $reason ?: null]);
+    $stmt = $pdo->prepare("INSERT INTO deletion_requests (target_uid, target_username, target_role, target_name, requested_by, requested_username, reason, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$target['uid'], $target['username'], $target['role'], $target['name'], $uid, $requesterName, $reason ?: null, $type]);
     $requestId = (int)$pdo->lastInsertId();
 
+    $actionLabel = ucfirst($type);
     notifySuperAdmins(
         $pdo,
-        'Deletion Request',
-        "{$requesterName} requested deletion of {$target['name']} ({$target['role']}).",
+        'Approval Request',
+        "{$requesterName} requested {$actionLabel} for {$target['name']} ({$target['role']}).",
         '../admin_screen/deletion_requests.php'
     );
 
@@ -148,42 +155,67 @@ if ($method === 'PUT') {
         jsonResponse(['success' => true, 'action' => 'rejected']);
     }
 
-    // Approve -> hard delete. The target may have vanished since the request.
+    // Approve: run the action described by the request type.
+    $type = $req['type'] ?? 'delete';
+
     $target = targetSnapshot($pdo, $req['target_uid']);
-    if (!$target) {
-        $stmt = $pdo->prepare("UPDATE deletion_requests SET status = 'approved', resolved_by = ?, resolved_at = GETDATE() WHERE id = ?");
-        $stmt->execute([$uid, (int)$req['id']]);
-        jsonResponse(['success' => true, 'action' => 'approved', 'note' => 'Account already deleted']);
-    }
-    if ($target['role'] === 'super_admin') {
-        jsonResponse(['error' => 'Super admin accounts cannot be deleted'], 403);
+    if ($target && $target['role'] === 'super_admin') {
+        jsonResponse(['error' => 'Super admin accounts cannot be modified'], 403);
     }
 
-    try {
-        $deleted = deleteUserCascade($pdo, $target['uid']);
-    } catch (Throwable $e) {
-        jsonResponse(['error' => 'Delete failed: ' . $e->getMessage()], 500);
-    }
-
-    // A deleted student no longer needs their pre-approved reservation — the
-    // entry disappears from the Pre-Approved Students list entirely.
-    if ($deleted && $deleted['role'] === 'student' && !empty($deleted['student_id'])) {
-        $pdo->prepare("DELETE FROM pre_approved_students WHERE student_id = ?")
-            ->execute([$deleted['student_id']]);
+    if ($type === 'deactivate') {
+        if ($target) {
+            $pdo->prepare("UPDATE users SET active = 0 WHERE uid = ?")->execute([$target['uid']]);
+            $pdo->prepare("DELETE FROM sessions WHERE uid = ?")->execute([$target['uid']]);
+            $pdo->prepare("DELETE FROM pre_approved_students WHERE student_id IN (SELECT student_id FROM users WHERE uid = ?)")
+                ->execute([$target['uid']]);
+        }
+    } elseif ($type === 'reactivate') {
+        if ($target) {
+            $pdo->prepare("UPDATE users SET active = 1 WHERE uid = ?")->execute([$target['uid']]);
+        }
+    } elseif ($type === 'reset') {
+        if ($target) {
+            $sidStmt = $pdo->prepare("SELECT student_id FROM users WHERE uid = ?");
+            $sidStmt->execute([$target['uid']]);
+            $studentId = $sidStmt->fetchColumn();
+            try {
+                deleteUserCascade($pdo, $target['uid']);
+            } catch (Throwable $e) {
+                jsonResponse(['error' => 'Reset failed: ' . $e->getMessage()], 500);
+            }
+            if (!empty($studentId)) {
+                $pdo->prepare("UPDATE pre_approved_students SET used_at = NULL WHERE student_id = ?")
+                    ->execute([$studentId]);
+            }
+        }
+    } else {
+        // 'delete' (legacy): hard delete.
+        if ($target) {
+            try {
+                $deleted = deleteUserCascade($pdo, $target['uid']);
+            } catch (Throwable $e) {
+                jsonResponse(['error' => 'Delete failed: ' . $e->getMessage()], 500);
+            }
+            if ($deleted && $deleted['role'] === 'student' && !empty($deleted['student_id'])) {
+                $pdo->prepare("DELETE FROM pre_approved_students WHERE student_id = ?")
+                    ->execute([$deleted['student_id']]);
+            }
+        }
     }
 
     $pdo->prepare("UPDATE deletion_requests SET status = 'approved', resolved_by = ?, resolved_at = GETDATE() WHERE id = ?")
         ->execute([$uid, (int)$req['id']]);
     // Settle any other pending requests for the same account.
     $pdo->prepare("UPDATE deletion_requests SET status = 'approved', resolved_by = ?, resolved_at = GETDATE() WHERE target_uid = ? AND status = 'pending'")
-        ->execute([$uid, $target['uid']]);
+        ->execute([$uid, $req['target_uid']]);
 
     if (!empty($req['requested_by'])) {
         sendNotification(
             $req['requested_by'],
             'deletion_request',
-            'Deletion Request Approved',
-            "{$target['name']} was deleted as you requested.",
+            'Approval Request Approved',
+            "Your request for {$req['target_name']} was approved.",
             '../admin_screen/deletion_requests.php'
         );
     }

@@ -341,7 +341,7 @@ function fcmSend($token, $title, $message, $link = '', $type = '', $notifId = ''
 // --- AI insight queue (proactive regeneration on grade/attendance changes) ---
 
 // Mark a student's insight as stale. The queue worker regenerates it once the
-// 5-minute debounce window has passed since the LAST change (each change resets
+// 2-minute debounce window has passed since the LAST change (each change resets
 // changed_at, so rapid edits batch into a single generation).
 function markInsightStale($pdo, $studentUid, $classId) {
     try {
@@ -483,59 +483,169 @@ function buildInsightSnapshot($pdo, $studentUid, $classId) {
 
 function buildInsightPrompt($className, $snapshot) {
     $att = $snapshot['attendance'];
+    $catNames = ['written' => 'Written', 'performance' => 'Performance', 'exam' => 'Exams', 'attendance' => 'Attendance'];
+
     if ($att['total'] > 0) {
-        $attLine = 'Attendance (QR log): ' . $att['present'] . ' Present, ' . $att['late'] . ' Late, ' . $att['absent'] . ' Absent out of ' . $att['total'] . ' sessions (rate ' . $att['rate'] . '%). Recent trend: ' . implode(', ', array_map('strtolower', $att['trend'])) . '.';
+        $attLine = 'Attendance: ' . $att['present'] . ' Present, ' . $att['late'] . ' Late, ' . $att['absent'] . ' Absent out of ' . $att['total'] . ' sessions (' . $att['rate'] . '% present).';
     } else {
-        $attLine = 'Attendance (QR log): 0 records - the student has no Present, Late, or Absent statuses yet.';
+        $attLine = 'Attendance: 0 records - no Present, Late, or Absent statuses yet.';
     }
 
-    $labels = ['1' => '1st Term', '2' => '2nd Term', '3' => '3rd Term'];
-    $catNames = ['written' => 'Written', 'performance' => 'Performance', 'exam' => 'Exams', 'attendance' => 'Attendance'];
+    $labels = ['1' => 'TERM 1', '2' => 'TERM 2', '3' => 'TERM 3'];
     $termLines = [];
+    $hasAnyScore = false;
     foreach ($snapshot['terms'] as $q => $t) {
-        $catStr = [];
+        $cats = [];
         foreach ($t['categoryAverages'] as $cat => $avg) {
-            $catStr[] = $avg === null ? ($catNames[$cat] . ': no scores') : ($catNames[$cat] . ': ' . $avg . '%');
+            if ($avg === null) {
+                $cats[] = $catNames[$cat] . ': no scores yet';
+            } else {
+                $cats[] = $catNames[$cat] . ': ' . $avg . '%';
+                $hasAnyScore = true;
+            }
         }
-        $line = ($labels[$q] ?? ('Term ' . $q)) . ' - ' . implode(', ', $catStr) . '; pending components: ' . $t['pendingCount'];
-        if (!$t['complete']) {
-            $line .= '; final grade: not computed yet (incomplete data - only ' . $t['gradedCount'] . ' of ' . $t['weightedCategories'] . ' weighted categories have scores)';
-        } elseif ($t['finalGrade'] !== null) {
-            $line .= '; final grade: ' . $t['finalGrade'];
+        if ($t['complete'] && $t['finalGrade'] !== null) {
+            $cats[] = 'Final grade: ' . $t['finalGrade'];
         }
-        if ($t['weakestCategory'] !== null) $line .= '; weakest: ' . ($catNames[$t['weakestCategory']] ?? $t['weakestCategory']);
-        $termLines[] = $line;
+        $termLines[] = ($labels[$q] ?? ('Term ' . $q)) . ': ' . implode(', ', $cats) . '.';
     }
+
+    $scoreSummary = $hasAnyScore
+        ? 'NOTE: This student HAS recorded scores in at least one category. Mention the real percentages listed above.'
+        : 'NOTE: This student has NO recorded scores in any category yet.';
 
     return "You are a warm, concise academic advisor for a student in the class " . $className . ". "
-        . "Analyze this real student data ONLY - never invent numbers:\n"
+        . "Use ONLY the data below; never invent numbers.\n\n"
         . $attLine . "\n"
-        . implode("\n", $termLines) . "\n"
-        . "IMPORTANT RULES:\n"
-        . "- If any category shows 'no scores' or a term is marked 'incomplete data', do NOT call any category the weakest or strongest; instead say scores are still being recorded and keep the advice neutral.\n"
-        . "- If attendance has 0 records, the student has no Present, Late, or Absent statuses yet - say exactly that and never speculate about school policies, rules, or record-keeping.\n"
-        . "- Only mention concerns or praise when the given numbers support it.\n"
-        . "Write 2-3 warm, specific, actionable sentences as a paragraph, and up to 3 short bullet tips. "
-        . "Return JSON with keys 'paragraph' (string) and 'tips' (array of strings).";
+        . implode("\n", $termLines) . "\n\n"
+        . $scoreSummary . "\n\n"
+        . "RULES:\n"
+        . "- A percentage means that category HAS scores. Never describe it as 'no scores'.\n"
+        . "- 'no scores yet' means only that single category is empty.\n"
+        . "- Only say the student 'has no scores' if EVERY category in EVERY term says 'no scores yet'.\n"
+        . "- Never mention a grade, percentage, or attendance figure that is not listed above.\n\n"
+        . "Write 2-3 warm, specific sentences as the paragraph, and up to 3 short bullet tips.\n"
+        . "Return ONLY JSON with keys 'paragraph' (string) and 'tips' (array of strings).";
+}
+
+// --- AI provider abstraction ---
+// Providers are tried in priority order (see callAIInsight). Each adapter
+// returns a normalized ['ok' => true, 'insight' => [...]], or
+// ['ok' => false, 'error' => ...]. A disabled/unconfigured provider is simply
+// skipped by the dispatcher.
+
+function loadAIProviders() {
+    $aiConfigPath = dirname(__DIR__) . '/AI/config.php';
+    if (!file_exists($aiConfigPath)) {
+        return null;
+    }
+    $cfg = require $aiConfigPath;
+    return is_array($cfg) && isset($cfg['providers']) ? $cfg['providers'] : null;
+}
+
+// Pull the {paragraph, tips} object out of a model reply, tolerating markdown
+// code fences and leading/trailing chatter.
+function extractInsightJson($text) {
+    $text = trim((string)$text);
+    if ($text === '') return null;
+    if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $text, $m)) {
+        $text = $m[1];
+    }
+    $decoded = json_decode($text, true);
+    if (is_array($decoded) && !empty($decoded['paragraph'])) return $decoded;
+    if (preg_match('/\{.*\}/s', $text, $m)) {
+        $decoded = json_decode($m[0], true);
+        if (is_array($decoded) && !empty($decoded['paragraph'])) return $decoded;
+    }
+    return null;
+}
+
+function normalizeInsight($decoded) {
+    return [
+        'ok' => true,
+        'insight' => [
+            'paragraph' => trim((string)$decoded['paragraph']),
+            'tips' => array_values(array_filter(array_map('trim', $decoded['tips'] ?? []))),
+        ],
+    ];
+}
+
+// OpenAI-compatible chat completions (used by Groq and Ollama).
+function callOpenAICompatInsight($baseUrl, $apiKey, $model, $prompt, $extra = []) {
+    $payload = array_merge([
+        'model' => $model,
+        'messages' => [['role' => 'user', 'content' => $prompt]],
+        'stream' => false,
+    ], $extra);
+
+    $headers = ['Content-Type: application/json'];
+    if ($apiKey !== '') $headers[] = 'Authorization: Bearer ' . $apiKey;
+
+    $ch = curl_init(rtrim($baseUrl, '/') . '/chat/completions');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode !== 200 || $response === false) {
+        error_log('OpenAI-compat call failed: HTTP ' . $httpCode . ' ' . ($curlError ?: (string)$response));
+        if ($httpCode === 429) return ['ok' => false, 'error' => 'ai_quota_exceeded'];
+        return ['ok' => false, 'error' => 'ai_request_failed'];
+    }
+
+    $parsed = json_decode($response, true);
+    $text = $parsed['choices'][0]['message']['content'] ?? null;
+    if (!$text) {
+        error_log('OpenAI-compat returned no text: ' . substr((string)$response, 0, 300));
+        return ['ok' => false, 'error' => 'ai_unparseable'];
+    }
+    $decoded = extractInsightJson($text);
+    if (!$decoded) {
+        error_log('OpenAI-compat returned unparseable insight: ' . $text);
+        return ['ok' => false, 'error' => 'ai_unparseable'];
+    }
+    return normalizeInsight($decoded);
+}
+
+function callOllamaInsight($prompt) {
+    $providers = loadAIProviders();
+    $cfg = $providers['ollama'] ?? null;
+    if (!$cfg || empty($cfg['enabled']) || empty($cfg['base_url']) || empty($cfg['model'])) {
+        return ['ok' => false, 'error' => 'ai_not_configured'];
+    }
+    return callOpenAICompatInsight($cfg['base_url'], '', $cfg['model'], $prompt, ['format' => 'json']);
+}
+
+function callGroqInsight($prompt) {
+    $providers = loadAIProviders();
+    $cfg = $providers['groq'] ?? null;
+    if (!$cfg || empty($cfg['enabled']) || empty($cfg['api_key']) || empty($cfg['model'])) {
+        return ['ok' => false, 'error' => 'ai_not_configured'];
+    }
+    $baseUrl = $cfg['base_url'] ?? 'https://api.groq.com/openai/v1';
+    return callOpenAICompatInsight($baseUrl, $cfg['api_key'], $cfg['model'], $prompt, ['response_format' => ['type' => 'json_object']]);
 }
 
 // Call Gemini (Interactions API) with the built prompt and parse the JSON reply.
-// Returns ['ok' => true, 'insight' => [...]], or ['ok' => false, 'error' => ...].
 function callGeminiInsight($prompt) {
-    $aiConfigPath = dirname(__DIR__) . '/AI/config.php';
-    if (!file_exists($aiConfigPath)) {
-        error_log('AI config missing at ' . $aiConfigPath);
+    $providers = loadAIProviders();
+    $cfg = $providers['gemini'] ?? null;
+    if (!$cfg || empty($cfg['enabled']) || empty($cfg['api_key'])) {
         return ['ok' => false, 'error' => 'ai_not_configured'];
     }
-    $aiConfig = require $aiConfigPath;
-    $apiKey = $aiConfig['gemini_api_key'] ?? '';
-    $model = $aiConfig['gemini_model'] ?? 'gemini-3.6-flash';
-    $endpoint = $aiConfig['gemini_endpoint'] ?? 'https://generativelanguage.googleapis.com/v1beta/interactions';
-    $apiRevision = $aiConfig['gemini_api_revision'] ?? '2026-05-20';
-
-    if ($apiKey === '') {
-        return ['ok' => false, 'error' => 'ai_not_configured'];
-    }
+    $apiKey = $cfg['api_key'];
+    $model = $cfg['model'] ?? 'gemini-3.6-flash';
+    $endpoint = $cfg['endpoint'] ?? 'https://generativelanguage.googleapis.com/v1beta/interactions';
+    $apiRevision = $cfg['api_revision'] ?? '2026-05-20';
 
     $payload = json_encode([
         'model' => $model,
@@ -572,6 +682,9 @@ function callGeminiInsight($prompt) {
 
     if ($httpCode !== 200 || $response === false) {
         error_log('Gemini call failed: HTTP ' . $httpCode . ' ' . ($curlError ?: $response));
+        if ($httpCode === 429) {
+            return ['ok' => false, 'error' => 'ai_quota_exceeded'];
+        }
         return ['ok' => false, 'error' => 'ai_request_failed'];
     }
 
@@ -594,19 +707,28 @@ function callGeminiInsight($prompt) {
         error_log('Gemini returned no text: ' . substr((string)$response, 0, 300));
         return ['ok' => false, 'error' => 'ai_unparseable'];
     }
-    $decoded = json_decode($text, true);
-    if (!is_array($decoded) || empty($decoded['paragraph'])) {
+    $decoded = extractInsightJson($text);
+    if (!$decoded) {
         error_log('Gemini returned unparseable insight: ' . $text);
         return ['ok' => false, 'error' => 'ai_unparseable'];
     }
+    return normalizeInsight($decoded);
+}
 
-    return [
-        'ok' => true,
-        'insight' => [
-            'paragraph' => trim($decoded['paragraph']),
-            'tips' => array_values(array_filter(array_map('trim', $decoded['tips'] ?? []))),
-        ],
-    ];
+// Try providers in priority order and return the first success. Providers that
+// are disabled or unavailable are skipped automatically.
+function callAIInsight($prompt) {
+    $order = ['groq', 'ollama', 'gemini'];
+    $lastError = 'ai_not_configured';
+    foreach ($order as $name) {
+        if ($name === 'ollama') $res = callOllamaInsight($prompt);
+        elseif ($name === 'groq') $res = callGroqInsight($prompt);
+        else $res = callGeminiInsight($prompt);
+
+        if ($res['ok']) return $res;
+        $lastError = $res['error'] ?? $lastError;
+    }
+    return ['ok' => false, 'error' => $lastError];
 }
 
 // Regenerate-or-serve pipeline shared by the on-demand endpoint (api/ai_insight.php)
@@ -624,10 +746,10 @@ function generateInsight($studentUid, $classId, $forceRefresh = false) {
     $cached = $cacheStmt->fetch();
 
     // Debounce: a grade/attendance change queued a regeneration within the
-    // 5-minute window — serve the existing insight (or a pending state) instead
+    // 2-minute window — serve the existing insight (or a pending state) instead
     // of regenerating on demand. The queue worker generates at the end of the
     // window; forceRefresh bypasses this for the student's manual regenerate.
-    $DEBOUNCE_SECONDS = 5 * 60;
+    $DEBOUNCE_SECONDS = 2 * 60;
     if (!$forceRefresh && $cached && (int)$cached['pending_refresh'] === 1 && !empty($cached['changed_at'])) {
         $changedTs = strtotime(substr($cached['changed_at'], 0, 19));
         if ($changedTs !== false) {
@@ -667,6 +789,15 @@ function generateInsight($studentUid, $classId, $forceRefresh = false) {
     }
 
     if (!$forceRefresh && $cached && $cached['signature'] === $signature && $cachedAge !== null && $cachedAge < $CACHE_TTL_SECONDS) {
+        // Data matches the cached insight, so any stale flag is spurious — clear
+        // it so the insight can't stay stuck in the "pending/Generating…" state.
+        try {
+            $pdo->prepare("UPDATE ai_insights SET pending_refresh = 0, changed_at = NULL WHERE student_uid = ? AND class_id = ?")
+                ->execute([$studentUid, $classId]);
+        } catch (PDOException $e) {
+            error_log('clear pending on cache-hit failed: ' . $e->getMessage());
+        }
+
         return [
             'ok' => true,
             'cached' => true,
@@ -678,13 +809,23 @@ function generateInsight($studentUid, $classId, $forceRefresh = false) {
         ];
     }
 
-    $gemini = callGeminiInsight(buildInsightPrompt($className, $snapshot));
-    if (!$gemini['ok']) {
+    $ai = callAIInsight(buildInsightPrompt($className, $snapshot));
+    if (!$ai['ok']) {
+        // Backoff: keep the insight queued and reset the debounce timer so the
+        // worker retries in a few minutes instead of giving up and losing the
+        // update. The cached insight (if any) stays available meanwhile.
+        try {
+            $pdo->prepare("UPDATE ai_insights SET changed_at = GETDATE() WHERE student_uid = ? AND class_id = ?")
+                ->execute([$studentUid, $classId]);
+        } catch (PDOException $e) {
+            error_log('insight backoff failed: ' . $e->getMessage());
+        }
+
         if ($cached) {
             return [
                 'ok' => true,
                 'cached' => true,
-                'error' => $gemini['error'],
+                'error' => $ai['error'],
                 'insight' => [
                     'paragraph' => $cached['insight_paragraph'],
                     'tips' => $cached['insight_tips'] ? json_decode($cached['insight_tips'], true) : [],
@@ -692,9 +833,9 @@ function generateInsight($studentUid, $classId, $forceRefresh = false) {
                 'analyzedAt' => $cached['created_at'],
             ];
         }
-        return ['ok' => false, 'error' => $gemini['error']];
+        return ['ok' => false, 'error' => $ai['error']];
     }
-    $insight = $gemini['insight'];
+    $insight = $ai['insight'];
 
     $stmt = $pdo->prepare("MERGE ai_insights AS target USING (SELECT ? AS student_uid, ? AS class_id) AS source
         ON target.student_uid = source.student_uid AND target.class_id = source.class_id
@@ -730,23 +871,26 @@ function generateInsight($studentUid, $classId, $forceRefresh = false) {
     ];
 }
 
-// Drain the insight queue: regenerate every insight whose 5-minute debounce
+// Drain the insight queue: regenerate every insight whose 2-minute debounce
 // window has elapsed. Capped at 3 per pass so one HTTP request never spends
-// minutes inside Gemini; remaining rows are picked up by the next pass (writes,
-// poller). A failed generation leaves the pending flag set for retry.
+// minutes inside a provider; remaining rows are picked up by the next pass
+// (writes, poller). A failed generation keeps the pending flag set for retry.
 function processInsightQueue($pdo = null) {
     if (!$pdo) $pdo = getPDO();
     $processed = 0;
     $remaining = 0;
     $due = 0;
     try {
-        $dueStmt = $pdo->query("SELECT TOP 3 student_uid, class_id FROM ai_insights WHERE pending_refresh = 1 AND changed_at IS NOT NULL AND changed_at <= DATEADD(MINUTE, -5, GETDATE())");
+        $dueStmt = $pdo->query("SELECT TOP 3 student_uid, class_id FROM ai_insights WHERE pending_refresh = 1 AND changed_at IS NOT NULL AND changed_at <= DATEADD(MINUTE, -2, GETDATE())");
         $rows = $dueStmt->fetchAll();
         $due = count($rows);
         foreach ($rows as $row) {
             $result = generateInsight($row['student_uid'], $row['class_id']);
             if (!$result['ok']) break;
             $processed++;
+            // Quota exhausted: stop trying the remaining rows this pass instead
+            // of firing more doomed requests at the API.
+            if (($result['error'] ?? '') === 'ai_quota_exceeded') break;
         }
         $remStmt = $pdo->query("SELECT COUNT(*) AS c FROM ai_insights WHERE pending_refresh = 1");
         $remaining = (int)$remStmt->fetch()['c'];

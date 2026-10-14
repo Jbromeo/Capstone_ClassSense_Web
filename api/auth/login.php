@@ -28,6 +28,10 @@ if (!$user || !password_verify($password, $user['password_hash'])) {
     jsonResponse(['error' => 'Invalid username/ID or password'], 401);
 }
 
+if ((int)($user['active'] ?? 1) === 0) {
+    jsonResponse(['error' => 'Your account has been deactivated. Please contact an administrator.'], 403);
+}
+
 $token = generateToken();
 $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
 

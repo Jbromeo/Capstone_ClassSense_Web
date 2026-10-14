@@ -307,13 +307,15 @@ if ($method === 'POST') {
     }
 
     // 8. Status is decided by the SERVER, never by the client:
-    //    'Late' after the 30-second on-time window (or when session_mode was
-    //    flipped to 'late'), otherwise 'Present'. A scan that arrives after
-    //    the on-time window is recorded as Late even if the teacher's
+    //    'Late' after the on-time window (the teacher's chosen late minutes, or
+    //    when session_mode was flipped to 'late'), otherwise 'Present'. A scan
+    //    that arrives after the window is recorded as Late even if the teacher's
     //    page has been refreshed or closed.
     $isLate = ($class['session_mode'] === 'late');
     if (!$isLate && !empty($class['session_started_at'])) {
-        $isLate = ($nowTs - strtotime($class['session_started_at'])) >= 30; // 30 sec
+        $lateMinutes = (int)($class['session_late_minutes'] ?? 5);
+        if ($lateMinutes <= 0) $lateMinutes = 5;
+        $isLate = ($nowTs - strtotime($class['session_started_at'])) >= ($lateMinutes * 60);
     }
     $status = $isLate ? 'Late' : 'Present';
 

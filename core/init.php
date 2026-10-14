@@ -73,6 +73,7 @@ else {
     // null = check skipped (DB unavailable, fail-open), false = user row gone.
     $db_role = null;
     $db_role_type = null;
+    $db_active = null;
     $cfg_path = __DIR__ . '/../api/config.json';
     $cfg = file_exists($cfg_path) ? json_decode(file_get_contents($cfg_path), true) : null;
     if ($cfg) {
@@ -80,12 +81,13 @@ else {
             return new PDO('sqlsrv:Server=' . $cfg['db_host'] . ';Database=' . $cfg['db_name'], $cfg['db_user'], $cfg['db_pass']);
         };
         try {
-            $stmt = $connect()->prepare("SELECT role, role_type FROM users WHERE uid = ?");
+            $stmt = $connect()->prepare("SELECT role, role_type, active FROM users WHERE uid = ?");
             $stmt->execute([$_SESSION['uid']]);
             $row = $stmt->fetch();
             if ($row) {
                 $db_role = $row['role'];
                 $db_role_type = $row['role_type'] ?? null;
+                $db_active = $row['active'] ?? 1;
             } else {
                 $db_role = false;
             }
@@ -123,6 +125,15 @@ else {
             include __DIR__ . '/../404.php';
             exit();
         }
+    }
+
+    // Deactivated account: block access and send them back to login.
+    if (isset($db_active) && (int)$db_active === 0) {
+        error_log('[init] account deactivated for uid=' . ($_SESSION['uid'] ?? '?'));
+        session_unset();
+        session_destroy();
+        header("Location: " . ROOT_URL . "login.php?status=account_deactivated");
+        exit();
     }
 
     // 4b. Session revocation: the super admin can reset an admin's password,

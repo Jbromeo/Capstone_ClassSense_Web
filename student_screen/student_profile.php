@@ -45,7 +45,7 @@ require_once dirname(__DIR__) . '/core/init.php';
         </header>
 
         <main class="flex-1 overflow-y-auto p-4 md:p-8">
-            <div class="max-w-4xl mx-auto">
+            <div class="max-w-5xl mx-auto">
                 
                 <!-- Profile Header -->
                 <div class="glass-panel rounded-3xl p-8 mb-8 border-l-4 border-l-primary-500 relative overflow-hidden group">
@@ -68,82 +68,183 @@ require_once dirname(__DIR__) . '/core/init.php';
                     </div>
                 </div>
 
-                <!-- Account Information Form -->
-                <div class="glass-panel rounded-3xl p-8 animate-fade-in-up">
-                    <div class="flex items-center gap-3 mb-8">
-                        <div class="p-2 bg-primary-500/10 rounded-xl text-primary-500">
-                            <i data-feather="edit-3" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-bold text-white">Personal Information</h3>
-                            <p class="text-xs text-gray-500 uppercase tracking-tighter italic">Update your primary contact and academic details</p>
-                        </div>
-                    </div>
-
-                    <form id="profileForm" class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="space-y-2">
-                                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">First Name</label>
-                                <input type="text" name="firstName" id="formFname" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder:text-gray-700 font-medium">
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Last Name</label>
-                                <input type="text" name="lastName" id="formLname" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder:text-gray-700 font-medium">
-                            </div>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Email Address (Registry Primary)</label>
-                            <input type="email" id="formEmail" disabled class="w-full bg-dark-bg/50 border border-dark-border rounded-2xl px-5 py-4 text-gray-500 outline-none italic cursor-not-allowed font-medium" value="student@university.edu">
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="space-y-2">
-                                <label id="phoneLabel" class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Phone Number</label>
-                                <div class="relative">
-                                    <input type="tel" name="phone" id="formPhone" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
-                                </div>
-                            </div>
-                            <div class="space-y-2">
-                                <label id="guardianPhoneLabel" class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Guardian Phone</label>
-                                 <div class="relative">
-                                    <input type="tel" name="guardianPhone" id="formGuardian" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pt-6 border-t border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
-                            <p class="text-xs text-gray-500 max-w-sm">Changes will reflect immediately across all academic records. Security alerts may be sent to your primary email.</p>
-                            <button type="submit" id="saveBtn" class="w-full md:w-auto px-8 py-4 bg-primary-600 hover:bg-primary-700 rounded-2xl font-black text-white transition-all shadow-xl shadow-primary-500/20 flex items-center justify-center gap-3 active:scale-95 group uppercase tracking-widest text-xs">
-                                <span id="saveBtnText">Save Profile Update</span>
-                                <i data-feather="check" class="w-4 h-4 group-hover:scale-125 transition-transform"></i>
-                                <div id="saveLoader" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Preferences -->
-                <div class="glass-panel rounded-3xl p-8 animate-fade-in-up">
-                    <div class="flex items-center gap-3 mb-8">
-                        <div class="p-2 bg-purple-500/10 rounded-xl text-purple-500">
-                            <i data-feather="settings" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-bold text-white">System Preferences</h3>
-                            <p class="text-xs text-gray-500 uppercase tracking-tighter italic">Personalize your ClassSense experience</p>
+                <!-- Settings Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <!-- Left Column: Navigation -->
+                    <div class="lg:col-span-1">
+                        <div class="glass-panel rounded-xl p-2 sticky top-8">
+                            <nav class="space-y-1">
+                                <button onclick="switchTab('profile')" id="tab-btn-profile" class="nav-item active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors">
+                                    <i data-feather="user" class="w-5 h-5"></i>
+                                    <span class="font-medium">Profile</span>
+                                </button>
+                                <button onclick="switchTab('security')" id="tab-btn-security" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors text-gray-400 hover:text-white">
+                                    <i data-feather="shield" class="w-5 h-5"></i>
+                                    <span class="font-medium">Security</span>
+                                </button>
+                                <button onclick="switchTab('notifications')" id="tab-btn-notifications" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors text-gray-400 hover:text-white">
+                                    <i data-feather="bell" class="w-5 h-5"></i>
+                                    <span class="font-medium">Notifications</span>
+                                </button>
+                                <button onclick="switchTab('preferences')" id="tab-btn-preferences" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors text-gray-400 hover:text-white">
+                                    <i data-feather="sliders" class="w-5 h-5"></i>
+                                    <span class="font-medium">Preferences</span>
+                                </button>
+                            </nav>
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between p-4 bg-dark-bg/40 rounded-2xl border border-dark-border">
-                        <div>
-                            <h4 class="text-white font-medium">Dark Mode</h4>
-                            <p class="text-sm text-gray-500">Toggle between light and dark themes.</p>
+                    <!-- Right Column: Tab Content -->
+                    <div class="lg:col-span-2 space-y-6">
+                        
+                        <!-- PROFILE TAB -->
+                        <div id="tab-content-profile" class="tab-content animate-fade-in">
+                            <div class="glass-panel rounded-3xl p-8">
+                                <div class="flex items-center gap-3 mb-8">
+                                    <div class="p-2 bg-primary-500/10 rounded-xl text-primary-500">
+                                        <i data-feather="edit-3" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-bold text-white">Personal Information</h3>
+                                        <p class="text-xs text-gray-500 uppercase tracking-tighter italic">Update your primary contact and academic details</p>
+                                    </div>
+                                </div>
+
+                                <form id="profileForm" class="space-y-6">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">First Name</label>
+                                            <input type="text" name="firstName" id="formFname" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder:text-gray-700 font-medium">
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Last Name</label>
+                                            <input type="text" name="lastName" id="formLname" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder:text-gray-700 font-medium">
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Username</label>
+                                        <input type="text" id="formEmail" disabled class="w-full bg-dark-bg/50 border border-dark-border rounded-2xl px-5 py-4 text-gray-500 outline-none italic cursor-not-allowed font-medium">
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div class="space-y-2">
+                                            <label id="phoneLabel" class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Phone Number</label>
+                                            <div class="relative">
+                                                <input type="tel" name="phone" id="formPhone" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
+                                            </div>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label id="guardianPhoneLabel" class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Guardian Phone</label>
+                                            <div class="relative">
+                                                <input type="tel" name="guardianPhone" id="formGuardian" required class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all font-medium">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-6 border-t border-white/5 flex flex-col md:flex-row gap-4 items-center justify-between">
+                                        <p class="text-xs text-gray-500 max-w-sm">Changes will reflect immediately across all academic records. Security alerts may be sent to your primary email.</p>
+                                        <button type="submit" id="saveBtn" class="w-full md:w-auto px-8 py-4 bg-primary-600 hover:bg-primary-700 rounded-2xl font-black text-white transition-all shadow-xl shadow-primary-500/20 flex items-center justify-center gap-3 active:scale-95 group uppercase tracking-widest text-xs">
+                                            <span id="saveBtnText">Save Profile Update</span>
+                                            <i data-feather="check" class="w-4 h-4 group-hover:scale-125 transition-transform"></i>
+                                            <div id="saveLoader" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="darkModeToggle" class="sr-only peer">
-                            <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-primary-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                        </label>
+
+                        <!-- SECURITY TAB -->
+                        <div id="tab-content-security" class="tab-content hidden">
+                            <div class="glass-panel rounded-3xl p-8">
+                                <div class="flex items-center gap-3 mb-8">
+                                    <div class="p-2 bg-amber-500/10 rounded-xl text-amber-500">
+                                        <i data-feather="shield" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-bold text-white">Change Password</h3>
+                                        <p class="text-xs text-gray-500 uppercase tracking-tighter italic">Update your login password</p>
+                                    </div>
+                                </div>
+
+                                <form id="changePasswordForm" class="space-y-6">
+                                    <div class="space-y-2">
+                                        <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Current Password</label>
+                                        <input type="password" id="curPassword" class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder:text-gray-700 font-medium" placeholder="••••••••">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">New Password</label>
+                                        <input type="password" id="newPassword" class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder:text-gray-700 font-medium" placeholder="••••••••">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Confirm New Password</label>
+                                        <input type="password" id="confirmPassword" class="w-full bg-dark-bg border border-dark-border rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-primary-500/50 outline-none transition-all placeholder:text-gray-700 font-medium" placeholder="••••••••">
+                                    </div>
+
+                                    <div class="pt-6 border-t border-white/5 flex justify-end">
+                                        <button type="submit" id="changePasswordBtn" class="px-8 py-4 bg-amber-500 hover:bg-amber-600 rounded-2xl font-black text-white transition-all shadow-xl shadow-amber-500/20 flex items-center justify-center gap-3 active:scale-95 uppercase tracking-widest text-xs">
+                                            <span id="changePasswordBtnText">Update Password</span>
+                                            <i data-feather="lock" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- NOTIFICATIONS TAB -->
+                        <div id="tab-content-notifications" class="tab-content hidden">
+                            <div class="glass-panel rounded-3xl p-8">
+                                <div class="flex items-center gap-3 mb-8">
+                                    <div class="p-2 bg-purple-500/10 rounded-xl text-purple-500">
+                                        <i data-feather="bell" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-bold text-white">Notification Preferences</h3>
+                                        <p class="text-xs text-gray-500 uppercase tracking-tighter italic">Manage push notifications</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between p-4 bg-dark-bg/40 rounded-2xl border border-dark-border">
+                                    <div>
+                                        <h4 class="text-white font-medium">Push Notifications</h4>
+                                        <p class="text-sm text-gray-500">Receive push notifications on your devices.</p>
+                                        <p id="pushStatus" class="text-xs text-gray-600 mt-1">Loading preference...</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="pushToggle" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-primary-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PREFERENCES TAB -->
+                        <div id="tab-content-preferences" class="tab-content hidden">
+                            <div class="glass-panel rounded-3xl p-8">
+                                <div class="flex items-center gap-3 mb-8">
+                                    <div class="p-2 bg-purple-500/10 rounded-xl text-purple-500">
+                                        <i data-feather="settings" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-bold text-white">System Preferences</h3>
+                                        <p class="text-xs text-gray-500 uppercase tracking-tighter italic">Personalize your ClassSense experience</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between p-4 bg-dark-bg/40 rounded-2xl border border-dark-border">
+                                    <div>
+                                        <h4 class="text-white font-medium">Dark Mode</h4>
+                                        <p class="text-sm text-gray-500">Toggle between light and dark themes.</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="darkModeToggle" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:bg-primary-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -152,6 +253,7 @@ require_once dirname(__DIR__) . '/core/init.php';
 
     <script type="module">
         import { api, initPage } from '../assets/js/custom-auth.js';
+        import { enablePush, disablePush, savePushSettings, loadPushSettings, onForegroundMessage } from '../assets/js/push-manager.js';
 
         let currentUid = null;
 
@@ -180,6 +282,18 @@ require_once dirname(__DIR__) . '/core/init.php';
         if (phoneInput) phoneInput.addEventListener('input', () => constrainDigits(phoneInput, phoneLabel));
         if (guardianInput) guardianInput.addEventListener('input', () => constrainDigits(guardianInput, guardianLabel));
 
+        function showStatus(message, type = 'error') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const isError = type === 'error';
+            toast.className = `toast flex items-center w-full max-w-xs p-4 space-x-4 text-gray-200 bg-dark-surface rounded-2xl shadow-2xl border border-dark-border ${isError ? 'border-l-4 border-l-primary-500' : 'border-l-4 border-l-green-500'} animate-fade-in-up`;
+            toast.innerHTML = `<div class="flex-shrink-0"><i data-feather="${isError ? 'alert-circle' : 'check-circle'}" class="w-5 h-5 ${isError ? 'text-primary-500' : 'text-green-500'}"></i></div><div class="text-[10px] font-black uppercase tracking-widest">${message}</div>`;
+            container.appendChild(toast);
+            feather.replace();
+            setTimeout(() => { toast.remove(); }, 4000);
+        }
+        window.showStatus = showStatus;
+
         // 1. Populate data when student profile is loaded
         initPage((data) => {
             currentUid = data.uid;
@@ -191,7 +305,7 @@ require_once dirname(__DIR__) . '/core/init.php';
             // Form UI
             document.getElementById('formFname').value = data.firstName || '';
             document.getElementById('formLname').value = data.lastName || '';
-            document.getElementById('formEmail').value = data.email || '';
+            document.getElementById('formEmail').value = data.username || '';
             document.getElementById('formPhone').value = cleanPhone(data.phone || "");
             document.getElementById('formGuardian').value = cleanPhone(data.guardianPhone || "");
 
@@ -274,20 +388,133 @@ require_once dirname(__DIR__) . '/core/init.php';
             }
         });
 
-        function showStatus(message, type = 'error') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            const isError = type === 'error';
-            toast.className = `toast flex items-center w-full max-w-xs p-4 space-x-4 text-gray-200 bg-dark-surface rounded-2xl shadow-2xl border border-dark-border ${isError ? 'border-l-4 border-l-primary-500' : 'border-l-4 border-l-green-500'} animate-fade-in-up`;
-            toast.innerHTML = `<div class="flex-shrink-0"><i data-feather="${isError ? 'alert-circle' : 'check-circle'}" class="w-5 h-5 ${isError ? 'text-primary-500' : 'text-green-500'}"></i></div><div class="text-[10px] font-black uppercase tracking-widest">${message}</div>`;
-            container.appendChild(toast);
-            feather.replace();
-            setTimeout(() => { toast.remove(); }, 4000);
+        // 3. Handle Change Password
+        const changePasswordForm = document.getElementById('changePasswordForm');
+        if (changePasswordForm) {
+            changePasswordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const current = document.getElementById('curPassword').value;
+                const next = document.getElementById('newPassword').value;
+                const confirm = document.getElementById('confirmPassword').value;
+
+                if (!current || !next || !confirm) return showStatus('Please fill in all password fields.', 'error');
+                if (next.length < 6) return showStatus('New password must be at least 6 characters.', 'error');
+                if (next !== confirm) return showStatus('Passwords do not match.', 'error');
+
+                const btn = document.getElementById('changePasswordBtn');
+                const btnText = document.getElementById('changePasswordBtnText');
+                btn.disabled = true;
+                btnText.textContent = 'Updating...';
+
+                try {
+                    await api('/change_password.php', {
+                        method: 'POST',
+                        body: JSON.stringify({ current_password: current, new_password: next })
+                    });
+                    document.getElementById('curPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                    showStatus('Password updated successfully.', 'success');
+                } catch (error) {
+                    console.error('Change password error:', error);
+                    showStatus(error.message || 'Failed to update password.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btnText.textContent = 'Update Password';
+                }
+            });
         }
-        window.showStatus = showStatus;
+
+        // 4. Push Notifications toggle
+        const pushToggle = document.getElementById('pushToggle');
+        const pushStatus = document.getElementById('pushStatus');
+        let lastPushToken = null;
+
+        function setPushStatus(text, type = '') {
+            if (!pushStatus) return;
+            pushStatus.textContent = text;
+            pushStatus.className = 'text-xs mt-1 ' + (type === 'error' ? 'text-red-400' : type === 'success' ? 'text-green-500' : 'text-gray-600');
+        }
+
+        async function initPushToggle() {
+            if (!pushToggle) return;
+            try {
+                const state = await loadPushSettings();
+                pushToggle.checked = !!state.pushEnabled;
+                if (state.deviceCount > 0 && state.pushEnabled) {
+                    setPushStatus(`Enabled on ${state.deviceCount} device${state.deviceCount > 1 ? 's' : ''}.`, 'success');
+                } else if (!state.pushEnabled) {
+                    setPushStatus('Disabled. In-app notifications still work.');
+                }
+            } catch (e) {
+                console.warn('Failed to load push settings:', e);
+                setPushStatus('Could not load preference.');
+            }
+        }
+
+        pushToggle.addEventListener('change', async () => {
+            const enabled = pushToggle.checked;
+            pushToggle.disabled = true;
+
+            if (enabled) {
+                setPushStatus('Requesting permission...');
+                try {
+                    const token = await enablePush();
+                    await savePushSettings(true, token);
+                    lastPushToken = token;
+                    setPushStatus('Enabled. You will receive device notifications.', 'success');
+                    showStatus('Push notifications enabled', 'success');
+                } catch (e) {
+                    pushToggle.checked = false;
+                    setPushStatus(e.message || 'Failed to enable push notifications.', 'error');
+                    showStatus(e.message || 'Failed to enable push notifications', 'error');
+                } finally {
+                    pushToggle.disabled = false;
+                }
+            } else {
+                setPushStatus('Disabling...');
+                try {
+                    await savePushSettings(false, lastPushToken || undefined);
+                    await disablePush();
+                    lastPushToken = null;
+                    setPushStatus('Disabled. In-app notifications still work.', 'success');
+                    showStatus('Push notifications disabled', 'success');
+                } catch (e) {
+                    pushToggle.checked = true;
+                    setPushStatus('Failed to disable push notifications.', 'error');
+                    showStatus('Failed to disable push notifications', 'error');
+                } finally {
+                    pushToggle.disabled = false;
+                }
+            }
+        });
+
+        onForegroundMessage((payload) => {
+            const title = (payload.notification && payload.notification.title) || 'ClassSense';
+            const body = (payload.notification && payload.notification.body) || '';
+            showStatus(body ? `${title} — ${body}` : title, 'info');
+        });
+
+        initPushToggle();
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', () => { feather.replace(); });
+
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('active', 'bg-white/10', 'text-white');
+                el.classList.add('text-gray-400');
+            });
+            const activeContent = document.getElementById('tab-content-' + tabName);
+            if (activeContent) activeContent.classList.remove('hidden');
+            const activeBtn = document.getElementById('tab-btn-' + tabName);
+            if (activeBtn) {
+                activeBtn.classList.add('active', 'text-white');
+                activeBtn.classList.remove('text-gray-400');
+            }
+        }
     </script>
     <script src="../assets/js/theme-toggle.js" defer></script>
     <script type="module" src="student_auth.js"></script>

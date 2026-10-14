@@ -57,7 +57,7 @@
 
             <a href="deletion_requests.php" class="nav-item group flex items-center px-4 py-3 text-sm font-medium <?php echo $current_page == 'deletion_requests.php' ? 'active shadow-lg shadow-primary-500/10 text-primary-400' : 'text-gray-400'; ?> rounded-lg">
                 <i data-feather="inbox" class="w-5 h-5 mr-3 <?php echo $current_page == 'deletion_requests.php' ? 'text-primary-400' : 'text-gray-500'; ?> group-hover:text-primary-400 transition-colors"></i>
-                Deletion Requests
+                Approval Requests
                 <span id="deletionPendingBadge" class="ml-auto hidden px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[9px] font-black text-amber-400 italic uppercase tracking-widest leading-none">0</span>
             </a>
         </div>

@@ -86,45 +86,61 @@ require_once dirname(__DIR__) . '/core/init.php';
                     </label>
                     <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">Radius:</span>
                     <input type="number" id="sessionRadiusInput" value="150" min="50" max="2000" class="w-24 bg-dark-bg border border-dark-border text-gray-300 text-sm rounded-lg px-3 py-2 focus:ring-primary-500 focus:border-primary-500">
-                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">meters</span>
+                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic opacity-60">Meters</span>
                 </div>
 
                 <!-- Start Attendance Bar (revealed when a class is selected) -->
                 <div id="startAttendanceBar" class="hidden mb-6 sticky top-0 z-30 animate-fade-in-up" style="animation-delay: 100ms">
-                    <div class="glass-panel rounded-2xl p-4 border-primary-500/40 shadow-xl shadow-primary-500/5 flex flex-wrap items-center justify-between gap-4">
+                    <div class="glass-panel rounded-2xl p-4 border-primary-500/40 shadow-xl shadow-primary-500/5">
                         <div class="flex items-center gap-4 min-w-0">
                             <div class="p-2.5 bg-primary-500/10 rounded-xl shrink-0">
                                 <i data-feather="book-open" class="w-5 h-5 text-primary-500"></i>
                             </div>
-                            <div class="min-w-0">
+                            <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <h3 id="selectedClassName" class="text-base font-black text-white uppercase tracking-tighter italic truncate">Class Name</h3>
                                     <span id="selectedClassLiveBadge" class="hidden items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-green-500/10 text-green-400 border border-green-500/30 italic"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> LIVE</span>
                                 </div>
-                                <p id="selectedClassMeta" class="text-[10px] text-gray-400 font-medium uppercase tracking-widest opacity-60 truncate">Subject &bull; Section</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span id="gradingTermBadge" title="Term is set in the Grading Center" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-500/10 border border-primary-500/20 text-primary-400 text-[9px] font-black uppercase tracking-widest italic whitespace-nowrap">Recording to 1st Term</span>
-                            <span id="selectedClassCode" class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic"></span>
-                            <div class="flex items-center gap-1.5" title="Automatically end the session after the chosen time — or keep it running until you press End Session">
-                                <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic whitespace-nowrap">Auto-End</span>
-                                <div class="flex items-center gap-1 p-1 bg-dark-bg border border-dark-border rounded-xl">
-                                    <button type="button" data-duration="0" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">Off</button>
-                                    <button type="button" data-duration="5" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">5m</button>
-                                    <button type="button" data-duration="10" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">10m</button>
-                                    <button type="button" data-duration="15" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">15m</button>
-                                    <button type="button" data-duration="30" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">30m</button>
-                                    <button type="button" data-duration="60" class="timer-chip px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest italic transition-all cursor-pointer bg-white/5 text-gray-400 hover:bg-primary-500 hover:text-white">60m</button>
-                                    <input type="number" id="sessionTimerCustom" min="1" max="240" placeholder="min" title="Custom minutes (max 240)" class="w-14 bg-dark-bg/60 border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
+                                <div class="flex items-center gap-2 flex-wrap mt-1">
+                                    <p id="selectedClassMeta" class="text-[10px] text-gray-400 font-medium uppercase tracking-widest opacity-60 truncate">Subject &bull; Section</p>
+                                    <span id="gradingTermBadge" title="Term is set in the Grading Center" class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-400 text-[9px] font-black uppercase tracking-widest italic whitespace-nowrap">Recording to 1st Term</span>
+                                    <span id="selectedClassCode" class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic"></span>
                                 </div>
                             </div>
-                            <button id="startAttendanceBtn" onclick="window.startSelectedClass()" class="flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 active:scale-95 text-white font-black uppercase tracking-widest italic text-xs rounded-xl shadow-lg shadow-primary-500/25 transition-all">
-                                <i data-feather="play" class="w-4 h-4"></i> Start Attendance
-                            </button>
-                            <button onclick="window.clearSelection()" class="p-2.5 bg-dark-bg hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors" title="Clear selection">
-                                <i data-feather="x" class="w-4 h-4"></i>
-                            </button>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/5">
+                            <div class="flex items-center gap-1.5 px-2 py-1.5 bg-dark-bg/60 border border-dark-border rounded-xl" title="Automatically end the session after the chosen time — or keep it running until you press End Session">
+                                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest italic whitespace-nowrap">Auto-End</span>
+                                <select id="sessionDurationSelect" class="bg-dark-bg border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
+                                    <option value="0">Off</option>
+                                    <option value="5">5m</option>
+                                    <option value="10">10m</option>
+                                    <option value="15">15m</option>
+                                    <option value="30">30m</option>
+                                    <option value="60">60m</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <input type="number" id="sessionTimerCustom" min="1" max="240" placeholder="min" title="Custom minutes (max 240)" class="w-14 bg-dark-bg/60 border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
+                            </div>
+                            <div class="flex items-center gap-1.5 px-2 py-1.5 bg-dark-bg/60 border border-dark-border rounded-xl" title="Mark scans after this many minutes as Late">
+                                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest italic whitespace-nowrap">Late</span>
+                                <select id="sessionLateSelect" class="bg-dark-bg border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
+                                    <option value="1">1m</option>
+                                    <option value="2">2m</option>
+                                    <option value="3">3m</option>
+                                    <option value="5" selected>5m</option>
+                                    <option value="10">10m</option>
+                                    <option value="15">15m</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center gap-2 ml-auto">
+                                <button id="startAttendanceBtn" onclick="window.startSelectedClass()" class="flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 active:scale-95 text-white font-black uppercase tracking-widest italic text-xs rounded-xl shadow-lg shadow-primary-500/25 transition-all">
+                                    <i data-feather="play" class="w-4 h-4"></i> Start Attendance
+                                </button>
+                                <button onclick="window.clearSelection()" class="p-2.5 bg-dark-bg hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors" title="Clear selection">
+                                    <i data-feather="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -165,6 +181,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
     </script>
 
-    <script type="module" src="attendance/attendance.js?v=14"></script>
+    <script type="module" src="attendance/attendance.js?v=16"></script>
 </body>
 </html>

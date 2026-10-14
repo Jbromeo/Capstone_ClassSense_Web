@@ -1,14 +1,14 @@
 // Proactive AI-insight queue drain. XAMPP has no cron, so the student/teacher
 // screens poll this lightweight endpoint; generation happens only after the
-// 5-minute debounce window since the last grade/attendance change.
+// 2-minute debounce window since the last grade/attendance change.
 import { api } from './custom-auth.js';
 
 let started = false;
 
-export function startInsightPoller(intervalMs = 60000) {
+export function startInsightPoller(intervalMs = 15000) {
     if (started) return;
     started = true;
-    setTimeout(poll, 15000);
+    setTimeout(poll, 5000);
     setInterval(poll, intervalMs);
 }
 

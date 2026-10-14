@@ -1,4 +1,5 @@
 import { auth, onAuthStateChanged, signOut, api, customSignOut } from './custom-auth.js';
+import { rebindPushToCurrentUser } from './push-manager.js';
 
 console.log('[auth_controller] loaded, auth.currentUser:', !!auth.currentUser, auth.currentUser?.email);
 
@@ -61,6 +62,9 @@ async function performHandshake(user) {
         const result = await response.json();
         console.log('[auth_controller] sync_session result:', result);
 
+        // Rebind this browser's push token to the active account (shared-device safety).
+        rebindPushToCurrentUser(user.uid);
+
         if (isPublicPage && result.redirect) {
             console.log('[auth_controller] redirecting to:', CS_ROOT + result.redirect);
             window.location.replace(CS_ROOT + result.redirect);
@@ -89,6 +93,7 @@ onAuthStateChanged(auth, (user) => {
                 console.log('[auth_controller] custom token verified, dispatching profileLoaded', userData);
                 const profile = {
                     uid: userData.uid,
+                    username: userData.username || '',
                     email: userData.email,
                     role: userData.role,
                     firstName: userData.firstName || '',
@@ -98,6 +103,8 @@ onAuthStateChanged(auth, (user) => {
                 window.csProfile = profile;
                 localStorage.setItem('cs_cached_profile', JSON.stringify(profile));
                 window.dispatchEvent(new CustomEvent('profileLoaded', { detail: profile }));
+                // Rebind this browser's push token to the active account (shared-device safety).
+                rebindPushToCurrentUser(userData.uid);
             }).catch(err => {
                 console.error('[auth_controller] custom token verify failed:', err);
                 sessionStorage.removeItem('cs_token');

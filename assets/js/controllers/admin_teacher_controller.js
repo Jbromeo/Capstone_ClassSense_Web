@@ -18,6 +18,8 @@ let pendingDelete = null;
 
 const employeeIdInput = document.getElementById('employeeIdInput');
 const employeeIdLabel = document.getElementById('employeeIdLabel');
+const usernameInput = document.getElementById('usernameInput');
+const usernameLabel = document.getElementById('usernameLabel');
 
 const vibrateLabel = (label) => {
     if (!label) return;
@@ -27,6 +29,7 @@ const vibrateLabel = (label) => {
 };
 
 const isValidEmployeeId = (id) => /^\d{1,8}$/.test(id);
+const isValidUsername = (u) => /^[a-zA-Z0-9_.-]+$/.test(u);
 
 if (employeeIdInput && employeeIdLabel) {
     employeeIdInput.addEventListener('input', () => {
@@ -63,23 +66,23 @@ const esc = (value) => String(value ?? '')
 
 const renderTeacherRow = (id, data, isNew = false) => {
     const pending = pendingRequests[id];
+    const isActive = (data.active == null) ? true : (data.active !== 0);
+    const name = (data.firstName || '') + ' ' + (data.lastName || '');
     let settingsCell;
 
     if (pending) {
         settingsCell = `
-            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest italic" title="Deletion request awaiting super admin approval">
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest italic" title="Approval request awaiting super admin">
                 <i data-feather="clock" class="w-3 h-3"></i> Pending
             </span>`;
     } else if (isSuperAdmin) {
-        settingsCell = `
-            <button onclick="window.purgeTeacher('${esc(id)}', '${esc(data.username || data.email || '')}', '${esc(data.email || '')}')" class="p-4 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Purge Record">
-                <i data-feather="trash-2" class="w-6 h-6"></i>
-            </button>`;
+        settingsCell = isActive
+            ? `<button onclick="window.deactivateTeacher('${esc(id)}', '${esc(name)}')" class="p-4 text-gray-500 hover:text-amber-400 transition-all hover:scale-150" title="Deactivate"><i data-feather="user-x" class="w-6 h-6"></i></button>`
+            : `<button onclick="window.reactivateTeacher('${esc(id)}', '${esc(name)}')" class="p-4 text-gray-500 hover:text-green-400 transition-all hover:scale-150" title="Reactivate"><i data-feather="user-check" class="w-6 h-6"></i></button>`;
     } else {
-        settingsCell = `
-            <button onclick="window.requestTeacherDeletion('${esc(id)}', '${esc((data.firstName || '') + ' ' + (data.lastName || ''))}')" class="p-4 text-gray-500 hover:text-primary-400 transition-all hover:scale-150" title="Request Deletion">
-                <i data-feather="trash-2" class="w-6 h-6"></i>
-            </button>`;
+        settingsCell = isActive
+            ? `<button onclick="window.requestDeactivate('${esc(id)}', '${esc(name)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest italic text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all whitespace-nowrap" title="Request Deactivation"><i data-feather="user-x" class="w-3.5 h-3.5"></i> Request Deactivate</button>`
+            : `<button onclick="window.requestReactivate('${esc(id)}', '${esc(name)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest italic text-green-400 bg-green-500/10 border border-green-500/20 hover:bg-green-500/20 transition-all whitespace-nowrap" title="Request Reactivation"><i data-feather="user-check" class="w-3.5 h-3.5"></i> Request Activate</button>`;
     }
 
     return `
@@ -92,8 +95,8 @@ const renderTeacherRow = (id, data, isNew = false) => {
                     </div>
                     <div>
                         <p class="text-xl font-black text-white group-hover:text-purple-400 transition-colors italic tracking-tighter uppercase leading-none">${data.firstName || ''} ${data.lastName || ''}</p>
-                        <p class="text-xs ${isNew ? 'text-green-400 font-black italic' : 'text-gray-400 font-bold'} uppercase tracking-widest mt-2 italic flex items-center gap-2">
-                            ${isNew ? '<span class="px-2 py-0.5 bg-green-500/20 rounded text-[9px]">Just Registered</span>' : 'Verified Educator'}
+                        <p class="text-xs ${isNew ? 'text-green-400 font-black italic' : (isActive ? 'text-gray-400 font-bold' : 'text-red-400 font-bold')} uppercase tracking-widest mt-2 italic flex items-center gap-2">
+                            ${isNew ? '<span class="px-2 py-0.5 bg-green-500/20 rounded text-[9px]">Just Registered</span>' : (isActive ? 'Verified Educator' : '<span class="px-2 py-0.5 bg-red-500/20 rounded text-[9px] text-red-400">Deactivated</span>')}
                         </p>
                         </div>
                     </div>
@@ -175,11 +178,24 @@ const loadMoreFromCache = () => {
     }, 300);
 };
 
-window.purgeTeacher = (uid, username, email) => {
-    pendingDelete = { uid, username, email };
-    targetLabel.textContent = username;
+window.deactivateTeacher = (uid, name) => {
+    pendingDelete = { uid, name, action: 'deactivate' };
+    targetLabel.textContent = name || 'this teacher';
     modal.classList.remove('hidden');
     setTimeout(() => modal.classList.add('show'), 10);
+};
+
+window.reactivateTeacher = async (uid, name) => {
+    try {
+        await api('/admin/account_status.php', {
+            method: 'POST',
+            body: JSON.stringify({ target_uid: uid, active: 1 })
+        });
+        window.showStatus(`${name || 'Teacher'} reactivated.`, 'success');
+        syncRegistry();
+    } catch (error) {
+        window.showStatus(error.message || 'Reactivate failed');
+    }
 };
 
 const closeModal = () => {
@@ -192,18 +208,18 @@ cancelBtn.onclick = closeModal;
 
 confirmBtn.onclick = async () => {
     if(!pendingDelete) return;
-    const { uid, username } = pendingDelete;
+    const { uid, name } = pendingDelete;
     closeModal();
-    window.showStatus(`Initiating full purge...`, 'success');
     try {
-        await api('/fetch.php?uid=' + uid, { method: 'DELETE' });
-        registryCache = registryCache.filter(t => t.uid !== uid);
-        filteredCache = filteredCache.filter(t => t.uid !== uid);
-        document.getElementById(`row-${uid}`)?.remove();
-        window.showStatus(`Account ${username} erased.`, 'success');
+        await api('/admin/account_status.php', {
+            method: 'POST',
+            body: JSON.stringify({ target_uid: uid, active: 0 })
+        });
+        window.showStatus(`${name || 'Teacher'} deactivated.`, 'success');
+        syncRegistry();
     } catch (error) {
-        console.error("Purge Error:", error);
-        window.showStatus(`Purge error: ${error.message || 'Check terminal'}`);
+        console.error("Deactivate Error:", error);
+        window.showStatus(error.message || 'Deactivate failed');
     }
 };
 
@@ -232,6 +248,11 @@ addForm.addEventListener('submit', async (e) => {
         vibrateLabel(employeeIdLabel);
         return window.showStatus("Invalid Employee ID: numbers only, 8 digits maximum.");
     }
+    const username = (data.username || '').trim();
+    if (!isValidUsername(username)) {
+        vibrateLabel(usernameLabel);
+        return window.showStatus("Invalid username: letters, numbers, dots, underscores or hyphens only (no @ or spaces).");
+    }
     subBtn.disabled = true;
     document.getElementById('btnLoader').classList.remove('hidden');
     document.getElementById('btnText').textContent = "Establishing Identity...";
@@ -240,7 +261,7 @@ addForm.addEventListener('submit', async (e) => {
         const result = await api('/auth/register.php', {
             method: 'POST',
             body: JSON.stringify({
-                username: data.username || `${data.username}@classsense.com`,
+                username: username,
                 password: data.password,
                 role: 'teacher',
                 firstName: data.fname,
@@ -250,8 +271,8 @@ addForm.addEventListener('submit', async (e) => {
         });
         const newTeacher = {
             uid: result.uid, firstName: data.fname, lastName: data.lname,
-            email: data.username || `${data.username}@classsense.com`,
-            username: data.username,
+            email: username,
+            username: username,
             employeeId: data.employee_id,
             role: 'teacher'
         };
@@ -275,8 +296,16 @@ addForm.addEventListener('submit', async (e) => {
     }
 });
 
-window.requestTeacherDeletion = (uid, name) => {
-    pendingRequestTarget = { uid, name };
+window.requestDeactivate = (uid, name) => {
+    pendingRequestTarget = { uid, name, type: 'deactivate' };
+    requestTargetName.textContent = name || 'this teacher';
+    requestReasonInput.value = '';
+    requestModal.classList.remove('hidden');
+    setTimeout(() => requestModal.classList.add('show'), 10);
+};
+
+window.requestReactivate = (uid, name) => {
+    pendingRequestTarget = { uid, name, type: 'reactivate' };
     requestTargetName.textContent = name || 'this teacher';
     requestReasonInput.value = '';
     requestModal.classList.remove('hidden');
@@ -293,17 +322,18 @@ if (cancelRequestBtn) cancelRequestBtn.onclick = closeRequestModal;
 
 if (confirmRequestBtn) confirmRequestBtn.onclick = async () => {
     if (!pendingRequestTarget) return;
-    const { uid, name } = pendingRequestTarget;
+    const { uid, name, type } = pendingRequestTarget;
     confirmRequestBtn.disabled = true;
     try {
         const result = await api('/admin/deletion_requests.php', {
             method: 'POST',
-            body: JSON.stringify({ target_uid: uid, reason: requestReasonInput.value.trim() })
+            body: JSON.stringify({ target_uid: uid, type, reason: requestReasonInput.value.trim() })
         });
         pendingRequests[uid] = { id: result.id, target_uid: uid, status: 'pending' };
         closeRequestModal();
         renderInitialBatch();
-        window.showStatus(`Deletion request for ${name} submitted for approval.`, 'success');
+        const verb = type === 'reactivate' ? 'Reactivation' : 'Deactivation';
+        window.showStatus(`${verb} request for ${name} submitted for approval.`, 'success');
     } catch (error) {
         window.showStatus(error.message || 'Request failed.');
     } finally {

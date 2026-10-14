@@ -99,3 +99,30 @@ export function onForegroundMessage(cb) {
         console.warn('[push-manager] onMessage setup failed:', e);
     }
 }
+
+// Rebind this browser's FCM token to the currently logged-in account. The token
+// is per-browser, so after a login we reassign it to the active uid — a shared
+// device can then never leak another account's pushes. Skipped when push was
+// never set up on this browser (no prompt) or when already bound to this uid.
+export async function rebindPushToCurrentUser(uid) {
+    if (!uid) return;
+    try {
+        const owner = localStorage.getItem('cs_push_owner_uid');
+        if (owner === uid) return; // already bound to this account
+        if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+        const reg = await ensureServiceWorker();
+        const token = await getToken(getMessagingInstance(), {
+            vapidKey: VAPID_KEY,
+            serviceWorkerRegistration: reg
+        });
+        if (!token) return;
+        const res = await fetch(CS_ROOT + 'api/push_settings.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'rebind', token: token })
+        });
+        if (res.ok) localStorage.setItem('cs_push_owner_uid', uid);
+    } catch (e) {
+        console.warn('[push-manager] rebindPushToCurrentUser failed:', e);
+    }
+}

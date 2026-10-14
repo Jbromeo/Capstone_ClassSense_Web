@@ -7,8 +7,25 @@ $method = $_SERVER['REQUEST_METHOD'];
 $pdo = getPDO();
 requireSuperAdmin($pdo, $uid);
 
-// --- GET: list admin accounts ------------------------------------------
+// Next free login name in the sequence admin1, admin2, ...
+function nextAdminUsername($pdo) {
+    $stmt = $pdo->query("SELECT username FROM users WHERE username LIKE 'admin[0-9]%'");
+    $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $max = 0;
+    foreach ($rows as $u) {
+        if (preg_match('/^admin(\d+)$/', $u, $m)) {
+            $max = max($max, (int)$m[1]);
+        }
+    }
+    return 'admin' . ($max + 1);
+}
+
+// --- GET: list admin accounts (or suggest next username) ----------------
 if ($method === 'GET') {
+    if (isset($_GET['suggest'])) {
+        jsonResponse(['username' => nextAdminUsername($pdo)]);
+    }
+
     $stmt = $pdo->query("
         SELECT uid, username, role, first_name, last_name, created_at
         FROM users
@@ -60,6 +77,24 @@ if ($method === 'POST') {
     $revoked = $stmt->rowCount();
 
     jsonResponse(['success' => true, 'sessions_revoked' => $revoked]);
+}
+
+// --- PUT: create a new admin account -------------------------------------
+if ($method === 'PUT') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $password = $data['password'] ?? '';
+    if (strlen($password) < 6) {
+        jsonResponse(['error' => 'Password must be at least 6 characters'], 400);
+    }
+
+    $username = nextAdminUsername($pdo);
+    $newUid = strtolower(bin2hex(random_bytes(16)));
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+
+    $stmt = $pdo->prepare("INSERT INTO users (uid, username, password_hash, role, role_type) VALUES (?, ?, ?, 'admin', 'admin')");
+    $stmt->execute([$newUid, $username, $hash]);
+
+    jsonResponse(['success' => true, 'username' => $username, 'uid' => $newUid], 201);
 }
 
 // --- DELETE: remove an admin account ------------------------------------

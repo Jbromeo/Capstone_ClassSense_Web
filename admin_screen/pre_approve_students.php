@@ -142,15 +142,15 @@ require_once dirname(__DIR__) . '/core/init.php';
             const isUsed = data.is_used;
             const isPending = !!data.deletion_pending;
             const statusBadge = isPending
-                ? '<span class="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-widest">Pending Deletion</span>'
+                ? '<span class="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-widest">Pending Approval</span>'
                 : isUsed
                     ? '<span class="px-3 py-1 rounded-full bg-gray-500/10 border border-gray-500/20 text-gray-400 text-[10px] font-black uppercase tracking-widest">Used</span>'
                     : '<span class="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-black uppercase tracking-widest">Available</span>';
             const actions = isPending
                 ? '<span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest italic">Awaiting approval</span>'
                 : isUsed
-                    ? `${isSuperAdmin ? `<button onclick="window.resetEntry(${data.id})" class="p-2 text-blue-500 hover:text-blue-400 transition-all hover:scale-150" title="Reset to Available"><i data-feather="refresh-ccw" class="w-4 h-4"></i></button>` : ''}
-                       <button onclick="window.deleteEntry(${data.id})" class="p-2 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Remove"><i data-feather="trash-2" class="w-4 h-4"></i></button>`
+                    ? `<button onclick="window.resetEntry(${data.id})" class="p-2 text-blue-500 hover:text-blue-400 transition-all hover:scale-150" title="Reset to Available"><i data-feather="refresh-ccw" class="w-4 h-4"></i></button>
+                       <button onclick="window.deleteEntry(${data.id})" class="p-2 text-gray-500 hover:text-amber-400 transition-all hover:scale-150" title="Deactivate"><i data-feather="user-x" class="w-4 h-4"></i></button>`
                     : `<button onclick="window.deleteEntry(${data.id})" class="p-3 text-gray-500 hover:text-primary-500 transition-all hover:scale-150" title="Remove"><i data-feather="trash-2" class="w-4 h-4"></i></button>`;
             return `
                 <tr id="row-${data.id}" class="hover:bg-white/5 transition-colors group">
@@ -227,21 +227,28 @@ require_once dirname(__DIR__) . '/core/init.php';
                 iconBg: 'bg-blue-500/10',
                 iconColor: 'text-blue-500',
                 title: 'Reset to Available?',
-                message: 'This will delete the linked student account and free up their Student ID for reuse.',
-                confirmText: 'Yes, Reset',
+                message: isSuperAdmin
+                    ? 'This will delete the linked student account and free up their Student ID for reuse.'
+                    : 'This will send a reset request to the super admin. The ID will be freed once approved.',
+                confirmText: isSuperAdmin ? 'Yes, Reset' : 'Yes, Request',
                 confirmBg: 'bg-blue-600 hover:bg-blue-700',
                 onConfirm: async () => {
                     try {
-                        await api('/admin/pre_approve.php?id=' + id + '&reset=1', { method: 'DELETE' });
-                        const entry = registryCache.find(e => e.id === id);
-                        if (entry) {
-                            entry.is_used = false;
-                            entry.used_at = null;
+                        const result = await api('/admin/pre_approve.php?id=' + id + '&reset=1', { method: 'DELETE' });
+                        if (result.action === 'requested') {
+                            window.showStatus('Reset request sent to super admin.', 'success');
+                            syncRegistry();
+                        } else {
+                            const entry = registryCache.find(e => e.id === id);
+                            if (entry) {
+                                entry.is_used = false;
+                                entry.used_at = null;
+                            }
+                            const row = document.getElementById('row-' + id);
+                            if (row && entry) row.outerHTML = renderRow(entry);
+                            feather.replace();
+                            window.showStatus('Entry reset to Available.', 'success');
                         }
-                        const row = document.getElementById('row-' + id);
-                        if (row && entry) row.outerHTML = renderRow(entry);
-                        feather.replace();
-                        window.showStatus('Entry reset to Available.', 'success');
                     } catch (error) {
                         window.showStatus(error.message || 'Reset failed');
                     }
@@ -251,28 +258,30 @@ require_once dirname(__DIR__) . '/core/init.php';
 
         window.deleteEntry = async (id) => {
             const entry = registryCache.find(e => e.id === id);
-            const isUsedRequest = !!(entry && entry.is_used && !isSuperAdmin);
+            const isUsed = !!(entry && entry.is_used);
             showConfirmModal({
-                icon: 'trash-2',
+                icon: isUsed ? 'user-x' : 'trash-2',
                 iconBg: 'bg-primary-500/10',
                 iconColor: 'text-primary-500',
-                title: isUsedRequest ? 'Request Removal?' : 'Remove Entry?',
-                message: isUsedRequest
-                    ? 'This will send a deletion request to the super admin. The student account and this entry will be removed only after approval.'
+                title: isUsed ? 'Deactivate Student?' : 'Remove Entry?',
+                message: isUsed
+                    ? (isSuperAdmin
+                        ? 'This will deactivate the linked student account and remove this entry.'
+                        : 'This will send a deactivation request to the super admin. The student will be deactivated once approved.')
                     : 'This will permanently remove this Student ID from the pre-approved list.',
-                confirmText: isUsedRequest ? 'Yes, Request' : 'Yes, Remove',
+                confirmText: isUsed ? (isSuperAdmin ? 'Yes, Deactivate' : 'Yes, Request') : 'Yes, Remove',
                 confirmBg: 'bg-primary-600 hover:bg-primary-700',
                 onConfirm: async () => {
                     try {
                         const result = await api('/admin/pre_approve.php?id=' + id, { method: 'DELETE' });
                         if (result.action === 'requested') {
-                            window.showStatus('Deletion request sent to super admin.', 'success');
+                            window.showStatus('Approval request sent to super admin.', 'success');
                             syncRegistry();
                         } else {
                             registryCache = registryCache.filter(e => e.id !== id);
                             filteredCache = filteredCache.filter(e => e.id !== id);
                             document.getElementById('row-' + id)?.remove();
-                            window.showStatus('Entry removed.', 'success');
+                            window.showStatus(result.action === 'deactivated' ? 'Student deactivated and entry removed.' : 'Entry removed.', 'success');
                         }
                     } catch (error) {
                         window.showStatus(error.message || 'Delete failed');
