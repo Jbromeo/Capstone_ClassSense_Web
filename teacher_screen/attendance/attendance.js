@@ -246,11 +246,23 @@ window.startAttendanceSession = async (classId) => {
     // Defensive: capture the dropdown selections at click time (not only via
     // change events) so the chosen auto-end / late window always applies.
     const durSel = document.getElementById('sessionDurationSelect');
-    if (durSel && durSel.value !== 'custom') {
-        sessionDurationMinutes = parseInt(durSel.value, 10) || 0;
+    if (durSel) {
+        if (durSel.value === 'custom') {
+            const durCustom = document.getElementById('sessionTimerCustom');
+            sessionDurationMinutes = parseInt(durCustom?.value, 10) || 0;
+        } else {
+            sessionDurationMinutes = parseInt(durSel.value, 10) || 0;
+        }
     }
     const lateSel = document.getElementById('sessionLateSelect');
-    if (lateSel) sessionLateMinutes = parseInt(lateSel.value, 10) || 5;
+    if (lateSel) {
+        if (lateSel.value === 'custom') {
+            const lateCustom = document.getElementById('sessionLateCustom');
+            sessionLateMinutes = parseInt(lateCustom?.value, 10) || 5;
+        } else {
+            sessionLateMinutes = parseInt(lateSel.value, 10) || 5;
+        }
+    }
 
     try {
         // Fetch class details (now includes .window)
@@ -880,19 +892,19 @@ function syncSessionTimer() {
 function setSessionDuration(minutes) {
     sessionDurationMinutes = minutes;
     const select = document.getElementById('sessionDurationSelect');
-    if (select) {
-        select.value = [0, 5, 10, 15, 30, 60].includes(minutes) ? String(minutes) : 'custom';
-    }
     const custom = document.getElementById('sessionTimerCustom');
-    if (custom) {
-        const customActive = minutes > 0 && ![5, 10, 15, 30, 60].includes(minutes);
-        custom.value = customActive ? String(minutes) : '';
-        custom.classList.toggle('border-primary-500', customActive);
-        custom.classList.toggle('text-primary-400', customActive);
-        custom.classList.toggle('bg-primary-500/10', customActive);
-        custom.classList.toggle('border-dark-border', !customActive);
-        custom.classList.toggle('text-gray-300', !customActive);
-        custom.classList.toggle('bg-dark-bg/60', !customActive);
+    if (select) {
+        const isStandard = [0, 5, 10, 15, 30, 60].includes(minutes);
+        select.value = isStandard ? String(minutes) : 'custom';
+        if (custom) {
+            if (!isStandard && minutes > 0) {
+                custom.classList.remove('hidden');
+                custom.value = String(minutes);
+            } else {
+                custom.classList.add('hidden');
+                custom.value = '';
+            }
+        }
     }
 }
 
@@ -1726,36 +1738,87 @@ window.loadSessionReportFromServer = async (classId, sessionId) => {
 document.addEventListener('DOMContentLoaded', () => {
     feather.replace();
     const durationSelect = document.getElementById('sessionDurationSelect');
+    const customTimer = document.getElementById('sessionTimerCustom');
     if (durationSelect) {
         durationSelect.addEventListener('change', () => {
             const v = durationSelect.value;
             if (v === 'custom') {
-                const custom = document.getElementById('sessionTimerCustom');
-                if (custom) custom.focus();
-                return;
+                if (customTimer) {
+                    customTimer.classList.remove('hidden');
+                    customTimer.focus();
+                }
+            } else {
+                if (customTimer) {
+                    customTimer.classList.add('hidden');
+                    customTimer.value = '';
+                }
+                setSessionDuration(parseInt(v, 10));
             }
-            setSessionDuration(parseInt(v, 10));
         });
     }
+
     const lateSelect = document.getElementById('sessionLateSelect');
+    const customLate = document.getElementById('sessionLateCustom');
     if (lateSelect) {
         lateSelect.addEventListener('change', () => {
-            sessionLateMinutes = parseInt(lateSelect.value, 10) || 5;
-        });
-    }
-    const custom = document.getElementById('sessionTimerCustom');
-    if (custom) {
-        custom.addEventListener('change', () => {
-            const v = parseInt(custom.value, 10);
-            if (!isNaN(v) && v > 0) {
-                setSessionDuration(Math.min(240, Math.max(1, v)));
-            } else if (custom.value.trim() === '') {
-                setSessionDuration(0);
+            const v = lateSelect.value;
+            if (v === 'custom') {
+                if (customLate) {
+                    customLate.classList.remove('hidden');
+                    customLate.focus();
+                }
             } else {
-                custom.value = sessionDurationMinutes > 0 ? String(sessionDurationMinutes) : '';
+                if (customLate) {
+                    customLate.classList.add('hidden');
+                    customLate.value = '';
+                }
+                sessionLateMinutes = parseInt(v, 10) || 5;
             }
         });
     }
+
+    if (customTimer) {
+        customTimer.addEventListener('input', () => {
+            const v = parseInt(customTimer.value, 10);
+            if (!isNaN(v) && v > 0) {
+                sessionDurationMinutes = Math.min(240, Math.max(1, v));
+            } else if (customTimer.value.trim() === '') {
+                sessionDurationMinutes = 0;
+            }
+        });
+        customTimer.addEventListener('change', () => {
+            const v = parseInt(customTimer.value, 10);
+            if (!isNaN(v) && v > 0) {
+                setSessionDuration(Math.min(240, Math.max(1, v)));
+            } else if (customTimer.value.trim() === '') {
+                setSessionDuration(0);
+            } else {
+                customTimer.value = sessionDurationMinutes > 0 ? String(sessionDurationMinutes) : '';
+            }
+        });
+    }
+
+    if (customLate) {
+        customLate.addEventListener('input', () => {
+            const v = parseInt(customLate.value, 10);
+            if (!isNaN(v) && v > 0) {
+                sessionLateMinutes = Math.min(120, Math.max(1, v));
+            } else if (customLate.value.trim() === '') {
+                sessionLateMinutes = 5;
+            }
+        });
+        customLate.addEventListener('change', () => {
+            const v = parseInt(customLate.value, 10);
+            if (!isNaN(v) && v > 0) {
+                sessionLateMinutes = Math.min(120, Math.max(1, v));
+            } else if (customLate.value.trim() === '') {
+                sessionLateMinutes = 5;
+            } else {
+                customLate.value = sessionLateMinutes > 0 ? String(sessionLateMinutes) : '5';
+            }
+        });
+    }
+
     setSessionDuration(0);
 });
 

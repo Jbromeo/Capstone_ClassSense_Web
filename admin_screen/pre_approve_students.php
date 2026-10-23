@@ -62,10 +62,10 @@ require_once dirname(__DIR__) . '/core/init.php';
                     <div class="glass-panel rounded-2xl overflow-hidden animate-fade-in-up flex flex-col h-[700px]" style="animation-delay: 0.1s">
                         <div class="p-6 border-b border-dark-border bg-white/5 space-y-4">
                             <div class="flex justify-between items-center">
-                                <h3 class="text-lg font-bold text-white tracking-tight leading-none uppercase">Approved Students Registry</h3>
                                 <div class="flex items-center gap-3">
-                                    <div class="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg shadow-inner">
-                                        <span id="entryCount" class="text-blue-400 font-bold text-[10px] uppercase tracking-widest leading-none italic">Syncing...</span>
+                                    <h3 class="text-lg font-bold text-white tracking-tight leading-none uppercase">Approved Students Registry</h3>
+                                    <div class="px-4 py-2 bg-blue-500/20 border border-blue-500/40 rounded-full shadow-lg">
+                                        <span id="entryCount" class="text-blue-300 font-black text-sm tracking-wider leading-none">...</span>
                                     </div>
                                 </div>
                             </div>

@@ -120,7 +120,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                     <option value="60">60m</option>
                                     <option value="custom">Custom</option>
                                 </select>
-                                <input type="number" id="sessionTimerCustom" min="1" max="240" placeholder="min" title="Custom minutes (max 240)" class="w-14 bg-dark-bg/60 border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
+                                <input type="number" id="sessionTimerCustom" min="1" max="240" placeholder="min" title="Custom minutes (max 240)" class="hidden w-14 bg-dark-bg/60 border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
                             </div>
                             <div class="flex items-center gap-1.5 px-2 py-1.5 bg-dark-bg/60 border border-dark-border rounded-xl" title="Mark scans after this many minutes as Late">
                                 <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest italic whitespace-nowrap">Late</span>
@@ -131,7 +131,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                                     <option value="5" selected>5m</option>
                                     <option value="10">10m</option>
                                     <option value="15">15m</option>
+                                    <option value="custom">Custom</option>
                                 </select>
+                                <input type="number" id="sessionLateCustom" min="1" max="120" placeholder="min" title="Custom late minutes (max 120)" class="hidden w-14 bg-dark-bg/60 border border-dark-border text-gray-300 text-[10px] font-bold rounded-lg px-2 py-1.5 focus:ring-primary-500 focus:border-primary-500">
                             </div>
                             <div class="flex items-center gap-2 ml-auto">
                                 <button id="startAttendanceBtn" onclick="window.startSelectedClass()" class="flex items-center gap-2 px-6 py-3 bg-primary-500 hover:bg-primary-600 active:scale-95 text-white font-black uppercase tracking-widest italic text-xs rounded-xl shadow-lg shadow-primary-500/25 transition-all">
@@ -181,6 +183,6 @@ require_once dirname(__DIR__) . '/core/init.php';
         };
     </script>
 
-    <script type="module" src="attendance/attendance.js?v=16"></script>
+    <script type="module" src="attendance/attendance.js?v=17"></script>
 </body>
 </html>

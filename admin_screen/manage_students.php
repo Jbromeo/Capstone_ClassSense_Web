@@ -32,6 +32,14 @@ require_once dirname(__DIR__) . '/core/init.php';
         <main class="flex-1 overflow-y-auto p-8">
             <div class="glass-panel rounded-2xl overflow-hidden animate-fade-in-up flex flex-col h-full">
                 <div class="p-6 border-b border-dark-border bg-white/5 space-y-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-3">
+                            <h3 class="text-lg font-bold text-white tracking-tight leading-none uppercase">Students</h3>
+                            <div class="px-4 py-2 bg-blue-500/20 border border-blue-500/40 rounded-full shadow-lg">
+                                <span id="studentCount" class="text-blue-300 font-black text-sm tracking-wider leading-none">...</span>
+                            </div>
+                        </div>
+                    </div>
                     <div class="relative group">
                         <i data-feather="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-blue-500 transition-colors"></i>
                         <input type="text" id="searchInput" placeholder="Search by name, username, or student ID..." class="w-full bg-dark-bg border border-dark-border rounded-xl pl-11 pr-4 py-3 text-sm text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all placeholder-gray-600 font-medium">
@@ -185,6 +193,9 @@ require_once dirname(__DIR__) . '/core/init.php';
                     : await api('/admin/manage_students.php');
                 allStudents = students;
                 renderTable(students);
+
+                // Update count badge
+                document.getElementById('studentCount').textContent = students.length;
             } catch (err) {
                 showStatus(err.message || 'Failed to load students');
             }
