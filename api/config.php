@@ -635,73 +635,55 @@ function callGroqInsight($prompt) {
     return callOpenAICompatInsight($baseUrl, $cfg['api_key'], $cfg['model'], $prompt, ['response_format' => ['type' => 'json_object']]);
 }
 
-// Call Gemini (Interactions API) with the built prompt and parse the JSON reply.
+// Call Gemini (generateContent API) with the built prompt and parse the JSON reply.
 function callGeminiInsight($prompt) {
     $providers = loadAIProviders();
     $cfg = $providers['gemini'] ?? null;
     if (!$cfg || empty($cfg['enabled']) || empty($cfg['api_key'])) {
         return ['ok' => false, 'error' => 'ai_not_configured'];
     }
-    $apiKey = $cfg['api_key'];
-    $model = $cfg['model'] ?? 'gemini-3.6-flash';
-    $endpoint = $cfg['endpoint'] ?? 'https://generativelanguage.googleapis.com/v1beta/interactions';
-    $apiRevision = $cfg['api_revision'] ?? '2026-05-20';
+    $apiKey  = $cfg['api_key'];
+    $model   = $cfg['model'] ?? 'gemini-1.5-flash';
+
+    // Standard Gemini generateContent endpoint
+    $endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/'
+        . rawurlencode($model) . ':generateContent?key=' . rawurlencode($apiKey);
 
     $payload = json_encode([
-        'model' => $model,
-        'store' => false,
-        'input' => $prompt,
-        'response_format' => [[
-            'type' => 'object',
-            'properties' => [
-                'paragraph' => ['type' => 'string'],
-                'tips' => ['type' => 'array', 'items' => ['type' => 'string']],
-            ],
-            'required' => ['paragraph', 'tips'],
-        ]],
+        'contents' => [
+            ['role' => 'user', 'parts' => [['text' => $prompt]]]
+        ],
+        'generationConfig' => [
+            'responseMimeType' => 'application/json',
+            'temperature'      => 0.7,
+            'maxOutputTokens'  => 1024,
+        ],
     ]);
 
     $ch = curl_init($endpoint);
     curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'x-goog-api-key: ' . $apiKey,
-            'Api-Revision: ' . $apiRevision,
-        ],
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 120,
+        CURLOPT_TIMEOUT        => 120,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_SSL_VERIFYPEER => true,
     ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $response  = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlError = curl_error($ch);
     curl_close($ch);
 
     if ($httpCode !== 200 || $response === false) {
-        error_log('Gemini call failed: HTTP ' . $httpCode . ' ' . ($curlError ?: $response));
-        if ($httpCode === 429) {
-            return ['ok' => false, 'error' => 'ai_quota_exceeded'];
-        }
+        error_log('Gemini call failed: HTTP ' . $httpCode . ' ' . ($curlError ?: substr((string)$response, 0, 300)));
+        if ($httpCode === 429) return ['ok' => false, 'error' => 'ai_quota_exceeded'];
         return ['ok' => false, 'error' => 'ai_request_failed'];
     }
 
+    // Gemini generateContent response: candidates[0].content.parts[0].text
     $parsed = json_decode($response, true);
-    $text = null;
-    if (isset($parsed['steps']) && is_array($parsed['steps'])) {
-        foreach ($parsed['steps'] as $step) {
-            if (($step['type'] ?? '') === 'model_output' && !empty($step['content']) && is_array($step['content'])) {
-                foreach ($step['content'] as $part) {
-                    if (isset($part['text'])) {
-                        $text = $part['text'];
-                        break 2;
-                    }
-                }
-            }
-        }
-    }
+    $text   = $parsed['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
     if (!$text) {
         error_log('Gemini returned no text: ' . substr((string)$response, 0, 300));
@@ -714,6 +696,7 @@ function callGeminiInsight($prompt) {
     }
     return normalizeInsight($decoded);
 }
+
 
 // Try providers in priority order and return the first success. Providers that
 // are disabled or unavailable are skipped automatically.

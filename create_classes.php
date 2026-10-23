@@ -29,16 +29,17 @@ try {
 
     $teacherMap = [];
     foreach ($teachers as $name) {
-        $parts = explode(' ', $name);
+        // Support names like "Des U. Mendoza" — use first word as first name, last word as last name
+        $parts = explode(' ', trim($name));
         $firstName = $parts[0];
-        $lastName = end($parts);
+        $lastName   = end($parts);
 
         $stmt = $pdo->prepare("
             SELECT TOP 1 uid, username, CONCAT(first_name, ' ', last_name) as full_name
             FROM users
             WHERE role = 'teacher'
             AND first_name LIKE ?
-            AND last_name LIKE ?
+            AND last_name  LIKE ?
         ");
         $stmt->execute(["%$firstName%", "%$lastName%"]);
         $teacher = $stmt->fetch();
@@ -58,7 +59,7 @@ try {
         [
             'teacher_name' => 'Arlyn Joy Añora',
             'class_name' => 'ICT - 7',
-            'level' => 'junior high school',
+            'level' => 'Junior High School',
             'section' => 'Callisto',
             'days' => 'M,T,W,Th,F',
             'time_start' => '07:30',
@@ -67,7 +68,7 @@ try {
         [
             'teacher_name' => 'Chrisha Mae Reyes',
             'class_name' => 'TLE - 8',
-            'level' => 'junior high school',
+            'level' => 'Junior High School',
             'section' => 'Mercury',
             'days' => 'M,T,W,Th,F',
             'time_start' => '07:30',
@@ -76,7 +77,7 @@ try {
         [
             'teacher_name' => 'Jan Eve Caparoso',
             'class_name' => 'Math - 9',
-            'level' => 'junior high school',
+            'level' => 'Junior High School',
             'section' => 'Polaris',
             'days' => 'M,T,W,Th,F',
             'time_start' => '07:30',
@@ -85,7 +86,7 @@ try {
         [
             'teacher_name' => 'Ivan Capuz',
             'class_name' => 'Science - 10',
-            'level' => 'junior high school',
+            'level' => 'Junior High School',
             'section' => 'Circinus',
             'days' => 'M,T,W,Th,F',
             'time_start' => '07:30',
@@ -94,7 +95,7 @@ try {
         [
             'teacher_name' => 'Judeizle Melijor',
             'class_name' => 'Oral Communication - 11',
-            'level' => 'senior high school',
+            'level' => 'Senior High School',
             'section' => 'Circinus',
             'days' => 'M,T,W,Th,F',
             'time_start' => '07:30',
@@ -102,8 +103,8 @@ try {
         ],
         [
             'teacher_name' => 'Des U. Mendoza',
-            'class_name' => '21st Century - 12',
-            'level' => 'senior high school',
+            'class_name' => '21st Century Literature - 12',
+            'level' => 'Senior High School',
             'section' => 'Circinus',
             'days' => 'M,T,W,Th,F',
             'time_start' => '07:30',
@@ -132,39 +133,50 @@ try {
         $teacherUid = $teacher['uid'];
 
         try {
-            // Generate class code (random 6-character alphanumeric)
-            $classCode = strtoupper(substr(md5(uniqid()), 0, 6));
+            // Generate a unique class ID (lowercase hex UUID) and 6-char class code
+            $classId   = strtolower(bin2hex(random_bytes(16)));
+            $classCode = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
+            $timeSlot  = $classData['time_start'] . ' — ' . $classData['time_end'];
+            $teacherFullName = $teacher['full_name'];
 
             $stmt = $pdo->prepare("
                 INSERT INTO classes (
+                    id,
                     teacher_uid,
+                    teacher_name,
                     class_name,
                     class_code,
                     level,
-                    section,
-                    schedule_days,
-                    time_start,
-                    time_end
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    section_name,
+                    schedule,
+                    start_time,
+                    end_time,
+                    time_slot,
+                    session_limit,
+                    status,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'In Progress', GETDATE())
             ");
 
             $stmt->execute([
+                $classId,
                 $teacherUid,
+                $teacherFullName,
                 $classData['class_name'],
                 $classCode,
                 $classData['level'],
                 $classData['section'],
                 $classData['days'],
                 $classData['time_start'],
-                $classData['time_end']
+                $classData['time_end'],
+                $timeSlot
             ]);
 
-            $classId = $pdo->lastInsertId();
             $createdClasses[] = [
-                'id' => $classId,
-                'code' => $classCode,
+                'id'      => $classId,
+                'code'    => $classCode,
                 'teacher' => $teacherName,
-                'class' => $classData['class_name'],
+                'class'   => $classData['class_name'],
                 'section' => $classData['section']
             ];
 

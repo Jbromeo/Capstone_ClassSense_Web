@@ -131,13 +131,18 @@ require_once dirname(__DIR__) . '/core/init.php';
         async function loadData() {
             try {
                 const classes = await api('/classes.php');
+                // Guard: API may return an error object instead of an array
+                if (!Array.isArray(classes)) {
+                    const msg = classes?.error || 'Unexpected response from server';
+                    throw new Error(msg);
+                }
                 const sig = JSON.stringify(classes);
                 if (sig === lastClassesSig) return;
                 lastClassesSig = sig;
                 myClasses = classes;
                 updateClassFilters();
                 await loadGradeSheets();
-                await loadAttendanceRecords(); // Add this
+                await loadAttendanceRecords();
                 await fetchAllStudentsMetadata();
             } catch (error) {
                 console.error("Directory Sync Error:", error);
@@ -151,7 +156,7 @@ require_once dirname(__DIR__) . '/core/init.php';
                                 <div class="flex flex-col items-center gap-2 opacity-50">
                                     <i data-feather="lock" class="w-8 h-8 text-primary-500 animate-pulse"></i>
                                     <span class="text-xs font-black uppercase tracking-widest italic text-primary-400">Directory Access Denied</span>
-                                    <span class="text-[9px] font-mono">${error.code}</span>
+                                    <span class="text-[9px] font-mono">${error.code || error.message}</span>
                                 </div>
                             </td>
                         </tr>`;
@@ -297,7 +302,10 @@ require_once dirname(__DIR__) . '/core/init.php';
             await Promise.all((myClasses || []).map(async c => {
                 try {
                     const records = await api(`/attendance.php?class_id=${c.id}`);
-                    attendanceRecordsCache.push(...records);
+                    // Guard: only spread if we got an array back
+                    if (Array.isArray(records)) {
+                        attendanceRecordsCache.push(...records);
+                    }
                 } catch (e) {
                     console.error(`Failed to load attendance for class ${c.id}:`, e);
                 }
@@ -419,6 +427,8 @@ require_once dirname(__DIR__) . '/core/init.php';
         }
 
         function updateStats(data) {
+            // Guard: called without args when no class is selected
+            if (!Array.isArray(data)) data = [];
             const total = data.length;
             const graded = data
                 .map(s => ({ student: s, grade: currentFilter ? computeClassFinalGrade(currentFilter, s.uid) : null }))

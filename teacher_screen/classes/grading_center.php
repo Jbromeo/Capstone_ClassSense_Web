@@ -294,18 +294,18 @@ window.gradingSystem = (() => {
         colgroupHtml += '<col style="width:110px">';
         document.getElementById('gradingColgroup').innerHTML = colgroupHtml;
 
-        let hpsRow = '<tr class="bg-primary-500/5"><th class="p-2 bg-dark-bg sticky left-0 top-[96px] z-30 border-b-2 border-r border-dark-border text-primary-500 font-black italic text-center uppercase tracking-widest text-[10px]">HPS (Max)</th>';
+        let hpsRow = '<tr class="bg-primary-500/5"><th class="p-2 bg-dark-bg sticky left-0 z-20 border-b-2 border-r border-dark-border text-primary-500 font-black italic text-center uppercase tracking-widest text-[10px]">HPS (Max)</th>';
 
         cats.forEach(cat => {
             const comps = compsByCat[cat];
             comps.forEach(c => {
-                hpsRow += `<th class="p-2 text-center border-b-2 border-r border-dark-border font-black text-white bg-white/5 sticky top-[96px] z-20 text-[10px]">${c.hps}</th>`;
+                hpsRow += `<th class="p-2 text-center border-b-2 border-r border-dark-border font-black text-white bg-white/5 text-[10px]">${c.hps}</th>`;
             });
             if (comps.length > 0) {
-                hpsRow += `<th class="p-2 text-center border-b-2 border-r border-dark-border font-black text-gray-500 italic bg-white/5 sticky top-[96px] z-20 text-[10px]">Score %</th>`;
+                hpsRow += `<th class="p-2 text-center border-b-2 border-r border-dark-border font-black text-gray-500 italic bg-white/5 text-[10px]">Score %</th>`;
             }
         });
-        hpsRow += '<th class="p-2 text-center border-b-2 border-r border-dark-border bg-dark-bg sticky top-[96px] z-20 min-w-[90px]"></th></tr>';
+        hpsRow += '<th class="p-2 text-center border-b-2 border-r border-dark-border bg-dark-bg min-w-[90px]"></th></tr>';
 
         let headerRows = '';
         cats.forEach(cat => {
@@ -330,17 +330,17 @@ window.gradingSystem = (() => {
             <div class="font-black uppercase tracking-widest text-white leading-tight text-[10px]">Final<br>Grade</div>
         </th>`;
 
-        let itemRow = '<tr class="bg-dark-bg/60"><th class="p-2 bg-dark-bg sticky left-0 top-[52px] z-30 border-b border-r border-dark-border text-gray-500 font-bold italic text-center uppercase tracking-widest text-[10px]">Component</th>';
+        let itemRow = '<tr class="bg-dark-bg/60"><th class="p-2 bg-dark-bg sticky left-0 z-20 border-b border-r border-dark-border text-gray-500 font-bold italic text-center uppercase tracking-widest text-[10px]">Component</th>';
         cats.forEach(cat => {
             const comps = compsByCat[cat];
             comps.forEach(c => {
-                itemRow += `<th class="p-2 text-center border-b border-r border-dark-border min-w-[110px] bg-dark-surface/50 group sticky top-[52px] z-20"><div class="flex flex-col items-center gap-1"><span class="text-white font-bold text-[10px] truncate max-w-[100px]">${c.name}</span><button onclick="window.gradingSystem.deleteComponent('${c.id}')" class="opacity-0 group-hover:opacity-100 text-[8px] text-red-500 hover:underline">Remove</button></div></th>`;
+                itemRow += `<th class="p-2 text-center border-b border-r border-dark-border min-w-[110px] bg-dark-surface/50 group"><div class="flex flex-col items-center gap-1"><span class="text-white font-bold text-[10px] truncate max-w-[100px]">${c.name}</span><button onclick="window.gradingSystem.deleteComponent('${c.id}')" class="opacity-0 group-hover:opacity-100 text-[8px] text-red-500 hover:underline">Remove</button></div></th>`;
             });
             if (comps.length > 0) {
-                itemRow += `<th class="p-2 text-center border-b border-r border-dark-border min-w-[70px] bg-dark-surface/80 text-gray-400 font-black italic sticky top-[52px] z-20 text-[10px]">Score %</th>`;
+                itemRow += `<th class="p-2 text-center border-b border-r border-dark-border min-w-[70px] bg-dark-surface/80 text-gray-400 font-black italic text-[10px]">Score %</th>`;
             }
         });
-        itemRow += '<th class="p-2 bg-dark-bg sticky top-[52px] z-20 border-b border-r border-dark-border"></th></tr>';
+        itemRow += '<th class="p-2 bg-dark-bg border-b border-r border-dark-border"></th></tr>';
 
         const theadHtml = `<tr class="bg-dark-bg/80 backdrop-blur-md">
             <th class="p-4 bg-dark-surface sticky left-0 top-0 z-30 border-b border-r border-dark-border min-w-[200px]">
