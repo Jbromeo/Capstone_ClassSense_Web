@@ -714,10 +714,93 @@ function callAIInsight($prompt) {
     return ['ok' => false, 'error' => $lastError];
 }
 
+// ── Local insight fallback ───────────────────────────────────────────────────
+// Called when all external AI providers fail. Generates a realistic, data-driven
+// insight paragraph + tips from the student's actual snapshot so that
+// pending_refresh is ALWAYS cleared (no infinite "Generating..." loop).
+function buildLocalInsightFallback(array $snapshot, string $className): array {
+    $att  = $snapshot['attendance'] ?? [];
+    $total   = (int)($att['total']   ?? 0);
+    $present = (int)($att['present'] ?? 0);
+    $late    = (int)($att['late']    ?? 0);
+    $absent  = (int)($att['absent']  ?? 0);
+    $attRate = $total > 0 ? round((($present + $late) / $total) * 100, 1) : null;
+
+    // Grab Term 1 data (most likely to have scores)
+    $term = null;
+    foreach ([1, 2, 3] as $q) {
+        if (!empty($snapshot['terms'][$q])) { $term = $snapshot['terms'][$q]; break; }
+    }
+
+    $finalGrade  = $term['finalGrade']      ?? null;
+    $catAvgs     = $term['categoryAverages'] ?? [];
+    $weakCat     = $term['weakestCategory'] ?? null;
+    $written     = $catAvgs['written']      ?? null;
+    $performance = $catAvgs['performance']  ?? null;
+
+    // ── Attendance sentence ───────────────────────────────────────────────────
+    if ($attRate === null || $total === 0) {
+        $attSentence = "No attendance records have been logged yet for this student.";
+    } elseif ($attRate >= 95) {
+        $attSentence = "This student has excellent attendance with a {$attRate}% presence rate across {$total} recorded session(s)" . ($late > 0 ? ", including {$late} late arrival(s)" : "") . ".";
+    } elseif ($attRate >= 85) {
+        $attSentence = "Attendance is good at {$attRate}%" . ($absent > 0 ? " with {$absent} absence(s) noted" : "") . " over {$total} session(s).";
+    } elseif ($attRate >= 70) {
+        $attSentence = "Attendance stands at {$attRate}% across {$total} session(s) with {$absent} absence(s) and {$late} late arrival(s) — consistency needs improvement.";
+    } else {
+        $attSentence = "Attendance is a concern at {$attRate}% ({$absent} absence(s) out of {$total} session(s)), which is likely affecting overall performance.";
+    }
+
+    // ── Grade sentence ────────────────────────────────────────────────────────
+    if ($finalGrade !== null) {
+        $fg = number_format($finalGrade, 1);
+        if ($finalGrade >= 90)      $gradeSentence = "Academic performance is outstanding with a final grade of {$fg}% in {$className}.";
+        elseif ($finalGrade >= 85)  $gradeSentence = "Performance is commendable with a final grade of {$fg}% in {$className}, reflecting strong understanding of the subject.";
+        elseif ($finalGrade >= 75)  $gradeSentence = "Performance is satisfactory with a final grade of {$fg}% in {$className}, meeting the minimum passing standard.";
+        elseif ($finalGrade >= 65)  $gradeSentence = "The current final grade of {$fg}% in {$className} is below the passing threshold — focused effort is needed.";
+        else                         $gradeSentence = "The current final grade of {$fg}% in {$className} is critically low and requires immediate attention and support.";
+    } else {
+        $gradeSentence = "A final grade has not yet been computed — more assessment components need scores before a complete picture is available.";
+    }
+
+    // ── Component detail ──────────────────────────────────────────────────────
+    $parts = [];
+    if ($written     !== null) $parts[] = "Written Works average of " . number_format($written, 1) . "%";
+    if ($performance !== null) $parts[] = "Performance Tasks average of " . number_format($performance, 1) . "%";
+    $componentDetail = !empty($parts) ? " The student has a " . implode(' and a ', $parts) . "." : "";
+
+    // ── Weakest category ──────────────────────────────────────────────────────
+    $catLabels = ['written' => 'Written Works', 'performance' => 'Performance Tasks', 'exam' => 'Examinations', 'attendance' => 'Attendance'];
+    $weakNote = $weakCat && isset($catLabels[$weakCat]) ? " The weakest area is {$catLabels[$weakCat]}, which should be the focus for improvement." : "";
+
+    $paragraph = trim("{$attSentence} {$gradeSentence}{$componentDetail}{$weakNote}");
+
+    // ── Tips ──────────────────────────────────────────────────────────────────
+    $tips = [];
+    if ($attRate !== null && $attRate < 90) $tips[] = "Improve attendance — every missed session can affect quiz and performance scores directly.";
+    if ($late > 1)                           $tips[] = "Make a habit of arriving on time to avoid missing key instructions or activity introductions.";
+    if ($written !== null && $written < 75)  $tips[] = "Review past quiz items, especially topics where points were lost. Seek teacher clarification on difficult areas.";
+    elseif ($written !== null)               $tips[] = "Maintain consistent quiz preparation by reviewing notes before each assessment.";
+    if ($performance !== null && $performance < 75) $tips[] = "Invest more effort in performance tasks — practice outputs before submission to improve quality.";
+    else                                             $tips[] = "Keep applying strong effort to all performance tasks, as they carry significant grading weight.";
+    if ($finalGrade !== null && $finalGrade < 75)    $tips[] = "Allocate dedicated daily study time for {$className} and consult the teacher during available hours.";
+    elseif ($finalGrade !== null && $finalGrade >= 90) $tips[] = "Outstanding work! Consider exploring enrichment materials to deepen your mastery of {$className}.";
+    else                                             $tips[] = "Stay consistent — small improvements across all components can meaningfully raise your final grade.";
+
+    return [
+        'ok'      => true,
+        'insight' => [
+            'paragraph' => $paragraph,
+            'tips'      => array_slice(array_unique($tips), 0, 4),
+        ],
+    ];
+}
+
 // Regenerate-or-serve pipeline shared by the on-demand endpoint (api/ai_insight.php)
 // and the proactive queue worker. Persists the new insight, clears the pending flag
 // and notifies the student (respecting the 24h notification cooldown).
 function generateInsight($studentUid, $classId, $forceRefresh = false) {
+
     $pdo = getPDO();
     $built = buildInsightSnapshot($pdo, $studentUid, $classId);
     $snapshot = $built['snapshot'];
@@ -794,30 +877,14 @@ function generateInsight($studentUid, $classId, $forceRefresh = false) {
 
     $ai = callAIInsight(buildInsightPrompt($className, $snapshot));
     if (!$ai['ok']) {
-        // Backoff: keep the insight queued and reset the debounce timer so the
-        // worker retries in a few minutes instead of giving up and losing the
-        // update. The cached insight (if any) stays available meanwhile.
-        try {
-            $pdo->prepare("UPDATE ai_insights SET changed_at = GETDATE() WHERE student_uid = ? AND class_id = ?")
-                ->execute([$studentUid, $classId]);
-        } catch (PDOException $e) {
-            error_log('insight backoff failed: ' . $e->getMessage());
-        }
-
-        if ($cached) {
-            return [
-                'ok' => true,
-                'cached' => true,
-                'error' => $ai['error'],
-                'insight' => [
-                    'paragraph' => $cached['insight_paragraph'],
-                    'tips' => $cached['insight_tips'] ? json_decode($cached['insight_tips'], true) : [],
-                ],
-                'analyzedAt' => $cached['created_at'],
-            ];
-        }
-        return ['ok' => false, 'error' => $ai['error']];
+        // ── Local fallback ───────────────────────────────────────────────────
+        // External AI failed (bad key, quota, network). Instead of resetting
+        // changed_at and spinning forever in "Generating...", generate a
+        // data-driven insight locally so pending_refresh is always cleared.
+        error_log('AI insight failed (' . ($ai['error'] ?? 'unknown') . ') — using local fallback for ' . $studentUid);
+        $ai = buildLocalInsightFallback($snapshot, $className);
     }
+
     $insight = $ai['insight'];
 
     $stmt = $pdo->prepare("MERGE ai_insights AS target USING (SELECT ? AS student_uid, ? AS class_id) AS source
